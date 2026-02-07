@@ -500,16 +500,17 @@ const STYLES = `
 /* Hub - Request History */
 .hub {
   position: fixed;
-  bottom: 24px;
-  left: 24px;
+  bottom: 16px;
+  left: 16px;
   background: var(--glass-bg);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid var(--glass-border);
-  border-radius: var(--border-radius);
+  border-radius: 10px;
   box-shadow: var(--glass-shadow);
   pointer-events: auto;
-  min-width: 48px;
+  min-width: 36px;
+  max-width: 200px;
   overflow: hidden;
   animation: hubIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -532,8 +533,8 @@ const STYLES = `
 .hub-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 6px 8px;
   cursor: pointer;
   user-select: none;
 }
@@ -543,39 +544,39 @@ const STYLES = `
 }
 
 .hub-logo {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   background: var(--accent);
-  border-radius: 6px;
+  border-radius: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 11px;
   color: white;
   flex-shrink: 0;
 }
 
 .hub-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-primary);
   flex: 1;
 }
 
 .hub-badge {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   background: var(--accent);
   color: white;
-  padding: 2px 6px;
-  border-radius: 10px;
-  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  min-width: 14px;
   text-align: center;
 }
 
 .hub-toggle {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -583,7 +584,7 @@ const STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 10px;
   transition: transform 0.2s;
 }
 
@@ -592,17 +593,17 @@ const STYLES = `
 }
 
 .hub-disable {
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 10px;
   transition: all 0.15s;
   flex-shrink: 0;
 }
@@ -624,13 +625,13 @@ const STYLES = `
 }
 
 .hub-content.expanded {
-  max-height: 300px;
+  max-height: 220px;
 }
 
 .hub-list {
-  max-height: 260px;
+  max-height: 200px;
   overflow-y: auto;
-  padding: 8px 0;
+  padding: 4px 0;
 }
 
 .hub-list::-webkit-scrollbar {
@@ -647,10 +648,10 @@ const STYLES = `
 }
 
 .hub-item {
-  padding: 8px 12px;
+  padding: 5px 8px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .hub-item:hover {
@@ -658,8 +659,8 @@ const STYLES = `
 }
 
 .hub-item-status {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -675,31 +676,29 @@ const STYLES = `
 }
 
 .hub-item-component {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   color: var(--text-secondary);
 }
 
 .hub-item-note {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-wrap: break-word;
 }
 
 .hub-item-undo {
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 10px;
   opacity: 0;
   transition: all 0.15s;
   flex-shrink: 0;
@@ -715,9 +714,9 @@ const STYLES = `
 }
 
 .hub-empty {
-  padding: 16px 12px;
+  padding: 10px 8px;
   text-align: center;
-  font-size: 12px;
+  font-size: 10px;
   color: var(--text-muted);
 }
 
@@ -728,8 +727,8 @@ const STYLES = `
 }
 
 .hub.collapsed .hub-header {
-  padding: 8px;
-  gap: 6px;
+  padding: 5px;
+  gap: 4px;
 }
 `;
 
@@ -1077,6 +1076,15 @@ export class EyeglassInspector extends HTMLElement {
 
   private handleMouseMove(e: MouseEvent): void {
     if (this.frozen || !this.inspectorEnabled) return;
+
+    // Don't raycast if hovering over our own UI (hub, panel, etc.)
+    // When pointer-events: auto elements in our shadow DOM are hovered,
+    // the host element will be in the composed path
+    const path = e.composedPath();
+    if (path.includes(this)) {
+      this.hideHighlight();
+      return;
+    }
 
     if (this.throttleTimeout) return;
     this.throttleTimeout = window.setTimeout(() => {

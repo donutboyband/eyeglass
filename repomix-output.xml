@@ -1,0 +1,6229 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+hooks/
+  on-focus.sh
+packages/
+  bridge/
+    dist/
+      http.d.ts
+      http.js
+      index.d.ts
+      index.js
+      mcp.d.ts
+      mcp.js
+      store.d.ts
+      store.js
+    src/
+      http.ts
+      index.ts
+      mcp.ts
+      store.ts
+    .eyeglass_context.md
+    package.json
+    tsconfig.json
+  cli/
+    dist/
+      index.d.ts
+      index.js
+    src/
+      index.ts
+    package.json
+    tsconfig.json
+  inspector/
+    dist/
+      fiber-walker.d.ts
+      fiber-walker.js
+      index.d.ts
+      index.js
+      inspector.d.ts
+      inspector.js
+      snapshot.d.ts
+      snapshot.js
+    src/
+      fiber-walker.ts
+      index.ts
+      inspector.ts
+      snapshot.ts
+    package.json
+    tsconfig.json
+  types/
+    dist/
+      index.d.ts
+      index.js
+    src/
+      index.ts
+    package.json
+    tsconfig.json
+test/
+  index.html
+.eyeglass_context.md
+.gitignore
+BOOKMARKLET.md
+package.json
+watch-eyeglass.sh
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="hooks/on-focus.sh">
+#!/bin/bash
+# Eyeglass focus watcher - triggers Claude when a new request comes in
+# This script is called by fswatch when .eyeglass_context.md changes
+
+echo "New Eyeglass request received. Please check get_focused_element() and respond to the user's request."
+</file>
+
+<file path="packages/bridge/dist/http.d.ts">
+export declare function startHttpServer(): void;
+</file>
+
+<file path="packages/bridge/dist/http.js">
+import express from 'express';
+import cors from 'cors';
+import { store } from './store.js';
+const PORT = 3300;
+const KEEPALIVE_INTERVAL = 30000;
+export function startHttpServer() {
+    const app = express();
+    app.use(cors());
+    app.use(express.json());
+    const sseClients = new Set();
+    // Health check
+    app.get('/health', (_req, res) => {
+        res.json({ status: 'ok', active: store.getActive() !== null });
+    });
+    // Browser posts focus payload here
+    app.post('/focus', (req, res) => {
+        const payload = req.body;
+        if (!payload.interactionId || !payload.snapshot || !payload.userNote) {
+            res.status(400).json({ error: 'Invalid payload' });
+            return;
+        }
+        store.setFocus(payload);
+        res.json({ success: true, interactionId: payload.interactionId });
+    });
+    // Browser posts answer to a question
+    app.post('/answer', (req, res) => {
+        const answer = req.body;
+        if (!answer.interactionId || !answer.questionId || !answer.answerId) {
+            res.status(400).json({ error: 'Invalid answer payload' });
+            return;
+        }
+        const success = store.receiveAnswer(answer);
+        if (!success) {
+            res.status(404).json({ error: 'No pending question with that ID' });
+            return;
+        }
+        res.json({ success: true });
+    });
+    // SSE endpoint for real-time activity updates
+    app.get('/events', (req, res) => {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+        sseClients.add(res);
+        // Send current state if there's an active focus
+        const active = store.getActive();
+        if (active) {
+            res.write(`data: ${JSON.stringify({ type: 'focus', payload: active })}\n\n`);
+        }
+        const keepAlive = setInterval(() => {
+            res.write(': keepalive\n\n');
+        }, KEEPALIVE_INTERVAL);
+        req.on('close', () => {
+            clearInterval(keepAlive);
+            sseClients.delete(res);
+        });
+    });
+    // Broadcast activity events to all SSE clients
+    store.on('activity', (event) => {
+        const message = `data: ${JSON.stringify({ type: 'activity', payload: event })}\n\n`;
+        for (const client of sseClients) {
+            client.write(message);
+        }
+    });
+    app.listen(PORT, () => {
+        // Server started silently
+    });
+}
+</file>
+
+<file path="packages/bridge/dist/index.d.ts">
+#!/usr/bin/env node
+export {};
+</file>
+
+<file path="packages/bridge/dist/index.js">
+#!/usr/bin/env node
+import { startHttpServer } from './http.js';
+import { startMcpServer } from './mcp.js';
+async function main() {
+    // Start MCP server first (stdio) so health checks succeed immediately
+    await startMcpServer();
+    // Then start HTTP server for browser communication
+    startHttpServer();
+}
+main().catch((err) => {
+    console.error('[eyeglass] Fatal error:', err);
+    process.exit(1);
+});
+</file>
+
+<file path="packages/bridge/dist/mcp.d.ts">
+export declare function startMcpServer(): Promise<void>;
+</file>
+
+<file path="packages/bridge/dist/mcp.js">
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
+import { store } from './store.js';
+export async function startMcpServer() {
+    const server = new Server({
+        name: 'eyeglass-bridge',
+        version: '0.1.0',
+    }, {
+        capabilities: {
+            tools: {},
+            resources: {},
+        },
+    });
+    // Track if client supports sampling
+    let clientSupportsSampling = false;
+    // Check client capabilities after connection
+    server.oninitialized = () => {
+        const clientCaps = server.getClientCapabilities();
+        clientSupportsSampling = !!clientCaps?.sampling;
+        // Debug: log client capabilities to stderr
+        console.error('[eyeglass] Client capabilities:', JSON.stringify(clientCaps, null, 2));
+        console.error('[eyeglass] Sampling supported:', clientSupportsSampling);
+    };
+    // When a new focus comes in, trigger sampling if supported
+    store.on('activity', async (event) => {
+        if (event.type === 'status' && event.status === 'pending' && clientSupportsSampling) {
+            try {
+                // Request the client to handle the new focus
+                await server.request({
+                    method: 'sampling/createMessage',
+                    params: {
+                        messages: [
+                            {
+                                role: 'user',
+                                content: {
+                                    type: 'text',
+                                    text: `🔔 New Eyeglass request received!
+
+A user has selected a UI element and needs your help. Please:
+1. Call get_focused_element() to see what they selected
+2. Use report_action() to show your progress
+3. Use send_thought() to share your reasoning
+4. Make the requested changes
+5. Call update_status("success", "message") when done
+
+Handle this request now.`,
+                                },
+                            },
+                        ],
+                        maxTokens: 4096,
+                        systemPrompt: 'You are an AI assistant helping with UI development. The user has selected an element in their browser using Eyeglass and wants you to make changes. Use the available MCP tools to see the request and fulfill it.',
+                        modelPreferences: {
+                            intelligencePriority: 0.8,
+                            speedPriority: 0.6,
+                        },
+                    },
+                }, { method: 'sampling/createMessage' });
+            }
+            catch (err) {
+                // Sampling failed or was rejected - that's okay
+            }
+        }
+    });
+    // List available resources
+    server.setRequestHandler(ListResourcesRequestSchema, async () => {
+        return {
+            resources: [
+                {
+                    uri: 'eyeglass://focus',
+                    name: 'Current Focus',
+                    description: 'The currently focused UI element and user request.',
+                    mimeType: 'text/markdown',
+                },
+            ],
+        };
+    });
+    // Read resource content
+    server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+        const { uri } = request.params;
+        if (uri === 'eyeglass://focus') {
+            const content = store.formatAsMarkdown();
+            return {
+                contents: [
+                    {
+                        uri,
+                        mimeType: 'text/markdown',
+                        text: content,
+                    },
+                ],
+            };
+        }
+        throw new Error(`Unknown resource: ${uri}`);
+    });
+    // List tools
+    server.setRequestHandler(ListToolsRequestSchema, async () => {
+        return {
+            tools: [
+                {
+                    name: 'get_focused_element',
+                    description: "Get the currently focused UI element with its semantic snapshot, accessibility tree, computed styles, and the user's change request.",
+                    inputSchema: {
+                        type: 'object',
+                        properties: {},
+                        required: [],
+                    },
+                },
+                {
+                    name: 'update_status',
+                    description: 'Update the status shown to the user in the browser overlay. Use this to communicate progress.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            status: {
+                                type: 'string',
+                                enum: ['idle', 'pending', 'fixing', 'success', 'failed'],
+                                description: 'The new status',
+                            },
+                            message: {
+                                type: 'string',
+                                description: 'Optional message to show the user',
+                            },
+                        },
+                        required: ['status'],
+                    },
+                },
+                {
+                    name: 'send_thought',
+                    description: 'Share your reasoning or decision-making with the user. Use this to explain what you are considering or why you made a choice.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            content: {
+                                type: 'string',
+                                description: 'The thought or reasoning to share',
+                            },
+                        },
+                        required: ['content'],
+                    },
+                },
+                {
+                    name: 'report_action',
+                    description: 'Report an action you are taking (reading a file, writing code, searching). This shows progress to the user.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            action: {
+                                type: 'string',
+                                enum: ['reading', 'writing', 'searching', 'thinking'],
+                                description: 'The type of action',
+                            },
+                            target: {
+                                type: 'string',
+                                description: 'What you are acting on (e.g., file path, search query)',
+                            },
+                            complete: {
+                                type: 'boolean',
+                                description: 'Whether this action is complete (default: false)',
+                            },
+                        },
+                        required: ['action', 'target'],
+                    },
+                },
+                {
+                    name: 'ask_question',
+                    description: 'Ask the user a question and wait for their answer. Use this when you need clarification or want to offer choices. This tool BLOCKS until the user responds.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            question: {
+                                type: 'string',
+                                description: 'The question to ask',
+                            },
+                            options: {
+                                type: 'array',
+                                items: { type: 'string' },
+                                description: 'The options for the user to choose from (2-4 options)',
+                            },
+                        },
+                        required: ['question', 'options'],
+                    },
+                },
+                {
+                    name: 'get_focus_history',
+                    description: 'Get the history of previously focused elements (up to 5).',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {},
+                        required: [],
+                    },
+                },
+            ],
+        };
+    });
+    // Handle tool calls
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+        const { name, arguments: args } = request.params;
+        const active = store.getActive();
+        switch (name) {
+            case 'get_focused_element': {
+                const markdown = store.formatAsMarkdown();
+                return {
+                    content: [{ type: 'text', text: markdown }],
+                };
+            }
+            case 'update_status': {
+                const { status, message } = args;
+                if (!active) {
+                    return {
+                        content: [{ type: 'text', text: 'No active focus to update.' }],
+                        isError: true,
+                    };
+                }
+                store.updateStatus(active.interactionId, status, message);
+                return {
+                    content: [
+                        { type: 'text', text: `Status updated to "${status}"${message ? `: ${message}` : ''}` },
+                    ],
+                };
+            }
+            case 'send_thought': {
+                const { content } = args;
+                if (!active) {
+                    return {
+                        content: [{ type: 'text', text: 'No active focus.' }],
+                        isError: true,
+                    };
+                }
+                store.sendThought(active.interactionId, content);
+                return {
+                    content: [{ type: 'text', text: 'Thought shared with user.' }],
+                };
+            }
+            case 'report_action': {
+                const { action, target, complete } = args;
+                if (!active) {
+                    return {
+                        content: [{ type: 'text', text: 'No active focus.' }],
+                        isError: true,
+                    };
+                }
+                store.reportAction(active.interactionId, action, target, complete ?? false);
+                return {
+                    content: [{ type: 'text', text: `Action reported: ${action} ${target}` }],
+                };
+            }
+            case 'ask_question': {
+                const { question, options } = args;
+                if (!active) {
+                    return {
+                        content: [{ type: 'text', text: 'No active focus.' }],
+                        isError: true,
+                    };
+                }
+                if (!options || options.length < 2 || options.length > 4) {
+                    return {
+                        content: [{ type: 'text', text: 'Please provide 2-4 options.' }],
+                        isError: true,
+                    };
+                }
+                const questionId = `q-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                const formattedOptions = options.map((label, i) => ({
+                    id: `opt-${i}`,
+                    label,
+                }));
+                const answer = await store.askQuestion(active.interactionId, questionId, question, formattedOptions);
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: `User selected: "${answer.answerLabel}"`,
+                        },
+                    ],
+                };
+            }
+            case 'get_focus_history': {
+                const history = store.getHistory();
+                if (history.length === 0) {
+                    return {
+                        content: [{ type: 'text', text: 'No focus history available.' }],
+                    };
+                }
+                const summary = history
+                    .map((p, i) => {
+                    const { snapshot, userNote } = p;
+                    return `${i + 1}. **${snapshot.framework.componentName || snapshot.tagName}** - "${userNote}"`;
+                })
+                    .join('\n');
+                return {
+                    content: [{ type: 'text', text: `## Focus History\n\n${summary}` }],
+                };
+            }
+            default:
+                return {
+                    content: [{ type: 'text', text: `Unknown tool: ${name}` }],
+                    isError: true,
+                };
+        }
+    });
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+}
+</file>
+
+<file path="packages/bridge/dist/store.d.ts">
+import { FocusPayload, InteractionStatus, AnswerPayload } from '@eyeglass/types';
+import { EventEmitter } from 'events';
+export declare class ContextStore extends EventEmitter {
+    private active;
+    private history;
+    private currentStatus;
+    private pendingQuestion;
+    setFocus(payload: FocusPayload): void;
+    getActive(): FocusPayload | null;
+    getHistory(): FocusPayload[];
+    updateStatus(interactionId: string, status: InteractionStatus, message?: string): void;
+    sendThought(interactionId: string, content: string): void;
+    reportAction(interactionId: string, action: 'reading' | 'writing' | 'searching' | 'thinking', target: string, complete?: boolean): void;
+    askQuestion(interactionId: string, questionId: string, question: string, options: Array<{
+        id: string;
+        label: string;
+    }>): Promise<AnswerPayload>;
+    receiveAnswer(answer: AnswerPayload): boolean;
+    hasPendingQuestion(): boolean;
+    private emitActivity;
+    formatAsMarkdown(): string;
+    private writeContextFile;
+}
+export declare const store: ContextStore;
+</file>
+
+<file path="packages/bridge/dist/store.js">
+import { EventEmitter } from 'events';
+import * as fs from 'fs';
+import * as path from 'path';
+const MAX_HISTORY = 5;
+const CONTEXT_FILE = '.eyeglass_context.md';
+export class ContextStore extends EventEmitter {
+    constructor() {
+        super(...arguments);
+        this.active = null;
+        this.history = [];
+        this.currentStatus = 'idle';
+        this.pendingQuestion = null;
+    }
+    setFocus(payload) {
+        if (this.active) {
+            this.history.unshift(this.active);
+            if (this.history.length > MAX_HISTORY) {
+                this.history.pop();
+            }
+        }
+        this.active = payload;
+        this.currentStatus = 'pending';
+        this.emitActivity({
+            type: 'status',
+            interactionId: payload.interactionId,
+            status: 'pending',
+            message: 'Waiting for agent...',
+            timestamp: Date.now(),
+        });
+        this.writeContextFile();
+    }
+    getActive() {
+        return this.active;
+    }
+    getHistory() {
+        return this.history;
+    }
+    // Status update
+    updateStatus(interactionId, status, message) {
+        if (this.active?.interactionId !== interactionId)
+            return;
+        this.currentStatus = status;
+        this.emitActivity({
+            type: 'status',
+            interactionId,
+            status,
+            message,
+            timestamp: Date.now(),
+        });
+    }
+    // Send a thought/reasoning to the user
+    sendThought(interactionId, content) {
+        if (this.active?.interactionId !== interactionId)
+            return;
+        this.emitActivity({
+            type: 'thought',
+            interactionId,
+            content,
+            timestamp: Date.now(),
+        });
+    }
+    // Report an action being taken
+    reportAction(interactionId, action, target, complete = false) {
+        if (this.active?.interactionId !== interactionId)
+            return;
+        this.emitActivity({
+            type: 'action',
+            interactionId,
+            action,
+            target,
+            complete,
+            timestamp: Date.now(),
+        });
+    }
+    // Ask a question and wait for answer
+    async askQuestion(interactionId, questionId, question, options) {
+        if (this.active?.interactionId !== interactionId) {
+            throw new Error('No active interaction');
+        }
+        // Emit the question event
+        this.emitActivity({
+            type: 'question',
+            interactionId,
+            questionId,
+            question,
+            options,
+            timestamp: Date.now(),
+        });
+        // Wait for the answer
+        return new Promise((resolve) => {
+            this.pendingQuestion = { questionId, resolve };
+        });
+    }
+    // Receive answer from the browser
+    receiveAnswer(answer) {
+        if (!this.pendingQuestion || this.pendingQuestion.questionId !== answer.questionId) {
+            return false;
+        }
+        this.pendingQuestion.resolve(answer);
+        this.pendingQuestion = null;
+        return true;
+    }
+    hasPendingQuestion() {
+        return this.pendingQuestion !== null;
+    }
+    emitActivity(event) {
+        this.emit('activity', event);
+    }
+    formatAsMarkdown() {
+        if (!this.active) {
+            return '# No Active Focus\n\nNo element is currently focused.';
+        }
+        const { snapshot, userNote, interactionId } = this.active;
+        const { framework, a11y, geometry, styles } = snapshot;
+        const componentInfo = framework.componentName
+            ? `\`<${framework.componentName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
+            : `\`<${snapshot.tagName}>\` (vanilla element)`;
+        return `## User Focus Request
+**Interaction ID:** ${interactionId}
+**User Note:** "${userNote}"
+**Component:** ${componentInfo}
+
+### Element Info
+- Tag: \`<${snapshot.tagName}>\`
+- Role: ${snapshot.role}
+- Name: "${snapshot.name}"
+
+### Accessibility Tree
+- Label: ${a11y.label ?? 'none'}
+- Description: ${a11y.description ?? 'none'}
+- Disabled: ${a11y.disabled}
+- Hidden: ${a11y.hidden}
+${a11y.expanded !== undefined ? `- Expanded: ${a11y.expanded}` : ''}
+${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}
+
+### Geometry
+- Box: ${geometry.width}x${geometry.height} at (${geometry.x}, ${geometry.y})
+- Visible: ${geometry.visible}
+
+### Computed Styles
+- Display: ${styles.display}
+- Position: ${styles.position}
+${styles.flexDirection ? `- Flex Direction: ${styles.flexDirection}` : ''}
+${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
+- Padding: ${styles.padding}
+- Margin: ${styles.margin}
+- Color: ${styles.color}
+- Background: ${styles.backgroundColor}
+- Font: ${styles.fontFamily}
+- Z-Index: ${styles.zIndex}
+
+### Framework
+- Detected: ${framework.name}
+${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
+
+### Page Context
+- URL: ${snapshot.url}
+- Timestamp: ${new Date(snapshot.timestamp).toISOString()}
+`;
+    }
+    writeContextFile() {
+        try {
+            const content = this.formatAsMarkdown();
+            fs.writeFileSync(path.resolve(process.cwd(), CONTEXT_FILE), content, 'utf-8');
+        }
+        catch (err) {
+            // Silently fail file writes
+        }
+    }
+}
+export const store = new ContextStore();
+</file>
+
+<file path="packages/bridge/src/http.ts">
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import { FocusPayload, ActivityEvent, AnswerPayload } from '@eyeglass/types';
+import { store } from './store.js';
+
+const PORT = 3300;
+const KEEPALIVE_INTERVAL = 30000;
+
+export function startHttpServer(): void {
+  const app = express();
+
+  app.use(cors());
+  app.use(express.json());
+
+  const sseClients: Set<Response> = new Set();
+
+  // Health check
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', active: store.getActive() !== null });
+  });
+
+  // Browser posts focus payload here
+  app.post('/focus', (req: Request, res: Response) => {
+    const payload = req.body as FocusPayload;
+
+    if (!payload.interactionId || !payload.snapshot || !payload.userNote) {
+      res.status(400).json({ error: 'Invalid payload' });
+      return;
+    }
+
+    store.setFocus(payload);
+    res.json({ success: true, interactionId: payload.interactionId });
+  });
+
+  // Browser posts answer to a question
+  app.post('/answer', (req: Request, res: Response) => {
+    const answer = req.body as AnswerPayload;
+
+    if (!answer.interactionId || !answer.questionId || !answer.answerId) {
+      res.status(400).json({ error: 'Invalid answer payload' });
+      return;
+    }
+
+    const success = store.receiveAnswer(answer);
+    if (!success) {
+      res.status(404).json({ error: 'No pending question with that ID' });
+      return;
+    }
+
+    res.json({ success: true });
+  });
+
+  // SSE endpoint for real-time activity updates
+  app.get('/events', (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    sseClients.add(res);
+
+    // Send current state if there's an active focus
+    const active = store.getActive();
+    if (active) {
+      res.write(`data: ${JSON.stringify({ type: 'focus', payload: active })}\n\n`);
+    }
+
+    const keepAlive = setInterval(() => {
+      res.write(': keepalive\n\n');
+    }, KEEPALIVE_INTERVAL);
+
+    req.on('close', () => {
+      clearInterval(keepAlive);
+      sseClients.delete(res);
+    });
+  });
+
+  // Broadcast activity events to all SSE clients
+  store.on('activity', (event: ActivityEvent) => {
+    const message = `data: ${JSON.stringify({ type: 'activity', payload: event })}\n\n`;
+    for (const client of sseClients) {
+      client.write(message);
+    }
+  });
+
+  app.listen(PORT, () => {
+    // Server started silently
+  });
+}
+</file>
+
+<file path="packages/bridge/src/index.ts">
+#!/usr/bin/env node
+
+import { startHttpServer } from './http.js';
+import { startMcpServer } from './mcp.js';
+
+async function main(): Promise<void> {
+  // Start MCP server first (stdio) so health checks succeed immediately
+  await startMcpServer();
+
+  // Then start HTTP server for browser communication
+  startHttpServer();
+}
+
+main().catch((err) => {
+  console.error('[eyeglass] Fatal error:', err);
+  process.exit(1);
+});
+</file>
+
+<file path="packages/bridge/src/mcp.ts">
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+import { InteractionStatus } from '@eyeglass/types';
+import { store } from './store.js';
+
+export async function startMcpServer(): Promise<void> {
+  const server = new Server(
+    {
+      name: 'eyeglass-bridge',
+      version: '0.1.0',
+    },
+    {
+      capabilities: {
+        tools: {},
+        resources: {},
+      },
+    }
+  );
+
+  // Track if client supports sampling
+  let clientSupportsSampling = false;
+
+  // Check client capabilities after connection
+  server.oninitialized = () => {
+    const clientCaps = server.getClientCapabilities();
+    clientSupportsSampling = !!clientCaps?.sampling;
+    // Debug: log client capabilities to stderr
+    console.error('[eyeglass] Client capabilities:', JSON.stringify(clientCaps, null, 2));
+    console.error('[eyeglass] Sampling supported:', clientSupportsSampling);
+  };
+
+  // When a new focus comes in, trigger sampling if supported
+  store.on('activity', async (event) => {
+    if (event.type === 'status' && event.status === 'pending' && clientSupportsSampling) {
+      try {
+        // Request the client to handle the new focus
+        await server.request(
+          {
+            method: 'sampling/createMessage',
+            params: {
+              messages: [
+                {
+                  role: 'user',
+                  content: {
+                    type: 'text',
+                    text: `🔔 New Eyeglass request received!
+
+A user has selected a UI element and needs your help. Please:
+1. Call get_focused_element() to see what they selected
+2. Use report_action() to show your progress
+3. Use send_thought() to share your reasoning
+4. Make the requested changes
+5. Call update_status("success", "message") when done
+
+Handle this request now.`,
+                  },
+                },
+              ],
+              maxTokens: 4096,
+              systemPrompt: 'You are an AI assistant helping with UI development. The user has selected an element in their browser using Eyeglass and wants you to make changes. Use the available MCP tools to see the request and fulfill it.',
+              modelPreferences: {
+                intelligencePriority: 0.8,
+                speedPriority: 0.6,
+              },
+            },
+          },
+          { method: 'sampling/createMessage' } as any
+        );
+      } catch (err) {
+        // Sampling failed or was rejected - that's okay
+      }
+    }
+  });
+
+  // List available resources
+  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    return {
+      resources: [
+        {
+          uri: 'eyeglass://focus',
+          name: 'Current Focus',
+          description: 'The currently focused UI element and user request.',
+          mimeType: 'text/markdown',
+        },
+      ],
+    };
+  });
+
+  // Read resource content
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const { uri } = request.params;
+
+    if (uri === 'eyeglass://focus') {
+      const content = store.formatAsMarkdown();
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: 'text/markdown',
+            text: content,
+          },
+        ],
+      };
+    }
+
+    throw new Error(`Unknown resource: ${uri}`);
+  });
+
+  // List tools
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return {
+      tools: [
+        {
+          name: 'get_focused_element',
+          description:
+            "Get the currently focused UI element with its semantic snapshot, accessibility tree, computed styles, and the user's change request.",
+          inputSchema: {
+            type: 'object' as const,
+            properties: {},
+            required: [],
+          },
+        },
+        {
+          name: 'update_status',
+          description:
+            'Update the status shown to the user in the browser overlay. Use this to communicate progress.',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              status: {
+                type: 'string',
+                enum: ['idle', 'pending', 'fixing', 'success', 'failed'],
+                description: 'The new status',
+              },
+              message: {
+                type: 'string',
+                description: 'Optional message to show the user',
+              },
+            },
+            required: ['status'],
+          },
+        },
+        {
+          name: 'send_thought',
+          description:
+            'Share your reasoning or decision-making with the user. Use this to explain what you are considering or why you made a choice.',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              content: {
+                type: 'string',
+                description: 'The thought or reasoning to share',
+              },
+            },
+            required: ['content'],
+          },
+        },
+        {
+          name: 'report_action',
+          description:
+            'Report an action you are taking (reading a file, writing code, searching). This shows progress to the user.',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              action: {
+                type: 'string',
+                enum: ['reading', 'writing', 'searching', 'thinking'],
+                description: 'The type of action',
+              },
+              target: {
+                type: 'string',
+                description: 'What you are acting on (e.g., file path, search query)',
+              },
+              complete: {
+                type: 'boolean',
+                description: 'Whether this action is complete (default: false)',
+              },
+            },
+            required: ['action', 'target'],
+          },
+        },
+        {
+          name: 'ask_question',
+          description:
+            'Ask the user a question and wait for their answer. Use this when you need clarification or want to offer choices. This tool BLOCKS until the user responds.',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              question: {
+                type: 'string',
+                description: 'The question to ask',
+              },
+              options: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'The options for the user to choose from (2-4 options)',
+              },
+            },
+            required: ['question', 'options'],
+          },
+        },
+        {
+          name: 'get_focus_history',
+          description: 'Get the history of previously focused elements (up to 5).',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {},
+            required: [],
+          },
+        },
+      ],
+    };
+  });
+
+  // Handle tool calls
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    const active = store.getActive();
+
+    switch (name) {
+      case 'get_focused_element': {
+        const markdown = store.formatAsMarkdown();
+        return {
+          content: [{ type: 'text', text: markdown }],
+        };
+      }
+
+      case 'update_status': {
+        const { status, message } = args as { status: InteractionStatus; message?: string };
+
+        if (!active) {
+          return {
+            content: [{ type: 'text', text: 'No active focus to update.' }],
+            isError: true,
+          };
+        }
+
+        store.updateStatus(active.interactionId, status, message);
+        return {
+          content: [
+            { type: 'text', text: `Status updated to "${status}"${message ? `: ${message}` : ''}` },
+          ],
+        };
+      }
+
+      case 'send_thought': {
+        const { content } = args as { content: string };
+
+        if (!active) {
+          return {
+            content: [{ type: 'text', text: 'No active focus.' }],
+            isError: true,
+          };
+        }
+
+        store.sendThought(active.interactionId, content);
+        return {
+          content: [{ type: 'text', text: 'Thought shared with user.' }],
+        };
+      }
+
+      case 'report_action': {
+        const { action, target, complete } = args as {
+          action: 'reading' | 'writing' | 'searching' | 'thinking';
+          target: string;
+          complete?: boolean;
+        };
+
+        if (!active) {
+          return {
+            content: [{ type: 'text', text: 'No active focus.' }],
+            isError: true,
+          };
+        }
+
+        store.reportAction(active.interactionId, action, target, complete ?? false);
+        return {
+          content: [{ type: 'text', text: `Action reported: ${action} ${target}` }],
+        };
+      }
+
+      case 'ask_question': {
+        const { question, options } = args as { question: string; options: string[] };
+
+        if (!active) {
+          return {
+            content: [{ type: 'text', text: 'No active focus.' }],
+            isError: true,
+          };
+        }
+
+        if (!options || options.length < 2 || options.length > 4) {
+          return {
+            content: [{ type: 'text', text: 'Please provide 2-4 options.' }],
+            isError: true,
+          };
+        }
+
+        const questionId = `q-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const formattedOptions = options.map((label, i) => ({
+          id: `opt-${i}`,
+          label,
+        }));
+
+        const answer = await store.askQuestion(
+          active.interactionId,
+          questionId,
+          question,
+          formattedOptions
+        );
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `User selected: "${answer.answerLabel}"`,
+            },
+          ],
+        };
+      }
+
+      case 'get_focus_history': {
+        const history = store.getHistory();
+        if (history.length === 0) {
+          return {
+            content: [{ type: 'text', text: 'No focus history available.' }],
+          };
+        }
+
+        const summary = history
+          .map((p, i) => {
+            const { snapshot, userNote } = p;
+            return `${i + 1}. **${snapshot.framework.componentName || snapshot.tagName}** - "${userNote}"`;
+          })
+          .join('\n');
+
+        return {
+          content: [{ type: 'text', text: `## Focus History\n\n${summary}` }],
+        };
+      }
+
+      default:
+        return {
+          content: [{ type: 'text', text: `Unknown tool: ${name}` }],
+          isError: true,
+        };
+    }
+  });
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+</file>
+
+<file path="packages/bridge/src/store.ts">
+import {
+  FocusPayload,
+  InteractionStatus,
+  ActivityEvent,
+  AnswerPayload,
+} from '@eyeglass/types';
+import { EventEmitter } from 'events';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const MAX_HISTORY = 5;
+const CONTEXT_FILE = '.eyeglass_context.md';
+
+interface PendingQuestion {
+  questionId: string;
+  resolve: (answer: AnswerPayload) => void;
+}
+
+export class ContextStore extends EventEmitter {
+  private active: FocusPayload | null = null;
+  private history: FocusPayload[] = [];
+  private currentStatus: InteractionStatus = 'idle';
+  private pendingQuestion: PendingQuestion | null = null;
+
+  setFocus(payload: FocusPayload): void {
+    if (this.active) {
+      this.history.unshift(this.active);
+      if (this.history.length > MAX_HISTORY) {
+        this.history.pop();
+      }
+    }
+
+    this.active = payload;
+    this.currentStatus = 'pending';
+    this.emitActivity({
+      type: 'status',
+      interactionId: payload.interactionId,
+      status: 'pending',
+      message: 'Waiting for agent...',
+      timestamp: Date.now(),
+    });
+    this.writeContextFile();
+  }
+
+  getActive(): FocusPayload | null {
+    return this.active;
+  }
+
+  getHistory(): FocusPayload[] {
+    return this.history;
+  }
+
+  // Status update
+  updateStatus(interactionId: string, status: InteractionStatus, message?: string): void {
+    if (this.active?.interactionId !== interactionId) return;
+    this.currentStatus = status;
+    this.emitActivity({
+      type: 'status',
+      interactionId,
+      status,
+      message,
+      timestamp: Date.now(),
+    });
+  }
+
+  // Send a thought/reasoning to the user
+  sendThought(interactionId: string, content: string): void {
+    if (this.active?.interactionId !== interactionId) return;
+    this.emitActivity({
+      type: 'thought',
+      interactionId,
+      content,
+      timestamp: Date.now(),
+    });
+  }
+
+  // Report an action being taken
+  reportAction(
+    interactionId: string,
+    action: 'reading' | 'writing' | 'searching' | 'thinking',
+    target: string,
+    complete = false
+  ): void {
+    if (this.active?.interactionId !== interactionId) return;
+    this.emitActivity({
+      type: 'action',
+      interactionId,
+      action,
+      target,
+      complete,
+      timestamp: Date.now(),
+    });
+  }
+
+  // Ask a question and wait for answer
+  async askQuestion(
+    interactionId: string,
+    questionId: string,
+    question: string,
+    options: Array<{ id: string; label: string }>
+  ): Promise<AnswerPayload> {
+    if (this.active?.interactionId !== interactionId) {
+      throw new Error('No active interaction');
+    }
+
+    // Emit the question event
+    this.emitActivity({
+      type: 'question',
+      interactionId,
+      questionId,
+      question,
+      options,
+      timestamp: Date.now(),
+    });
+
+    // Wait for the answer
+    return new Promise((resolve) => {
+      this.pendingQuestion = { questionId, resolve };
+    });
+  }
+
+  // Receive answer from the browser
+  receiveAnswer(answer: AnswerPayload): boolean {
+    if (!this.pendingQuestion || this.pendingQuestion.questionId !== answer.questionId) {
+      return false;
+    }
+
+    this.pendingQuestion.resolve(answer);
+    this.pendingQuestion = null;
+    return true;
+  }
+
+  hasPendingQuestion(): boolean {
+    return this.pendingQuestion !== null;
+  }
+
+  private emitActivity(event: ActivityEvent): void {
+    this.emit('activity', event);
+  }
+
+  formatAsMarkdown(): string {
+    if (!this.active) {
+      return '# No Active Focus\n\nNo element is currently focused.';
+    }
+
+    const { snapshot, userNote, interactionId } = this.active;
+    const { framework, a11y, geometry, styles } = snapshot;
+
+    const componentInfo = framework.componentName
+      ? `\`<${framework.componentName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
+      : `\`<${snapshot.tagName}>\` (vanilla element)`;
+
+    return `## User Focus Request
+**Interaction ID:** ${interactionId}
+**User Note:** "${userNote}"
+**Component:** ${componentInfo}
+
+### Element Info
+- Tag: \`<${snapshot.tagName}>\`
+- Role: ${snapshot.role}
+- Name: "${snapshot.name}"
+
+### Accessibility Tree
+- Label: ${a11y.label ?? 'none'}
+- Description: ${a11y.description ?? 'none'}
+- Disabled: ${a11y.disabled}
+- Hidden: ${a11y.hidden}
+${a11y.expanded !== undefined ? `- Expanded: ${a11y.expanded}` : ''}
+${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}
+
+### Geometry
+- Box: ${geometry.width}x${geometry.height} at (${geometry.x}, ${geometry.y})
+- Visible: ${geometry.visible}
+
+### Computed Styles
+- Display: ${styles.display}
+- Position: ${styles.position}
+${styles.flexDirection ? `- Flex Direction: ${styles.flexDirection}` : ''}
+${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
+- Padding: ${styles.padding}
+- Margin: ${styles.margin}
+- Color: ${styles.color}
+- Background: ${styles.backgroundColor}
+- Font: ${styles.fontFamily}
+- Z-Index: ${styles.zIndex}
+
+### Framework
+- Detected: ${framework.name}
+${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
+
+### Page Context
+- URL: ${snapshot.url}
+- Timestamp: ${new Date(snapshot.timestamp).toISOString()}
+`;
+  }
+
+  private writeContextFile(): void {
+    try {
+      const content = this.formatAsMarkdown();
+      fs.writeFileSync(path.resolve(process.cwd(), CONTEXT_FILE), content, 'utf-8');
+    } catch (err) {
+      // Silently fail file writes
+    }
+  }
+}
+
+export const store = new ContextStore();
+</file>
+
+<file path="packages/bridge/.eyeglass_context.md">
+## User Focus Request
+**Interaction ID:** eyeglass-1770445758929-ts78mfl
+**User Note:** "test"
+**Component:** `<li>` (vanilla element)
+
+### Element Info
+- Tag: `<li>`
+- Role: listitem
+- Name: "List item one"
+
+### Accessibility Tree
+- Label: none
+- Description: none
+- Disabled: false
+- Hidden: false
+
+
+
+### Geometry
+- Box: 678x26 at (437, 541)
+- Visible: true
+
+### Computed Styles
+- Display: list-item
+- Position: static
+
+
+- Padding: 0px
+- Margin: 0px
+- Color: rgb(0, 0, 0)
+- Background: rgba(0, 0, 0, 0)
+- Font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+- Z-Index: auto
+
+### Framework
+- Detected: vanilla
+
+
+### Page Context
+- URL: http://127.0.0.1:5500/test/index.html
+- Timestamp: 2026-02-07T06:29:17.595Z
+</file>
+
+<file path="packages/bridge/package.json">
+{
+  "name": "@eyeglass/bridge",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "eyeglass-bridge": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@eyeglass/types": "^0.1.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}
+</file>
+
+<file path="packages/bridge/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2020"],
+    "declaration": true,
+    "strict": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"]
+}
+</file>
+
+<file path="packages/cli/dist/index.d.ts">
+#!/usr/bin/env node
+export {};
+</file>
+
+<file path="packages/cli/dist/index.js">
+#!/usr/bin/env node
+import * as fs from 'fs';
+import * as path from 'path';
+const INJECTOR_SCRIPT = `// Eyeglass Inspector Injector
+// Add this script to your HTML or import in your entry file
+
+(function() {
+  if (typeof window === 'undefined') return;
+
+  const script = document.createElement('script');
+  script.type = 'module';
+  script.textContent = "import '@eyeglass/inspector';";
+  document.head.appendChild(script);
+})();
+`;
+const VITE_PLUGIN = `// Eyeglass Vite Plugin
+// Add to your vite.config.ts plugins array
+
+export function eyeglassPlugin() {
+  return {
+    name: 'eyeglass',
+    transformIndexHtml(html) {
+      if (process.env.NODE_ENV === 'production') return html;
+      return html.replace(
+        '</body>',
+        '<script type="module">import "@eyeglass/inspector";</script></body>'
+      );
+    },
+  };
+}
+`;
+const CLAUDE_CONFIG = `{
+  "mcpServers": {
+    "eyeglass": {
+      "command": "npx",
+      "args": ["eyeglass-bridge"]
+    }
+  }
+}
+`;
+function detectProjectType() {
+    const cwd = process.cwd();
+    if (fs.existsSync(path.join(cwd, 'vite.config.ts')) ||
+        fs.existsSync(path.join(cwd, 'vite.config.js'))) {
+        return 'vite';
+    }
+    if (fs.existsSync(path.join(cwd, 'next.config.js')) ||
+        fs.existsSync(path.join(cwd, 'next.config.mjs')) ||
+        fs.existsSync(path.join(cwd, 'next.config.ts'))) {
+        return 'next';
+    }
+    const pkgPath = path.join(cwd, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+        if (pkg.dependencies?.['react-scripts']) {
+            return 'cra';
+        }
+    }
+    return 'unknown';
+}
+function init() {
+    const cwd = process.cwd();
+    const projectType = detectProjectType();
+    console.log('\nEyeglass Init\n');
+    console.log('Detected project type: ' + projectType + '\n');
+    // Create .claude directory if needed
+    const claudeDir = path.join(cwd, '.claude');
+    if (!fs.existsSync(claudeDir)) {
+        fs.mkdirSync(claudeDir, { recursive: true });
+    }
+    // Write MCP config
+    const mcpConfigPath = path.join(claudeDir, 'settings.json');
+    if (!fs.existsSync(mcpConfigPath)) {
+        fs.writeFileSync(mcpConfigPath, CLAUDE_CONFIG);
+        console.log('Created .claude/settings.json with MCP server config');
+    }
+    else {
+        console.log('.claude/settings.json already exists, skipping');
+    }
+    // Write injector based on project type
+    if (projectType === 'vite') {
+        const pluginPath = path.join(cwd, 'eyeglass.plugin.ts');
+        if (!fs.existsSync(pluginPath)) {
+            fs.writeFileSync(pluginPath, VITE_PLUGIN);
+            console.log('Created eyeglass.plugin.ts');
+            console.log('\nAdd to your vite.config.ts:');
+            console.log('');
+            console.log('  import { eyeglassPlugin } from "./eyeglass.plugin";');
+            console.log('');
+            console.log('  export default defineConfig({');
+            console.log('    plugins: [eyeglassPlugin(), ...otherPlugins],');
+            console.log('  });');
+            console.log('');
+        }
+    }
+    else {
+        const injectorPath = path.join(cwd, 'eyeglass-init.js');
+        if (!fs.existsSync(injectorPath)) {
+            fs.writeFileSync(injectorPath, INJECTOR_SCRIPT);
+            console.log('Created eyeglass-init.js');
+            console.log('\nImport in your entry file:');
+            console.log('  import "./eyeglass-init";\n');
+        }
+    }
+    console.log('\nNext steps:');
+    console.log('1. Install the inspector: npm install @eyeglass/inspector');
+    console.log('2. Start the bridge server: npx eyeglass-bridge');
+    console.log('3. Run your dev server and hover over elements!');
+    console.log('');
+}
+function help() {
+    console.log(`
+Eyeglass CLI - Visual debugging for AI agents
+
+Commands:
+  eyeglass init     Initialize Eyeglass in your project
+  eyeglass help     Show this help message
+
+For more info: https://github.com/your-org/eyeglass
+`);
+}
+// Main
+const args = process.argv.slice(2);
+const command = args[0];
+switch (command) {
+    case 'init':
+        init();
+        break;
+    case 'help':
+    case '--help':
+    case '-h':
+        help();
+        break;
+    default:
+        if (command) {
+            console.error('Unknown command: ' + command + '\n');
+        }
+        help();
+        process.exit(command ? 1 : 0);
+}
+</file>
+
+<file path="packages/cli/src/index.ts">
+#!/usr/bin/env node
+
+import * as fs from 'fs';
+import * as path from 'path';
+
+const INJECTOR_SCRIPT = `// Eyeglass Inspector Injector
+// Add this script to your HTML or import in your entry file
+
+(function() {
+  if (typeof window === 'undefined') return;
+
+  const script = document.createElement('script');
+  script.type = 'module';
+  script.textContent = "import '@eyeglass/inspector';";
+  document.head.appendChild(script);
+})();
+`;
+
+const VITE_PLUGIN = `// Eyeglass Vite Plugin
+// Add to your vite.config.ts plugins array
+
+export function eyeglassPlugin() {
+  return {
+    name: 'eyeglass',
+    transformIndexHtml(html) {
+      if (process.env.NODE_ENV === 'production') return html;
+      return html.replace(
+        '</body>',
+        '<script type="module">import "@eyeglass/inspector";</script></body>'
+      );
+    },
+  };
+}
+`;
+
+const CLAUDE_CONFIG = `{
+  "mcpServers": {
+    "eyeglass": {
+      "command": "npx",
+      "args": ["eyeglass-bridge"]
+    }
+  }
+}
+`;
+
+function detectProjectType(): 'vite' | 'next' | 'cra' | 'unknown' {
+  const cwd = process.cwd();
+
+  if (fs.existsSync(path.join(cwd, 'vite.config.ts')) ||
+      fs.existsSync(path.join(cwd, 'vite.config.js'))) {
+    return 'vite';
+  }
+
+  if (fs.existsSync(path.join(cwd, 'next.config.js')) ||
+      fs.existsSync(path.join(cwd, 'next.config.mjs')) ||
+      fs.existsSync(path.join(cwd, 'next.config.ts'))) {
+    return 'next';
+  }
+
+  const pkgPath = path.join(cwd, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+    if (pkg.dependencies?.['react-scripts']) {
+      return 'cra';
+    }
+  }
+
+  return 'unknown';
+}
+
+function init(): void {
+  const cwd = process.cwd();
+  const projectType = detectProjectType();
+
+  console.log('\nEyeglass Init\n');
+  console.log('Detected project type: ' + projectType + '\n');
+
+  // Create .claude directory if needed
+  const claudeDir = path.join(cwd, '.claude');
+  if (!fs.existsSync(claudeDir)) {
+    fs.mkdirSync(claudeDir, { recursive: true });
+  }
+
+  // Write MCP config
+  const mcpConfigPath = path.join(claudeDir, 'settings.json');
+  if (!fs.existsSync(mcpConfigPath)) {
+    fs.writeFileSync(mcpConfigPath, CLAUDE_CONFIG);
+    console.log('Created .claude/settings.json with MCP server config');
+  } else {
+    console.log('.claude/settings.json already exists, skipping');
+  }
+
+  // Write injector based on project type
+  if (projectType === 'vite') {
+    const pluginPath = path.join(cwd, 'eyeglass.plugin.ts');
+    if (!fs.existsSync(pluginPath)) {
+      fs.writeFileSync(pluginPath, VITE_PLUGIN);
+      console.log('Created eyeglass.plugin.ts');
+      console.log('\nAdd to your vite.config.ts:');
+      console.log('');
+      console.log('  import { eyeglassPlugin } from "./eyeglass.plugin";');
+      console.log('');
+      console.log('  export default defineConfig({');
+      console.log('    plugins: [eyeglassPlugin(), ...otherPlugins],');
+      console.log('  });');
+      console.log('');
+    }
+  } else {
+    const injectorPath = path.join(cwd, 'eyeglass-init.js');
+    if (!fs.existsSync(injectorPath)) {
+      fs.writeFileSync(injectorPath, INJECTOR_SCRIPT);
+      console.log('Created eyeglass-init.js');
+      console.log('\nImport in your entry file:');
+      console.log('  import "./eyeglass-init";\n');
+    }
+  }
+
+  console.log('\nNext steps:');
+  console.log('1. Install the inspector: npm install @eyeglass/inspector');
+  console.log('2. Start the bridge server: npx eyeglass-bridge');
+  console.log('3. Run your dev server and hover over elements!');
+  console.log('');
+}
+
+function help(): void {
+  console.log(`
+Eyeglass CLI - Visual debugging for AI agents
+
+Commands:
+  eyeglass init     Initialize Eyeglass in your project
+  eyeglass help     Show this help message
+
+For more info: https://github.com/your-org/eyeglass
+`);
+}
+
+// Main
+const args = process.argv.slice(2);
+const command = args[0];
+
+switch (command) {
+  case 'init':
+    init();
+    break;
+  case 'help':
+  case '--help':
+  case '-h':
+    help();
+    break;
+  default:
+    if (command) {
+      console.error('Unknown command: ' + command + '\n');
+    }
+    help();
+    process.exit(command ? 1 : 0);
+}
+</file>
+
+<file path="packages/cli/package.json">
+{
+  "name": "@eyeglass/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "eyeglass": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@eyeglass/inspector": "^0.1.0",
+    "@eyeglass/bridge": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  }
+}
+</file>
+
+<file path="packages/cli/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2020"],
+    "declaration": true,
+    "strict": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"]
+}
+</file>
+
+<file path="packages/inspector/dist/fiber-walker.d.ts">
+/**
+ * React Fiber Walker - extracts component info from React DevTools internals
+ */
+export interface FrameworkInfo {
+    name: 'react' | 'vue' | 'svelte' | 'vanilla';
+    componentName?: string;
+    filePath?: string;
+    lineNumber?: number;
+    props?: Record<string, unknown>;
+}
+/**
+ * Extract framework information from a DOM element
+ */
+export declare function extractFrameworkInfo(element: Element): FrameworkInfo;
+</file>
+
+<file path="packages/inspector/dist/fiber-walker.js">
+/**
+ * React Fiber Walker - extracts component info from React DevTools internals
+ */
+// Fiber tag constants
+const FunctionComponent = 0;
+const ClassComponent = 1;
+const ForwardRef = 11;
+const MemoComponent = 14;
+const SimpleMemoComponent = 15;
+const COMPONENT_TAGS = new Set([
+    FunctionComponent,
+    ClassComponent,
+    ForwardRef,
+    MemoComponent,
+    SimpleMemoComponent,
+]);
+/**
+ * Find the React Fiber attached to a DOM element
+ */
+function getFiberFromElement(element) {
+    const keys = Object.keys(element);
+    const fiberKey = keys.find((k) => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
+    if (!fiberKey)
+        return null;
+    return element[fiberKey];
+}
+/**
+ * Walk up the fiber tree to find the nearest user-defined component
+ */
+function findComponentFiber(fiber) {
+    let current = fiber;
+    while (current) {
+        if (COMPONENT_TAGS.has(current.tag) && typeof current.type === 'function') {
+            // Skip built-in React components (Context.Provider, etc.)
+            const name = current.type.displayName || current.type.name || '';
+            if (name && !name.startsWith('Context') && !name.endsWith('Provider')) {
+                return current;
+            }
+        }
+        current = current.return;
+    }
+    return null;
+}
+/**
+ * Get safe props (primitives only, no functions/objects)
+ */
+function getSafeProps(props) {
+    if (!props)
+        return undefined;
+    const safe = {};
+    for (const [key, value] of Object.entries(props)) {
+        if (key === 'children')
+            continue;
+        const type = typeof value;
+        if (type === 'string' || type === 'number' || type === 'boolean' || value === null) {
+            safe[key] = value;
+        }
+    }
+    return Object.keys(safe).length > 0 ? safe : undefined;
+}
+/**
+ * Detect Vue component
+ */
+function detectVue(element) {
+    const vueInstance = element.__vue__;
+    if (vueInstance) {
+        const componentName = vueInstance.$options?.name || vueInstance.$options?._componentTag;
+        return {
+            name: 'vue',
+            componentName,
+        };
+    }
+    // Vue 3
+    const vueKey = Object.keys(element).find((k) => k.startsWith('__vueParentComponent'));
+    if (vueKey) {
+        const instance = element[vueKey];
+        return {
+            name: 'vue',
+            componentName: instance?.type?.name,
+        };
+    }
+    return null;
+}
+/**
+ * Detect Svelte component
+ */
+function detectSvelte(element) {
+    const svelteKey = Object.keys(element).find((k) => k.startsWith('__svelte'));
+    if (svelteKey) {
+        return {
+            name: 'svelte',
+        };
+    }
+    return null;
+}
+/**
+ * Extract framework information from a DOM element
+ */
+export function extractFrameworkInfo(element) {
+    // Try React first
+    const fiber = getFiberFromElement(element);
+    if (fiber) {
+        const componentFiber = findComponentFiber(fiber);
+        if (componentFiber) {
+            const componentName = componentFiber.type.displayName || componentFiber.type.name || undefined;
+            const debugSource = componentFiber._debugSource;
+            return {
+                name: 'react',
+                componentName,
+                filePath: debugSource?.fileName,
+                lineNumber: debugSource?.lineNumber,
+                props: getSafeProps(componentFiber.memoizedProps),
+            };
+        }
+        // React element but no user component found (just DOM nodes)
+        return { name: 'react' };
+    }
+    // Try Vue
+    const vueInfo = detectVue(element);
+    if (vueInfo)
+        return vueInfo;
+    // Try Svelte
+    const svelteInfo = detectSvelte(element);
+    if (svelteInfo)
+        return svelteInfo;
+    // Vanilla fallback
+    return { name: 'vanilla' };
+}
+</file>
+
+<file path="packages/inspector/dist/index.d.ts">
+/**
+ * @eyeglass/inspector - Browser-side inspection web component
+ *
+ * Usage:
+ *   import '@eyeglass/inspector';
+ *   // Or inject via script tag
+ *
+ * This automatically registers the <eyeglass-inspector> custom element.
+ */
+export { EyeglassInspector } from './inspector.js';
+export { captureSnapshot } from './snapshot.js';
+export { extractFrameworkInfo } from './fiber-walker.js';
+export type { FrameworkInfo } from './fiber-walker.js';
+/**
+ * Initialize the inspector by appending it to the document
+ */
+export declare function initInspector(): void;
+</file>
+
+<file path="packages/inspector/dist/index.js">
+/**
+ * @eyeglass/inspector - Browser-side inspection web component
+ *
+ * Usage:
+ *   import '@eyeglass/inspector';
+ *   // Or inject via script tag
+ *
+ * This automatically registers the <eyeglass-inspector> custom element.
+ */
+export { EyeglassInspector } from './inspector.js';
+export { captureSnapshot } from './snapshot.js';
+export { extractFrameworkInfo } from './fiber-walker.js';
+/**
+ * Initialize the inspector by appending it to the document
+ */
+export function initInspector() {
+    if (document.querySelector('eyeglass-inspector')) {
+        console.warn('[eyeglass] Inspector already initialized');
+        return;
+    }
+    const inspector = document.createElement('eyeglass-inspector');
+    document.body.appendChild(inspector);
+    console.log('[eyeglass] Inspector initialized. Hover over elements and click to annotate.');
+}
+// Auto-initialize when imported in a browser context
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initInspector);
+    }
+    else {
+        initInspector();
+    }
+}
+</file>
+
+<file path="packages/inspector/dist/inspector.d.ts">
+/**
+ * Eyeglass Inspector - Glass UI for visual element inspection
+ */
+export declare class EyeglassInspector extends HTMLElement {
+    private shadow;
+    private highlight;
+    private panel;
+    private toast;
+    private hub;
+    private currentElement;
+    private currentSnapshot;
+    private interactionId;
+    private frozen;
+    private eventSource;
+    private throttleTimeout;
+    private mode;
+    private activityEvents;
+    private currentStatus;
+    private hubExpanded;
+    private inspectorEnabled;
+    private history;
+    private isDragging;
+    private dragOffset;
+    private customPanelPosition;
+    constructor();
+    connectedCallback(): void;
+    private saveSession;
+    private restoreSession;
+    private showResultToast;
+    private hideToast;
+    private loadHistory;
+    private saveHistory;
+    private addToHistory;
+    private updateHistoryStatus;
+    private renderHub;
+    private requestUndo;
+    disconnectedCallback(): void;
+    private connectSSE;
+    private handleActivityEvent;
+    private handleMouseMove;
+    private handleClick;
+    private handleKeyDown;
+    private handlePanelDragStart;
+    private handlePanelDrag;
+    private handlePanelDragEnd;
+    private showHighlight;
+    private hideHighlight;
+    private freeze;
+    private unfreeze;
+    private renderPanel;
+    private renderInputMode;
+    private renderActivityMode;
+    private renderActivityFeed;
+    private renderStatusItem;
+    private renderThoughtItem;
+    private renderActionItem;
+    private renderQuestionItem;
+    private getUserNote;
+    private getStatusText;
+    private hidePanel;
+    private submit;
+    private submitAnswer;
+    private escapeHtml;
+}
+</file>
+
+<file path="packages/inspector/dist/inspector.js">
+/**
+ * Eyeglass Inspector - Glass UI for visual element inspection
+ */
+import { captureSnapshot } from './snapshot.js';
+const BRIDGE_URL = 'http://localhost:3300';
+const STORAGE_KEY = 'eyeglass_session';
+const HISTORY_KEY = 'eyeglass_history';
+const SESSION_TTL = 10000; // 10 seconds
+const STYLES = `
+:host {
+  all: initial;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2147483647;
+  pointer-events: none;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  box-sizing: border-box;
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(0, 0, 0, 0.25);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  --divider: rgba(0, 0, 0, 0.18);
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --accent: #6366f1;
+  --accent-soft: rgba(99, 102, 241, 0.1);
+  --success: #10b981;
+  --error: #ef4444;
+  --border-radius: 16px;
+  --border-radius-sm: 10px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Highlight overlay */
+.highlight {
+  position: absolute;
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+  pointer-events: none;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 4px;
+}
+
+/* Glass Panel */
+.glass-panel {
+  position: absolute;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--glass-shadow);
+  pointer-events: auto;
+  width: 340px;
+  overflow: hidden;
+  animation: panelIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Panel Header */
+.panel-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--divider);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: grab;
+  user-select: none;
+}
+
+.panel-header:active {
+  cursor: grabbing;
+}
+
+.component-tag {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: -0.01em;
+}
+
+.file-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.close-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-secondary);
+}
+
+/* User Request */
+.user-request {
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom: 1px solid var(--divider);
+}
+
+.user-request-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.user-request-text {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Input Mode */
+.input-area {
+  padding: 12px 16px 16px;
+}
+
+.input-field {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--border-radius-sm);
+  font-size: 13px;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text-primary);
+  outline: none;
+  transition: all 0.15s;
+}
+
+.input-field::placeholder {
+  color: var(--text-muted);
+}
+
+.input-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: white;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn {
+  flex: 1;
+  padding: 9px 14px;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #4f46e5;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-secondary);
+}
+
+.btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Activity Feed */
+.activity-feed {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.activity-feed::-webkit-scrollbar {
+  width: 6px;
+}
+
+.activity-feed::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.activity-feed::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.activity-item {
+  padding: 8px 16px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  animation: itemIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes itemIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.activity-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.activity-icon.status { background: var(--accent-soft); color: var(--accent); }
+.activity-icon.thought { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+.activity-icon.action { background: rgba(14, 165, 233, 0.1); color: #0ea5e9; }
+.activity-icon.question { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+.activity-icon.success { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+.activity-icon.error { background: rgba(239, 68, 68, 0.1); color: var(--error); }
+
+.activity-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-text {
+  color: var(--text-primary);
+  word-wrap: break-word;
+}
+
+.activity-text.muted {
+  color: var(--text-secondary);
+}
+
+.activity-target {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Question UI */
+.question-box {
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  border-radius: var(--border-radius-sm);
+  padding: 12px;
+  margin: 8px 16px;
+  animation: questionIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes questionIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.question-text {
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.question-option {
+  padding: 7px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  background: white;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.question-option:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Status Footer */
+.panel-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--divider);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.status-indicator.pending {
+  background: var(--accent);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.status-indicator.fixing {
+  background: #0ea5e9;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.status-indicator.success { background: var(--success); }
+.status-indicator.failed { background: var(--error); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.9); }
+}
+
+.status-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+/* Done state */
+.panel-footer.done {
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.panel-footer.done .status-text {
+  color: var(--success);
+  font-weight: 500;
+}
+
+/* Result Toast - shows after page reload */
+.result-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--glass-shadow);
+  padding: 14px 18px;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  max-width: 320px;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.toast-icon.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+.toast-icon.failed {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error);
+}
+
+.toast-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.toast-message {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.toast-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-secondary);
+}
+
+/* Hub - Request History */
+.hub {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  box-shadow: var(--glass-shadow);
+  pointer-events: auto;
+  min-width: 36px;
+  max-width: 200px;
+  overflow: hidden;
+  animation: hubIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes hubIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.hub.disabled {
+  opacity: 0.5;
+}
+
+.hub-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.hub-header:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.hub-logo {
+  width: 20px;
+  height: 20px;
+  background: var(--accent);
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.hub-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.hub-badge {
+  font-size: 9px;
+  font-weight: 600;
+  background: var(--accent);
+  color: white;
+  padding: 1px 5px;
+  border-radius: 8px;
+  min-width: 14px;
+  text-align: center;
+}
+
+.hub-toggle {
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+
+.hub-toggle.expanded {
+  transform: rotate(180deg);
+}
+
+.hub-disable {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.hub-disable:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-secondary);
+}
+
+.hub-disable.active {
+  color: var(--accent);
+}
+
+.hub-content {
+  border-top: 1px solid var(--divider);
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hub-content.expanded {
+  max-height: 220px;
+}
+
+.hub-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.hub-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.hub-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hub-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.hub-item {
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hub-item:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.hub-item-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hub-item-status.pending { background: var(--accent); animation: pulse 1.5s ease-in-out infinite; }
+.hub-item-status.fixing { background: #0ea5e9; animation: pulse 1s ease-in-out infinite; }
+.hub-item-status.success { background: var(--success); }
+.hub-item-status.failed { background: var(--error); }
+
+.hub-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.hub-item-component {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.hub-item-note {
+  font-size: 11px;
+  color: var(--text-primary);
+  word-wrap: break-word;
+}
+
+.hub-item-undo {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  opacity: 0;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.hub-item:hover .hub-item-undo {
+  opacity: 1;
+}
+
+.hub-item-undo:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+}
+
+.hub-empty {
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Collapsed hub (minimal) */
+.hub.collapsed .hub-title,
+.hub.collapsed .hub-toggle {
+  display: none;
+}
+
+.hub.collapsed .hub-header {
+  padding: 5px;
+  gap: 4px;
+}
+`;
+export class EyeglassInspector extends HTMLElement {
+    constructor() {
+        super();
+        this.highlight = null;
+        this.panel = null;
+        this.toast = null;
+        this.hub = null;
+        this.currentElement = null;
+        this.currentSnapshot = null;
+        this.interactionId = null;
+        this.frozen = false;
+        this.eventSource = null;
+        this.throttleTimeout = null;
+        this.mode = 'input';
+        this.activityEvents = [];
+        this.currentStatus = 'idle';
+        this.hubExpanded = false;
+        this.inspectorEnabled = true;
+        this.history = [];
+        this.isDragging = false;
+        this.dragOffset = { x: 0, y: 0 };
+        this.customPanelPosition = null;
+        this.handlePanelDrag = (e) => {
+            if (!this.isDragging || !this.panel)
+                return;
+            const x = Math.max(0, Math.min(e.clientX - this.dragOffset.x, window.innerWidth - 340));
+            const y = Math.max(0, Math.min(e.clientY - this.dragOffset.y, window.innerHeight - 100));
+            this.customPanelPosition = { x, y };
+            this.panel.style.left = `${x}px`;
+            this.panel.style.top = `${y}px`;
+        };
+        this.handlePanelDragEnd = () => {
+            this.isDragging = false;
+            document.removeEventListener('mousemove', this.handlePanelDrag);
+            document.removeEventListener('mouseup', this.handlePanelDragEnd);
+        };
+        this.shadow = this.attachShadow({ mode: 'closed' });
+    }
+    connectedCallback() {
+        const style = document.createElement('style');
+        style.textContent = STYLES;
+        this.shadow.appendChild(style);
+        this.highlight = document.createElement('div');
+        this.highlight.className = 'highlight';
+        this.highlight.style.display = 'none';
+        this.shadow.appendChild(this.highlight);
+        this.handleMouseMove = this.handleMouseMove.bind(this);
+        this.handleClick = this.handleClick.bind(this);
+        this.handleKeyDown = this.handleKeyDown.bind(this);
+        this.handlePanelDragStart = this.handlePanelDragStart.bind(this);
+        document.addEventListener('mousemove', this.handleMouseMove, true);
+        document.addEventListener('click', this.handleClick, true);
+        document.addEventListener('keydown', this.handleKeyDown, true);
+        this.loadHistory();
+        this.renderHub();
+        this.connectSSE();
+        this.restoreSession();
+    }
+    saveSession(message) {
+        if (!this.interactionId)
+            return;
+        const session = {
+            interactionId: this.interactionId,
+            userNote: this._userNote || '',
+            componentName: this.currentSnapshot?.framework.componentName || this.currentSnapshot?.tagName || 'element',
+            status: this.currentStatus,
+            message,
+            timestamp: Date.now(),
+        };
+        try {
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+        }
+        catch (e) {
+            // Ignore storage errors
+        }
+    }
+    restoreSession() {
+        try {
+            const stored = sessionStorage.getItem(STORAGE_KEY);
+            if (!stored)
+                return;
+            const session = JSON.parse(stored);
+            // Check if session is still fresh
+            if (Date.now() - session.timestamp > SESSION_TTL) {
+                sessionStorage.removeItem(STORAGE_KEY);
+                return;
+            }
+            // Only show toast for completed sessions
+            if (session.status === 'success' || session.status === 'failed') {
+                this.showResultToast(session);
+                sessionStorage.removeItem(STORAGE_KEY);
+            }
+        }
+        catch (e) {
+            // Ignore parse errors
+        }
+    }
+    showResultToast(session) {
+        this.toast = document.createElement('div');
+        this.toast.className = 'result-toast';
+        const isSuccess = session.status === 'success';
+        const icon = isSuccess ? '✓' : '✕';
+        const title = isSuccess ? 'Done!' : 'Failed';
+        this.toast.innerHTML = `
+      <div class="toast-icon ${session.status}">${icon}</div>
+      <div class="toast-content">
+        <div class="toast-title">${title}</div>
+        <div class="toast-message">${this.escapeHtml(session.message || session.userNote)}</div>
+      </div>
+      <button class="toast-close">&times;</button>
+    `;
+        const closeBtn = this.toast.querySelector('.toast-close');
+        closeBtn.addEventListener('click', () => this.hideToast());
+        this.shadow.appendChild(this.toast);
+        // Auto-hide after 4 seconds
+        setTimeout(() => this.hideToast(), 4000);
+    }
+    hideToast() {
+        if (this.toast) {
+            this.toast.remove();
+            this.toast = null;
+        }
+    }
+    loadHistory() {
+        try {
+            const stored = sessionStorage.getItem(HISTORY_KEY);
+            if (stored) {
+                this.history = JSON.parse(stored);
+            }
+        }
+        catch (e) {
+            this.history = [];
+        }
+    }
+    saveHistory() {
+        try {
+            sessionStorage.setItem(HISTORY_KEY, JSON.stringify(this.history));
+        }
+        catch (e) {
+            // Ignore storage errors
+        }
+    }
+    addToHistory(item) {
+        // Check if this interaction already exists
+        const existingIndex = this.history.findIndex(h => h.interactionId === item.interactionId);
+        if (existingIndex >= 0) {
+            this.history[existingIndex] = item;
+        }
+        else {
+            this.history.unshift(item);
+            // Keep only last 20 items
+            if (this.history.length > 20) {
+                this.history = this.history.slice(0, 20);
+            }
+        }
+        this.saveHistory();
+        this.renderHub();
+    }
+    updateHistoryStatus(interactionId, status) {
+        const item = this.history.find(h => h.interactionId === interactionId);
+        if (item) {
+            item.status = status;
+            this.saveHistory();
+            this.renderHub();
+        }
+    }
+    renderHub() {
+        if (!this.hub) {
+            this.hub = document.createElement('div');
+            this.hub.className = 'hub';
+            this.shadow.appendChild(this.hub);
+        }
+        const collapsedClass = this.hubExpanded ? '' : 'collapsed';
+        const disabledClass = this.inspectorEnabled ? '' : 'disabled';
+        const expandedClass = this.hubExpanded ? 'expanded' : '';
+        const activeCount = this.history.filter(h => h.status === 'pending' || h.status === 'fixing').length;
+        this.hub.className = `hub ${collapsedClass} ${disabledClass}`.trim();
+        this.hub.innerHTML = `
+      <div class="hub-header">
+        <div class="hub-logo">👁</div>
+        <span class="hub-title">Eyeglass</span>
+        ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ''}
+        <button class="hub-toggle ${expandedClass}" title="Toggle history">▼</button>
+        <button class="hub-disable ${this.inspectorEnabled ? 'active' : ''}" title="${this.inspectorEnabled ? 'Disable' : 'Enable'} inspector">
+          ${this.inspectorEnabled ? '●' : '○'}
+        </button>
+      </div>
+      <div class="hub-content ${expandedClass}">
+        ${this.history.length > 0 ? `
+          <div class="hub-list">
+            ${this.history.map(item => `
+              <div class="hub-item" data-id="${item.interactionId}">
+                <div class="hub-item-status ${item.status}"></div>
+                <div class="hub-item-content">
+                  <div class="hub-item-component">${this.escapeHtml(item.componentName)}</div>
+                  <div class="hub-item-note">${this.escapeHtml(item.userNote)}</div>
+                </div>
+                ${item.status === 'success' ? `
+                  <button class="hub-item-undo" data-id="${item.interactionId}" title="Undo">↩</button>
+                ` : ''}
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div class="hub-empty">No requests yet</div>
+        `}
+      </div>
+    `;
+        // Wire up event handlers
+        const header = this.hub.querySelector('.hub-header');
+        const toggleBtn = this.hub.querySelector('.hub-toggle');
+        const disableBtn = this.hub.querySelector('.hub-disable');
+        // Toggle expand/collapse on header click (except disable button)
+        header.addEventListener('click', (e) => {
+            if (e.target === disableBtn)
+                return;
+            this.hubExpanded = !this.hubExpanded;
+            this.renderHub();
+        });
+        // Toggle inspector enabled state
+        disableBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.inspectorEnabled = !this.inspectorEnabled;
+            if (!this.inspectorEnabled) {
+                this.unfreeze();
+            }
+            this.renderHub();
+        });
+        // Wire up undo buttons
+        this.hub.querySelectorAll('.hub-item-undo').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = e.currentTarget.dataset.id;
+                this.requestUndo(id);
+            });
+        });
+    }
+    async requestUndo(interactionId) {
+        const item = this.history.find(h => h.interactionId === interactionId);
+        if (!item)
+            return;
+        try {
+            const response = await fetch(`${BRIDGE_URL}/undo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ interactionId }),
+            });
+            if (response.ok) {
+                // Mark as pending while undo is in progress
+                item.status = 'pending';
+                this.saveHistory();
+                this.renderHub();
+            }
+        }
+        catch (err) {
+            // Silently fail, bridge may not support undo yet
+            console.warn('Undo request failed:', err);
+        }
+    }
+    disconnectedCallback() {
+        document.removeEventListener('mousemove', this.handleMouseMove, true);
+        document.removeEventListener('click', this.handleClick, true);
+        document.removeEventListener('keydown', this.handleKeyDown, true);
+        this.eventSource?.close();
+    }
+    connectSSE() {
+        this.eventSource = new EventSource(`${BRIDGE_URL}/events`);
+        this.eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'activity') {
+                    this.handleActivityEvent(data.payload);
+                }
+            }
+            catch (e) {
+                // Ignore parse errors
+            }
+        };
+        this.eventSource.onerror = () => {
+            this.eventSource?.close();
+            setTimeout(() => this.connectSSE(), 3000);
+        };
+    }
+    handleActivityEvent(event) {
+        // Update history for any matching interaction, even if not current
+        if (event.type === 'status') {
+            this.updateHistoryStatus(event.interactionId, event.status);
+        }
+        if (event.interactionId !== this.interactionId)
+            return;
+        this.activityEvents.push(event);
+        if (event.type === 'status') {
+            this.currentStatus = event.status;
+            // Persist session so we can show result after page reload
+            this.saveSession(event.message);
+            if (event.status === 'success' || event.status === 'failed') {
+                setTimeout(() => this.unfreeze(), 4000);
+            }
+        }
+        this.renderPanel();
+    }
+    handleMouseMove(e) {
+        if (this.frozen || !this.inspectorEnabled)
+            return;
+        // Don't raycast if hovering over our own UI (hub, panel, etc.)
+        // When pointer-events: auto elements in our shadow DOM are hovered,
+        // the host element will be in the composed path
+        const path = e.composedPath();
+        if (path.includes(this)) {
+            this.hideHighlight();
+            return;
+        }
+        if (this.throttleTimeout)
+            return;
+        this.throttleTimeout = window.setTimeout(() => {
+            this.throttleTimeout = null;
+        }, 16);
+        this.style.pointerEvents = 'none';
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        this.style.pointerEvents = '';
+        if (!target || target === document.documentElement || target === document.body) {
+            this.hideHighlight();
+            return;
+        }
+        if (this.shadow.contains(target))
+            return;
+        this.currentElement = target;
+        this.showHighlight(target);
+    }
+    handleClick(e) {
+        if (this.frozen || !this.inspectorEnabled)
+            return;
+        if (!this.currentElement)
+            return;
+        const path = e.composedPath();
+        if (path.some((el) => el === this))
+            return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.freeze();
+    }
+    handleKeyDown(e) {
+        if (e.key === 'Escape') {
+            this.unfreeze();
+        }
+    }
+    handlePanelDragStart(e) {
+        // Don't drag if clicking on buttons
+        if (e.target.closest('button'))
+            return;
+        this.isDragging = true;
+        const panelRect = this.panel.getBoundingClientRect();
+        this.dragOffset = {
+            x: e.clientX - panelRect.left,
+            y: e.clientY - panelRect.top,
+        };
+        document.addEventListener('mousemove', this.handlePanelDrag);
+        document.addEventListener('mouseup', this.handlePanelDragEnd);
+    }
+    showHighlight(element) {
+        if (!this.highlight)
+            return;
+        const rect = element.getBoundingClientRect();
+        this.highlight.style.display = 'block';
+        this.highlight.style.left = `${rect.left - 2}px`;
+        this.highlight.style.top = `${rect.top - 2}px`;
+        this.highlight.style.width = `${rect.width + 4}px`;
+        this.highlight.style.height = `${rect.height + 4}px`;
+    }
+    hideHighlight() {
+        if (this.highlight) {
+            this.highlight.style.display = 'none';
+        }
+        this.currentElement = null;
+    }
+    freeze() {
+        if (!this.currentElement)
+            return;
+        this.frozen = true;
+        this.currentSnapshot = captureSnapshot(this.currentElement);
+        this.mode = 'input';
+        this.activityEvents = [];
+        this.currentStatus = 'idle';
+        this.renderPanel();
+    }
+    unfreeze() {
+        this.frozen = false;
+        this.currentSnapshot = null;
+        this.interactionId = null;
+        this.mode = 'input';
+        this.activityEvents = [];
+        this.customPanelPosition = null;
+        this.hidePanel();
+        this.hideHighlight();
+        // Clear persisted session
+        try {
+            sessionStorage.removeItem(STORAGE_KEY);
+        }
+        catch (e) {
+            // Ignore
+        }
+    }
+    renderPanel() {
+        if (!this.currentSnapshot || !this.currentElement)
+            return;
+        const rect = this.currentElement.getBoundingClientRect();
+        const { framework } = this.currentSnapshot;
+        if (!this.panel) {
+            this.panel = document.createElement('div');
+            this.panel.className = 'glass-panel';
+            this.shadow.appendChild(this.panel);
+        }
+        // Position panel - use custom position if user has dragged it
+        if (this.customPanelPosition) {
+            this.panel.style.left = `${this.customPanelPosition.x}px`;
+            this.panel.style.top = `${this.customPanelPosition.y}px`;
+        }
+        else {
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const panelHeight = this.mode === 'activity' ? 400 : 200;
+            let top = rect.bottom + 12;
+            if (spaceBelow < panelHeight && rect.top > panelHeight) {
+                top = rect.top - panelHeight - 12;
+            }
+            let left = rect.left;
+            if (left + 340 > window.innerWidth - 20) {
+                left = window.innerWidth - 360;
+            }
+            if (left < 20)
+                left = 20;
+            this.panel.style.left = `${left}px`;
+            this.panel.style.top = `${top}px`;
+        }
+        const componentName = framework.componentName || this.currentSnapshot.tagName;
+        const filePath = framework.filePath
+            ? framework.filePath.split('/').slice(-2).join('/')
+            : null;
+        if (this.mode === 'input') {
+            this.renderInputMode(componentName, filePath);
+        }
+        else {
+            this.renderActivityMode(componentName, filePath);
+        }
+    }
+    renderInputMode(componentName, filePath) {
+        if (!this.panel)
+            return;
+        this.panel.innerHTML = `
+      <div class="panel-header">
+        <span class="component-tag">&lt;${componentName} /&gt;</span>
+        ${filePath ? `<span class="file-path">${filePath}</span>` : ''}
+        <button class="close-btn" title="Cancel (Esc)">&times;</button>
+      </div>
+      <div class="input-area">
+        <input
+          type="text"
+          class="input-field"
+          placeholder="What do you want to change?"
+          autofocus
+        />
+        <div class="btn-row">
+          <button class="btn btn-secondary">Cancel</button>
+          <button class="btn btn-primary">Send</button>
+        </div>
+      </div>
+    `;
+        const input = this.panel.querySelector('.input-field');
+        const closeBtn = this.panel.querySelector('.close-btn');
+        const cancelBtn = this.panel.querySelector('.btn-secondary');
+        const sendBtn = this.panel.querySelector('.btn-primary');
+        closeBtn.addEventListener('click', () => this.unfreeze());
+        cancelBtn.addEventListener('click', () => this.unfreeze());
+        sendBtn.addEventListener('click', () => this.submit(input.value));
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && input.value.trim()) {
+                this.submit(input.value);
+            }
+        });
+        // Make panel draggable via header
+        const header = this.panel.querySelector('.panel-header');
+        header.addEventListener('mousedown', this.handlePanelDragStart);
+        requestAnimationFrame(() => input.focus());
+    }
+    renderActivityMode(componentName, filePath) {
+        if (!this.panel)
+            return;
+        const userNote = this.activityEvents.length > 0
+            ? (this.panel.querySelector('.user-request-text')?.textContent || '')
+            : '';
+        const isDone = this.currentStatus === 'success' || this.currentStatus === 'failed';
+        this.panel.innerHTML = `
+      <div class="panel-header">
+        <span class="component-tag">&lt;${componentName} /&gt;</span>
+        ${filePath ? `<span class="file-path">${filePath}</span>` : ''}
+        <button class="close-btn" title="Close">&times;</button>
+      </div>
+      <div class="user-request">
+        <div class="user-request-label">Your request</div>
+        <div class="user-request-text">${this.escapeHtml(this.getUserNote())}</div>
+      </div>
+      <div class="activity-feed">
+        ${this.renderActivityFeed()}
+      </div>
+      <div class="panel-footer ${isDone ? 'done' : ''}">
+        <div class="status-indicator ${this.currentStatus}"></div>
+        <span class="status-text">${this.getStatusText()}</span>
+      </div>
+    `;
+        const closeBtn = this.panel.querySelector('.close-btn');
+        closeBtn.addEventListener('click', () => this.unfreeze());
+        // Make panel draggable via header
+        const header = this.panel.querySelector('.panel-header');
+        header.addEventListener('mousedown', this.handlePanelDragStart);
+        // Wire up question buttons if present
+        this.panel.querySelectorAll('.question-option').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                const target = e.target;
+                const questionId = target.dataset.questionId;
+                const answerId = target.dataset.answerId;
+                const answerLabel = target.textContent;
+                this.submitAnswer(questionId, answerId, answerLabel);
+            });
+        });
+        // Scroll to bottom of activity feed
+        const feed = this.panel.querySelector('.activity-feed');
+        if (feed) {
+            feed.scrollTop = feed.scrollHeight;
+        }
+    }
+    renderActivityFeed() {
+        return this.activityEvents.map((event) => {
+            switch (event.type) {
+                case 'status':
+                    if (event.status === 'pending')
+                        return ''; // Skip initial pending
+                    return this.renderStatusItem(event);
+                case 'thought':
+                    return this.renderThoughtItem(event);
+                case 'action':
+                    return this.renderActionItem(event);
+                case 'question':
+                    return this.renderQuestionItem(event);
+                default:
+                    return '';
+            }
+        }).join('');
+    }
+    renderStatusItem(event) {
+        const iconClass = event.status === 'success' ? 'success' :
+            event.status === 'failed' ? 'error' : 'status';
+        const icon = event.status === 'success' ? '✓' :
+            event.status === 'failed' ? '✕' : '●';
+        return `
+      <div class="activity-item">
+        <div class="activity-icon ${iconClass}">${icon}</div>
+        <div class="activity-content">
+          <div class="activity-text">${this.escapeHtml(event.message || event.status)}</div>
+        </div>
+      </div>
+    `;
+    }
+    renderThoughtItem(event) {
+        return `
+      <div class="activity-item">
+        <div class="activity-icon thought">💭</div>
+        <div class="activity-content">
+          <div class="activity-text muted">${this.escapeHtml(event.content)}</div>
+        </div>
+      </div>
+    `;
+    }
+    renderActionItem(event) {
+        const icons = {
+            reading: '📖',
+            writing: '✏️',
+            searching: '🔍',
+            thinking: '🧠',
+        };
+        const verbs = {
+            reading: 'Reading',
+            writing: 'Writing',
+            searching: 'Searching',
+            thinking: 'Thinking about',
+        };
+        return `
+      <div class="activity-item">
+        <div class="activity-icon action">${icons[event.action] || '●'}</div>
+        <div class="activity-content">
+          <div class="activity-text">${verbs[event.action] || event.action}${event.complete ? ' ✓' : '...'}</div>
+          <div class="activity-target">${this.escapeHtml(event.target)}</div>
+        </div>
+      </div>
+    `;
+    }
+    renderQuestionItem(event) {
+        // Check if this question was already answered
+        const wasAnswered = this.activityEvents.some((e) => e.type === 'status' && e.timestamp > event.timestamp);
+        if (wasAnswered) {
+            return `
+        <div class="activity-item">
+          <div class="activity-icon question">?</div>
+          <div class="activity-content">
+            <div class="activity-text muted">${this.escapeHtml(event.question)}</div>
+          </div>
+        </div>
+      `;
+        }
+        return `
+      <div class="question-box">
+        <div class="question-text">${this.escapeHtml(event.question)}</div>
+        <div class="question-options">
+          ${event.options.map((opt) => `
+            <button
+              class="question-option"
+              data-question-id="${event.questionId}"
+              data-answer-id="${opt.id}"
+            >${this.escapeHtml(opt.label)}</button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    }
+    getUserNote() {
+        // Find the original focus payload from the first status event or stored value
+        const active = this.activityEvents.find((e) => e.type === 'status');
+        // We need to store this separately
+        return this._userNote || '';
+    }
+    getStatusText() {
+        switch (this.currentStatus) {
+            case 'idle': return 'Ready';
+            case 'pending': return 'Waiting for agent...';
+            case 'fixing': return 'Agent is working...';
+            case 'success': return 'Done!';
+            case 'failed': return 'Failed';
+            default: return this.currentStatus;
+        }
+    }
+    hidePanel() {
+        if (this.panel) {
+            this.panel.remove();
+            this.panel = null;
+        }
+    }
+    async submit(userNote) {
+        if (!this.currentSnapshot || !userNote.trim())
+            return;
+        this.interactionId = `eyeglass-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        this._userNote = userNote.trim();
+        const payload = {
+            interactionId: this.interactionId,
+            snapshot: this.currentSnapshot,
+            userNote: userNote.trim(),
+        };
+        // Add to history
+        this.addToHistory({
+            interactionId: this.interactionId,
+            userNote: userNote.trim(),
+            componentName: this.currentSnapshot.framework.componentName || this.currentSnapshot.tagName,
+            filePath: this.currentSnapshot.framework.filePath,
+            status: 'pending',
+            timestamp: Date.now(),
+        });
+        this.mode = 'activity';
+        this.activityEvents = [];
+        this.currentStatus = 'pending';
+        this.renderPanel();
+        try {
+            const response = await fetch(`${BRIDGE_URL}/focus`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        }
+        catch (err) {
+            this.currentStatus = 'failed';
+            this.updateHistoryStatus(this.interactionId, 'failed');
+            this.activityEvents.push({
+                type: 'status',
+                interactionId: this.interactionId,
+                status: 'failed',
+                message: 'Failed to connect to bridge',
+                timestamp: Date.now(),
+            });
+            this.renderPanel();
+        }
+    }
+    async submitAnswer(questionId, answerId, answerLabel) {
+        if (!this.interactionId)
+            return;
+        const answer = {
+            interactionId: this.interactionId,
+            questionId,
+            answerId,
+            answerLabel,
+        };
+        try {
+            await fetch(`${BRIDGE_URL}/answer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(answer),
+            });
+        }
+        catch (err) {
+            // Silently fail
+        }
+    }
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+}
+if (!customElements.get('eyeglass-inspector')) {
+    customElements.define('eyeglass-inspector', EyeglassInspector);
+}
+</file>
+
+<file path="packages/inspector/dist/snapshot.d.ts">
+/**
+ * Captures a semantic snapshot of a DOM element
+ */
+import type { SemanticSnapshot } from '@eyeglass/types';
+/**
+ * Capture a complete semantic snapshot of an element
+ */
+export declare function captureSnapshot(element: Element): SemanticSnapshot;
+</file>
+
+<file path="packages/inspector/dist/snapshot.js">
+/**
+ * Captures a semantic snapshot of a DOM element
+ */
+import { extractFrameworkInfo } from './fiber-walker.js';
+/**
+ * Get computed accessibility properties
+ */
+function getA11yInfo(element) {
+    const ariaLabel = element.getAttribute('aria-label');
+    const ariaDescribedBy = element.getAttribute('aria-describedby');
+    const ariaDisabled = element.getAttribute('aria-disabled');
+    const ariaExpanded = element.getAttribute('aria-expanded');
+    const ariaChecked = element.getAttribute('aria-checked');
+    const ariaHidden = element.getAttribute('aria-hidden');
+    // Get description from aria-describedby if it points to an element
+    let description = null;
+    if (ariaDescribedBy) {
+        const descElement = document.getElementById(ariaDescribedBy);
+        description = descElement?.textContent?.trim() || null;
+    }
+    // Check if element is disabled
+    const disabled = ariaDisabled === 'true' ||
+        element.disabled ||
+        element.hasAttribute('disabled');
+    return {
+        label: ariaLabel || element.getAttribute('title') || null,
+        description,
+        disabled,
+        expanded: ariaExpanded ? ariaExpanded === 'true' : undefined,
+        checked: ariaChecked === 'true'
+            ? true
+            : ariaChecked === 'false'
+                ? false
+                : ariaChecked === 'mixed'
+                    ? 'mixed'
+                    : undefined,
+        hidden: ariaHidden === 'true' || element.hidden || false,
+    };
+}
+/**
+ * Get geometry information
+ */
+function getGeometry(element) {
+    const rect = element.getBoundingClientRect();
+    return {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        visible: rect.width > 0 && rect.height > 0,
+    };
+}
+/**
+ * Get targeted computed styles
+ */
+function getStyles(element) {
+    const computed = getComputedStyle(element);
+    return {
+        display: computed.display,
+        position: computed.position,
+        flexDirection: computed.flexDirection !== 'row' ? computed.flexDirection : undefined,
+        gridTemplate: computed.display === 'grid'
+            ? `${computed.gridTemplateColumns} / ${computed.gridTemplateRows}`
+            : undefined,
+        padding: computed.padding,
+        margin: computed.margin,
+        color: computed.color,
+        backgroundColor: computed.backgroundColor,
+        fontFamily: computed.fontFamily,
+        zIndex: computed.zIndex,
+    };
+}
+/**
+ * Get the accessible role of an element
+ */
+function getRole(element) {
+    // Explicit role takes precedence
+    const explicitRole = element.getAttribute('role');
+    if (explicitRole)
+        return explicitRole;
+    // Implicit roles based on tag
+    const tag = element.tagName.toLowerCase();
+    const roleMap = {
+        a: 'link',
+        button: 'button',
+        input: element.type || 'textbox',
+        select: 'combobox',
+        textarea: 'textbox',
+        img: 'img',
+        nav: 'navigation',
+        main: 'main',
+        header: 'banner',
+        footer: 'contentinfo',
+        aside: 'complementary',
+        article: 'article',
+        section: 'region',
+        form: 'form',
+        ul: 'list',
+        ol: 'list',
+        li: 'listitem',
+        table: 'table',
+        tr: 'row',
+        td: 'cell',
+        th: 'columnheader',
+        dialog: 'dialog',
+        h1: 'heading',
+        h2: 'heading',
+        h3: 'heading',
+        h4: 'heading',
+        h5: 'heading',
+        h6: 'heading',
+    };
+    return roleMap[tag] || 'generic';
+}
+/**
+ * Get the accessible name of an element
+ */
+function getAccessibleName(element) {
+    // aria-label
+    const ariaLabel = element.getAttribute('aria-label');
+    if (ariaLabel)
+        return ariaLabel;
+    // aria-labelledby
+    const labelledBy = element.getAttribute('aria-labelledby');
+    if (labelledBy) {
+        const labelElement = document.getElementById(labelledBy);
+        if (labelElement)
+            return labelElement.textContent?.trim() || '';
+    }
+    // For inputs, check associated label
+    if (element.tagName === 'INPUT' || element.tagName === 'SELECT' || element.tagName === 'TEXTAREA') {
+        const id = element.getAttribute('id');
+        if (id) {
+            const label = document.querySelector(`label[for="${id}"]`);
+            if (label)
+                return label.textContent?.trim() || '';
+        }
+    }
+    // For images, use alt
+    if (element.tagName === 'IMG') {
+        return element.alt || '';
+    }
+    // Text content (truncated)
+    const text = element.textContent?.trim() || '';
+    return text.length > 50 ? text.slice(0, 50) + '...' : text;
+}
+/**
+ * Capture a complete semantic snapshot of an element
+ */
+export function captureSnapshot(element) {
+    return {
+        role: getRole(element),
+        name: getAccessibleName(element),
+        tagName: element.tagName.toLowerCase(),
+        framework: extractFrameworkInfo(element),
+        a11y: getA11yInfo(element),
+        geometry: getGeometry(element),
+        styles: getStyles(element),
+        timestamp: Date.now(),
+        url: window.location.href,
+    };
+}
+</file>
+
+<file path="packages/inspector/src/fiber-walker.ts">
+/**
+ * React Fiber Walker - extracts component info from React DevTools internals
+ */
+
+interface ReactFiber {
+  tag: number;
+  type: any;
+  return: ReactFiber | null;
+  _debugSource?: {
+    fileName: string;
+    lineNumber: number;
+    columnNumber?: number;
+  };
+  memoizedProps?: Record<string, unknown>;
+}
+
+export interface FrameworkInfo {
+  name: 'react' | 'vue' | 'svelte' | 'vanilla';
+  componentName?: string;
+  filePath?: string;
+  lineNumber?: number;
+  props?: Record<string, unknown>;
+}
+
+// Fiber tag constants
+const FunctionComponent = 0;
+const ClassComponent = 1;
+const ForwardRef = 11;
+const MemoComponent = 14;
+const SimpleMemoComponent = 15;
+
+const COMPONENT_TAGS = new Set([
+  FunctionComponent,
+  ClassComponent,
+  ForwardRef,
+  MemoComponent,
+  SimpleMemoComponent,
+]);
+
+/**
+ * Find the React Fiber attached to a DOM element
+ */
+function getFiberFromElement(element: Element): ReactFiber | null {
+  const keys = Object.keys(element);
+  const fiberKey = keys.find(
+    (k) => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$')
+  );
+  if (!fiberKey) return null;
+  return (element as any)[fiberKey] as ReactFiber;
+}
+
+/**
+ * Walk up the fiber tree to find the nearest user-defined component
+ */
+function findComponentFiber(fiber: ReactFiber | null): ReactFiber | null {
+  let current = fiber;
+  while (current) {
+    if (COMPONENT_TAGS.has(current.tag) && typeof current.type === 'function') {
+      // Skip built-in React components (Context.Provider, etc.)
+      const name = current.type.displayName || current.type.name || '';
+      if (name && !name.startsWith('Context') && !name.endsWith('Provider')) {
+        return current;
+      }
+    }
+    current = current.return;
+  }
+  return null;
+}
+
+/**
+ * Get safe props (primitives only, no functions/objects)
+ */
+function getSafeProps(props: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!props) return undefined;
+  const safe: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(props)) {
+    if (key === 'children') continue;
+    const type = typeof value;
+    if (type === 'string' || type === 'number' || type === 'boolean' || value === null) {
+      safe[key] = value;
+    }
+  }
+  return Object.keys(safe).length > 0 ? safe : undefined;
+}
+
+/**
+ * Detect Vue component
+ */
+function detectVue(element: Element): FrameworkInfo | null {
+  const vueInstance = (element as any).__vue__;
+  if (vueInstance) {
+    const componentName = vueInstance.$options?.name || vueInstance.$options?._componentTag;
+    return {
+      name: 'vue',
+      componentName,
+    };
+  }
+
+  // Vue 3
+  const vueKey = Object.keys(element).find((k) => k.startsWith('__vueParentComponent'));
+  if (vueKey) {
+    const instance = (element as any)[vueKey];
+    return {
+      name: 'vue',
+      componentName: instance?.type?.name,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Detect Svelte component
+ */
+function detectSvelte(element: Element): FrameworkInfo | null {
+  const svelteKey = Object.keys(element).find((k) => k.startsWith('__svelte'));
+  if (svelteKey) {
+    return {
+      name: 'svelte',
+    };
+  }
+  return null;
+}
+
+/**
+ * Extract framework information from a DOM element
+ */
+export function extractFrameworkInfo(element: Element): FrameworkInfo {
+  // Try React first
+  const fiber = getFiberFromElement(element);
+  if (fiber) {
+    const componentFiber = findComponentFiber(fiber);
+    if (componentFiber) {
+      const componentName =
+        componentFiber.type.displayName || componentFiber.type.name || undefined;
+      const debugSource = componentFiber._debugSource;
+
+      return {
+        name: 'react',
+        componentName,
+        filePath: debugSource?.fileName,
+        lineNumber: debugSource?.lineNumber,
+        props: getSafeProps(componentFiber.memoizedProps),
+      };
+    }
+    // React element but no user component found (just DOM nodes)
+    return { name: 'react' };
+  }
+
+  // Try Vue
+  const vueInfo = detectVue(element);
+  if (vueInfo) return vueInfo;
+
+  // Try Svelte
+  const svelteInfo = detectSvelte(element);
+  if (svelteInfo) return svelteInfo;
+
+  // Vanilla fallback
+  return { name: 'vanilla' };
+}
+</file>
+
+<file path="packages/inspector/src/index.ts">
+/**
+ * @eyeglass/inspector - Browser-side inspection web component
+ *
+ * Usage:
+ *   import '@eyeglass/inspector';
+ *   // Or inject via script tag
+ *
+ * This automatically registers the <eyeglass-inspector> custom element.
+ */
+
+export { EyeglassInspector } from './inspector.js';
+export { captureSnapshot } from './snapshot.js';
+export { extractFrameworkInfo } from './fiber-walker.js';
+export type { FrameworkInfo } from './fiber-walker.js';
+
+/**
+ * Initialize the inspector by appending it to the document
+ */
+export function initInspector(): void {
+  if (document.querySelector('eyeglass-inspector')) {
+    console.warn('[eyeglass] Inspector already initialized');
+    return;
+  }
+
+  const inspector = document.createElement('eyeglass-inspector');
+  document.body.appendChild(inspector);
+  console.log('[eyeglass] Inspector initialized. Hover over elements and click to annotate.');
+}
+
+// Auto-initialize when imported in a browser context
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initInspector);
+  } else {
+    initInspector();
+  }
+}
+</file>
+
+<file path="packages/inspector/src/inspector.ts">
+/**
+ * Eyeglass Inspector - Glass UI for visual element inspection
+ */
+
+import type {
+  FocusPayload,
+  SemanticSnapshot,
+  ActivityEvent,
+  AnswerPayload,
+  InteractionStatus,
+} from '@eyeglass/types';
+import { captureSnapshot } from './snapshot.js';
+
+const BRIDGE_URL = 'http://localhost:3300';
+const STORAGE_KEY = 'eyeglass_session';
+const HISTORY_KEY = 'eyeglass_history';
+const SESSION_TTL = 10000; // 10 seconds
+
+const STYLES = `
+:host {
+  all: initial;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2147483647;
+  pointer-events: none;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  box-sizing: border-box;
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(0, 0, 0, 0.25);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  --divider: rgba(0, 0, 0, 0.18);
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --accent: #6366f1;
+  --accent-soft: rgba(99, 102, 241, 0.1);
+  --success: #10b981;
+  --error: #ef4444;
+  --border-radius: 16px;
+  --border-radius-sm: 10px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Highlight overlay */
+.highlight {
+  position: absolute;
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+  pointer-events: none;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 4px;
+}
+
+/* Glass Panel */
+.glass-panel {
+  position: absolute;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--glass-shadow);
+  pointer-events: auto;
+  width: 340px;
+  overflow: hidden;
+  animation: panelIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Panel Header */
+.panel-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--divider);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: grab;
+  user-select: none;
+}
+
+.panel-header:active {
+  cursor: grabbing;
+}
+
+.component-tag {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: -0.01em;
+}
+
+.file-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.close-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-secondary);
+}
+
+/* User Request */
+.user-request {
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom: 1px solid var(--divider);
+}
+
+.user-request-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.user-request-text {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Input Mode */
+.input-area {
+  padding: 12px 16px 16px;
+}
+
+.input-field {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--border-radius-sm);
+  font-size: 13px;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text-primary);
+  outline: none;
+  transition: all 0.15s;
+}
+
+.input-field::placeholder {
+  color: var(--text-muted);
+}
+
+.input-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: white;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn {
+  flex: 1;
+  padding: 9px 14px;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #4f46e5;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-secondary);
+}
+
+.btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Activity Feed */
+.activity-feed {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.activity-feed::-webkit-scrollbar {
+  width: 6px;
+}
+
+.activity-feed::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.activity-feed::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.activity-item {
+  padding: 8px 16px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  animation: itemIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes itemIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.activity-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.activity-icon.status { background: var(--accent-soft); color: var(--accent); }
+.activity-icon.thought { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+.activity-icon.action { background: rgba(14, 165, 233, 0.1); color: #0ea5e9; }
+.activity-icon.question { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+.activity-icon.success { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+.activity-icon.error { background: rgba(239, 68, 68, 0.1); color: var(--error); }
+
+.activity-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-text {
+  color: var(--text-primary);
+  word-wrap: break-word;
+}
+
+.activity-text.muted {
+  color: var(--text-secondary);
+}
+
+.activity-target {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Question UI */
+.question-box {
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  border-radius: var(--border-radius-sm);
+  padding: 12px;
+  margin: 8px 16px;
+  animation: questionIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes questionIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.question-text {
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.question-option {
+  padding: 7px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  background: white;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.question-option:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Status Footer */
+.panel-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--divider);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.status-indicator.pending {
+  background: var(--accent);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.status-indicator.fixing {
+  background: #0ea5e9;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.status-indicator.success { background: var(--success); }
+.status-indicator.failed { background: var(--error); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.9); }
+}
+
+.status-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+/* Done state */
+.panel-footer.done {
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.panel-footer.done .status-text {
+  color: var(--success);
+  font-weight: 500;
+}
+
+/* Result Toast - shows after page reload */
+.result-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--glass-shadow);
+  padding: 14px 18px;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  max-width: 320px;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.toast-icon.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+.toast-icon.failed {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error);
+}
+
+.toast-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.toast-message {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.toast-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-secondary);
+}
+
+/* Hub - Request History */
+.hub {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  box-shadow: var(--glass-shadow);
+  pointer-events: auto;
+  min-width: 36px;
+  max-width: 200px;
+  overflow: hidden;
+  animation: hubIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes hubIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.hub.disabled {
+  opacity: 0.5;
+}
+
+.hub-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.hub-header:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.hub-logo {
+  width: 20px;
+  height: 20px;
+  background: var(--accent);
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.hub-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.hub-badge {
+  font-size: 9px;
+  font-weight: 600;
+  background: var(--accent);
+  color: white;
+  padding: 1px 5px;
+  border-radius: 8px;
+  min-width: 14px;
+  text-align: center;
+}
+
+.hub-toggle {
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+
+.hub-toggle.expanded {
+  transform: rotate(180deg);
+}
+
+.hub-disable {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.hub-disable:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-secondary);
+}
+
+.hub-disable.active {
+  color: var(--accent);
+}
+
+.hub-content {
+  border-top: 1px solid var(--divider);
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hub-content.expanded {
+  max-height: 220px;
+}
+
+.hub-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.hub-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.hub-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hub-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.hub-item {
+  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hub-item:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.hub-item-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hub-item-status.pending { background: var(--accent); animation: pulse 1.5s ease-in-out infinite; }
+.hub-item-status.fixing { background: #0ea5e9; animation: pulse 1s ease-in-out infinite; }
+.hub-item-status.success { background: var(--success); }
+.hub-item-status.failed { background: var(--error); }
+
+.hub-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.hub-item-component {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.hub-item-note {
+  font-size: 11px;
+  color: var(--text-primary);
+  word-wrap: break-word;
+}
+
+.hub-item-undo {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  opacity: 0;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.hub-item:hover .hub-item-undo {
+  opacity: 1;
+}
+
+.hub-item-undo:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+}
+
+.hub-empty {
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Collapsed hub (minimal) */
+.hub.collapsed .hub-title,
+.hub.collapsed .hub-toggle {
+  display: none;
+}
+
+.hub.collapsed .hub-header {
+  padding: 5px;
+  gap: 4px;
+}
+`;
+
+type PanelMode = 'input' | 'activity';
+
+interface PersistedSession {
+  interactionId: string;
+  userNote: string;
+  componentName: string;
+  status: InteractionStatus;
+  message?: string;
+  timestamp: number;
+}
+
+interface HistoryItem {
+  interactionId: string;
+  userNote: string;
+  componentName: string;
+  filePath?: string;
+  status: InteractionStatus;
+  timestamp: number;
+}
+
+export class EyeglassInspector extends HTMLElement {
+  private shadow: ShadowRoot;
+  private highlight: HTMLDivElement | null = null;
+  private panel: HTMLDivElement | null = null;
+  private toast: HTMLDivElement | null = null;
+  private hub: HTMLDivElement | null = null;
+  private currentElement: Element | null = null;
+  private currentSnapshot: SemanticSnapshot | null = null;
+  private interactionId: string | null = null;
+  private frozen = false;
+  private eventSource: EventSource | null = null;
+  private throttleTimeout: number | null = null;
+  private mode: PanelMode = 'input';
+  private activityEvents: ActivityEvent[] = [];
+  private currentStatus: InteractionStatus = 'idle';
+  private hubExpanded = false;
+  private inspectorEnabled = true;
+  private history: HistoryItem[] = [];
+  private isDragging = false;
+  private dragOffset = { x: 0, y: 0 };
+  private customPanelPosition: { x: number; y: number } | null = null;
+
+  constructor() {
+    super();
+    this.shadow = this.attachShadow({ mode: 'closed' });
+  }
+
+  connectedCallback(): void {
+    const style = document.createElement('style');
+    style.textContent = STYLES;
+    this.shadow.appendChild(style);
+
+    this.highlight = document.createElement('div');
+    this.highlight.className = 'highlight';
+    this.highlight.style.display = 'none';
+    this.shadow.appendChild(this.highlight);
+
+    this.handleMouseMove = this.handleMouseMove.bind(this);
+    this.handleClick = this.handleClick.bind(this);
+    this.handleKeyDown = this.handleKeyDown.bind(this);
+    this.handlePanelDragStart = this.handlePanelDragStart.bind(this);
+
+    document.addEventListener('mousemove', this.handleMouseMove, true);
+    document.addEventListener('click', this.handleClick, true);
+    document.addEventListener('keydown', this.handleKeyDown, true);
+
+    this.loadHistory();
+    this.renderHub();
+    this.connectSSE();
+    this.restoreSession();
+  }
+
+  private saveSession(message?: string): void {
+    if (!this.interactionId) return;
+
+    const session: PersistedSession = {
+      interactionId: this.interactionId,
+      userNote: (this as any)._userNote || '',
+      componentName: this.currentSnapshot?.framework.componentName || this.currentSnapshot?.tagName || 'element',
+      status: this.currentStatus,
+      message,
+      timestamp: Date.now(),
+    };
+
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }
+
+  private restoreSession(): void {
+    try {
+      const stored = sessionStorage.getItem(STORAGE_KEY);
+      if (!stored) return;
+
+      const session: PersistedSession = JSON.parse(stored);
+
+      // Check if session is still fresh
+      if (Date.now() - session.timestamp > SESSION_TTL) {
+        sessionStorage.removeItem(STORAGE_KEY);
+        return;
+      }
+
+      // Only show toast for completed sessions
+      if (session.status === 'success' || session.status === 'failed') {
+        this.showResultToast(session);
+        sessionStorage.removeItem(STORAGE_KEY);
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+
+  private showResultToast(session: PersistedSession): void {
+    this.toast = document.createElement('div');
+    this.toast.className = 'result-toast';
+
+    const isSuccess = session.status === 'success';
+    const icon = isSuccess ? '✓' : '✕';
+    const title = isSuccess ? 'Done!' : 'Failed';
+
+    this.toast.innerHTML = `
+      <div class="toast-icon ${session.status}">${icon}</div>
+      <div class="toast-content">
+        <div class="toast-title">${title}</div>
+        <div class="toast-message">${this.escapeHtml(session.message || session.userNote)}</div>
+      </div>
+      <button class="toast-close">&times;</button>
+    `;
+
+    const closeBtn = this.toast.querySelector('.toast-close') as HTMLButtonElement;
+    closeBtn.addEventListener('click', () => this.hideToast());
+
+    this.shadow.appendChild(this.toast);
+
+    // Auto-hide after 4 seconds
+    setTimeout(() => this.hideToast(), 4000);
+  }
+
+  private hideToast(): void {
+    if (this.toast) {
+      this.toast.remove();
+      this.toast = null;
+    }
+  }
+
+  private loadHistory(): void {
+    try {
+      const stored = sessionStorage.getItem(HISTORY_KEY);
+      if (stored) {
+        this.history = JSON.parse(stored);
+      }
+    } catch (e) {
+      this.history = [];
+    }
+  }
+
+  private saveHistory(): void {
+    try {
+      sessionStorage.setItem(HISTORY_KEY, JSON.stringify(this.history));
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }
+
+  private addToHistory(item: HistoryItem): void {
+    // Check if this interaction already exists
+    const existingIndex = this.history.findIndex(h => h.interactionId === item.interactionId);
+    if (existingIndex >= 0) {
+      this.history[existingIndex] = item;
+    } else {
+      this.history.unshift(item);
+      // Keep only last 20 items
+      if (this.history.length > 20) {
+        this.history = this.history.slice(0, 20);
+      }
+    }
+    this.saveHistory();
+    this.renderHub();
+  }
+
+  private updateHistoryStatus(interactionId: string, status: InteractionStatus): void {
+    const item = this.history.find(h => h.interactionId === interactionId);
+    if (item) {
+      item.status = status;
+      this.saveHistory();
+      this.renderHub();
+    }
+  }
+
+  private renderHub(): void {
+    if (!this.hub) {
+      this.hub = document.createElement('div');
+      this.hub.className = 'hub';
+      this.shadow.appendChild(this.hub);
+    }
+
+    const collapsedClass = this.hubExpanded ? '' : 'collapsed';
+    const disabledClass = this.inspectorEnabled ? '' : 'disabled';
+    const expandedClass = this.hubExpanded ? 'expanded' : '';
+    const activeCount = this.history.filter(h => h.status === 'pending' || h.status === 'fixing').length;
+
+    this.hub.className = `hub ${collapsedClass} ${disabledClass}`.trim();
+
+    this.hub.innerHTML = `
+      <div class="hub-header">
+        <div class="hub-logo">👁</div>
+        <span class="hub-title">Eyeglass</span>
+        ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ''}
+        <button class="hub-toggle ${expandedClass}" title="Toggle history">▼</button>
+        <button class="hub-disable ${this.inspectorEnabled ? 'active' : ''}" title="${this.inspectorEnabled ? 'Disable' : 'Enable'} inspector">
+          ${this.inspectorEnabled ? '●' : '○'}
+        </button>
+      </div>
+      <div class="hub-content ${expandedClass}">
+        ${this.history.length > 0 ? `
+          <div class="hub-list">
+            ${this.history.map(item => `
+              <div class="hub-item" data-id="${item.interactionId}">
+                <div class="hub-item-status ${item.status}"></div>
+                <div class="hub-item-content">
+                  <div class="hub-item-component">${this.escapeHtml(item.componentName)}</div>
+                  <div class="hub-item-note">${this.escapeHtml(item.userNote)}</div>
+                </div>
+                ${item.status === 'success' ? `
+                  <button class="hub-item-undo" data-id="${item.interactionId}" title="Undo">↩</button>
+                ` : ''}
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div class="hub-empty">No requests yet</div>
+        `}
+      </div>
+    `;
+
+    // Wire up event handlers
+    const header = this.hub.querySelector('.hub-header') as HTMLDivElement;
+    const toggleBtn = this.hub.querySelector('.hub-toggle') as HTMLButtonElement;
+    const disableBtn = this.hub.querySelector('.hub-disable') as HTMLButtonElement;
+
+    // Toggle expand/collapse on header click (except disable button)
+    header.addEventListener('click', (e) => {
+      if (e.target === disableBtn) return;
+      this.hubExpanded = !this.hubExpanded;
+      this.renderHub();
+    });
+
+    // Toggle inspector enabled state
+    disableBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.inspectorEnabled = !this.inspectorEnabled;
+      if (!this.inspectorEnabled) {
+        this.unfreeze();
+      }
+      this.renderHub();
+    });
+
+    // Wire up undo buttons
+    this.hub.querySelectorAll('.hub-item-undo').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = (e.currentTarget as HTMLButtonElement).dataset.id!;
+        this.requestUndo(id);
+      });
+    });
+  }
+
+  private async requestUndo(interactionId: string): Promise<void> {
+    const item = this.history.find(h => h.interactionId === interactionId);
+    if (!item) return;
+
+    try {
+      const response = await fetch(`${BRIDGE_URL}/undo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interactionId }),
+      });
+
+      if (response.ok) {
+        // Mark as pending while undo is in progress
+        item.status = 'pending';
+        this.saveHistory();
+        this.renderHub();
+      }
+    } catch (err) {
+      // Silently fail, bridge may not support undo yet
+      console.warn('Undo request failed:', err);
+    }
+  }
+
+  disconnectedCallback(): void {
+    document.removeEventListener('mousemove', this.handleMouseMove, true);
+    document.removeEventListener('click', this.handleClick, true);
+    document.removeEventListener('keydown', this.handleKeyDown, true);
+    this.eventSource?.close();
+  }
+
+  private connectSSE(): void {
+    this.eventSource = new EventSource(`${BRIDGE_URL}/events`);
+
+    this.eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'activity') {
+          this.handleActivityEvent(data.payload as ActivityEvent);
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    };
+
+    this.eventSource.onerror = () => {
+      this.eventSource?.close();
+      setTimeout(() => this.connectSSE(), 3000);
+    };
+  }
+
+  private handleActivityEvent(event: ActivityEvent): void {
+    // Update history for any matching interaction, even if not current
+    if (event.type === 'status') {
+      this.updateHistoryStatus(event.interactionId, event.status);
+    }
+
+    if (event.interactionId !== this.interactionId) return;
+
+    this.activityEvents.push(event);
+
+    if (event.type === 'status') {
+      this.currentStatus = event.status;
+      // Persist session so we can show result after page reload
+      this.saveSession(event.message);
+
+      if (event.status === 'success' || event.status === 'failed') {
+        setTimeout(() => this.unfreeze(), 4000);
+      }
+    }
+
+    this.renderPanel();
+  }
+
+  private handleMouseMove(e: MouseEvent): void {
+    if (this.frozen || !this.inspectorEnabled) return;
+
+    // Don't raycast if hovering over our own UI (hub, panel, etc.)
+    // When pointer-events: auto elements in our shadow DOM are hovered,
+    // the host element will be in the composed path
+    const path = e.composedPath();
+    if (path.includes(this)) {
+      this.hideHighlight();
+      return;
+    }
+
+    if (this.throttleTimeout) return;
+    this.throttleTimeout = window.setTimeout(() => {
+      this.throttleTimeout = null;
+    }, 16);
+
+    this.style.pointerEvents = 'none';
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    this.style.pointerEvents = '';
+
+    if (!target || target === document.documentElement || target === document.body) {
+      this.hideHighlight();
+      return;
+    }
+
+    if (this.shadow.contains(target as Node)) return;
+
+    this.currentElement = target;
+    this.showHighlight(target);
+  }
+
+  private handleClick(e: MouseEvent): void {
+    if (this.frozen || !this.inspectorEnabled) return;
+    if (!this.currentElement) return;
+
+    const path = e.composedPath();
+    if (path.some((el) => el === this)) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    this.freeze();
+  }
+
+  private handleKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'Escape') {
+      this.unfreeze();
+    }
+  }
+
+  private handlePanelDragStart(e: MouseEvent): void {
+    // Don't drag if clicking on buttons
+    if ((e.target as HTMLElement).closest('button')) return;
+
+    this.isDragging = true;
+    const panelRect = this.panel!.getBoundingClientRect();
+    this.dragOffset = {
+      x: e.clientX - panelRect.left,
+      y: e.clientY - panelRect.top,
+    };
+
+    document.addEventListener('mousemove', this.handlePanelDrag);
+    document.addEventListener('mouseup', this.handlePanelDragEnd);
+  }
+
+  private handlePanelDrag = (e: MouseEvent): void => {
+    if (!this.isDragging || !this.panel) return;
+
+    const x = Math.max(0, Math.min(e.clientX - this.dragOffset.x, window.innerWidth - 340));
+    const y = Math.max(0, Math.min(e.clientY - this.dragOffset.y, window.innerHeight - 100));
+
+    this.customPanelPosition = { x, y };
+    this.panel.style.left = `${x}px`;
+    this.panel.style.top = `${y}px`;
+  };
+
+  private handlePanelDragEnd = (): void => {
+    this.isDragging = false;
+    document.removeEventListener('mousemove', this.handlePanelDrag);
+    document.removeEventListener('mouseup', this.handlePanelDragEnd);
+  };
+
+  private showHighlight(element: Element): void {
+    if (!this.highlight) return;
+
+    const rect = element.getBoundingClientRect();
+    this.highlight.style.display = 'block';
+    this.highlight.style.left = `${rect.left - 2}px`;
+    this.highlight.style.top = `${rect.top - 2}px`;
+    this.highlight.style.width = `${rect.width + 4}px`;
+    this.highlight.style.height = `${rect.height + 4}px`;
+  }
+
+  private hideHighlight(): void {
+    if (this.highlight) {
+      this.highlight.style.display = 'none';
+    }
+    this.currentElement = null;
+  }
+
+  private freeze(): void {
+    if (!this.currentElement) return;
+
+    this.frozen = true;
+    this.currentSnapshot = captureSnapshot(this.currentElement);
+    this.mode = 'input';
+    this.activityEvents = [];
+    this.currentStatus = 'idle';
+    this.renderPanel();
+  }
+
+  private unfreeze(): void {
+    this.frozen = false;
+    this.currentSnapshot = null;
+    this.interactionId = null;
+    this.mode = 'input';
+    this.activityEvents = [];
+    this.customPanelPosition = null;
+    this.hidePanel();
+    this.hideHighlight();
+
+    // Clear persisted session
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  private renderPanel(): void {
+    if (!this.currentSnapshot || !this.currentElement) return;
+
+    const rect = this.currentElement.getBoundingClientRect();
+    const { framework } = this.currentSnapshot;
+
+    if (!this.panel) {
+      this.panel = document.createElement('div');
+      this.panel.className = 'glass-panel';
+      this.shadow.appendChild(this.panel);
+    }
+
+    // Position panel - use custom position if user has dragged it
+    if (this.customPanelPosition) {
+      this.panel.style.left = `${this.customPanelPosition.x}px`;
+      this.panel.style.top = `${this.customPanelPosition.y}px`;
+    } else {
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const panelHeight = this.mode === 'activity' ? 400 : 200;
+      let top = rect.bottom + 12;
+      if (spaceBelow < panelHeight && rect.top > panelHeight) {
+        top = rect.top - panelHeight - 12;
+      }
+
+      let left = rect.left;
+      if (left + 340 > window.innerWidth - 20) {
+        left = window.innerWidth - 360;
+      }
+      if (left < 20) left = 20;
+
+      this.panel.style.left = `${left}px`;
+      this.panel.style.top = `${top}px`;
+    }
+
+    const componentName = framework.componentName || this.currentSnapshot.tagName;
+    const filePath = framework.filePath
+      ? framework.filePath.split('/').slice(-2).join('/')
+      : null;
+
+    if (this.mode === 'input') {
+      this.renderInputMode(componentName, filePath);
+    } else {
+      this.renderActivityMode(componentName, filePath);
+    }
+  }
+
+  private renderInputMode(componentName: string, filePath: string | null): void {
+    if (!this.panel) return;
+
+    this.panel.innerHTML = `
+      <div class="panel-header">
+        <span class="component-tag">&lt;${componentName} /&gt;</span>
+        ${filePath ? `<span class="file-path">${filePath}</span>` : ''}
+        <button class="close-btn" title="Cancel (Esc)">&times;</button>
+      </div>
+      <div class="input-area">
+        <input
+          type="text"
+          class="input-field"
+          placeholder="What do you want to change?"
+          autofocus
+        />
+        <div class="btn-row">
+          <button class="btn btn-secondary">Cancel</button>
+          <button class="btn btn-primary">Send</button>
+        </div>
+      </div>
+    `;
+
+    const input = this.panel.querySelector('.input-field') as HTMLInputElement;
+    const closeBtn = this.panel.querySelector('.close-btn') as HTMLButtonElement;
+    const cancelBtn = this.panel.querySelector('.btn-secondary') as HTMLButtonElement;
+    const sendBtn = this.panel.querySelector('.btn-primary') as HTMLButtonElement;
+
+    closeBtn.addEventListener('click', () => this.unfreeze());
+    cancelBtn.addEventListener('click', () => this.unfreeze());
+    sendBtn.addEventListener('click', () => this.submit(input.value));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && input.value.trim()) {
+        this.submit(input.value);
+      }
+    });
+
+    // Make panel draggable via header
+    const header = this.panel.querySelector('.panel-header') as HTMLDivElement;
+    header.addEventListener('mousedown', this.handlePanelDragStart);
+
+    requestAnimationFrame(() => input.focus());
+  }
+
+  private renderActivityMode(componentName: string, filePath: string | null): void {
+    if (!this.panel) return;
+
+    const userNote = this.activityEvents.length > 0
+      ? (this.panel.querySelector('.user-request-text')?.textContent || '')
+      : '';
+
+    const isDone = this.currentStatus === 'success' || this.currentStatus === 'failed';
+
+    this.panel.innerHTML = `
+      <div class="panel-header">
+        <span class="component-tag">&lt;${componentName} /&gt;</span>
+        ${filePath ? `<span class="file-path">${filePath}</span>` : ''}
+        <button class="close-btn" title="Close">&times;</button>
+      </div>
+      <div class="user-request">
+        <div class="user-request-label">Your request</div>
+        <div class="user-request-text">${this.escapeHtml(this.getUserNote())}</div>
+      </div>
+      <div class="activity-feed">
+        ${this.renderActivityFeed()}
+      </div>
+      <div class="panel-footer ${isDone ? 'done' : ''}">
+        <div class="status-indicator ${this.currentStatus}"></div>
+        <span class="status-text">${this.getStatusText()}</span>
+      </div>
+    `;
+
+    const closeBtn = this.panel.querySelector('.close-btn') as HTMLButtonElement;
+    closeBtn.addEventListener('click', () => this.unfreeze());
+
+    // Make panel draggable via header
+    const header = this.panel.querySelector('.panel-header') as HTMLDivElement;
+    header.addEventListener('mousedown', this.handlePanelDragStart);
+
+    // Wire up question buttons if present
+    this.panel.querySelectorAll('.question-option').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const target = e.target as HTMLButtonElement;
+        const questionId = target.dataset.questionId!;
+        const answerId = target.dataset.answerId!;
+        const answerLabel = target.textContent!;
+        this.submitAnswer(questionId, answerId, answerLabel);
+      });
+    });
+
+    // Scroll to bottom of activity feed
+    const feed = this.panel.querySelector('.activity-feed');
+    if (feed) {
+      feed.scrollTop = feed.scrollHeight;
+    }
+  }
+
+  private renderActivityFeed(): string {
+    return this.activityEvents.map((event) => {
+      switch (event.type) {
+        case 'status':
+          if (event.status === 'pending') return ''; // Skip initial pending
+          return this.renderStatusItem(event);
+        case 'thought':
+          return this.renderThoughtItem(event);
+        case 'action':
+          return this.renderActionItem(event);
+        case 'question':
+          return this.renderQuestionItem(event);
+        default:
+          return '';
+      }
+    }).join('');
+  }
+
+  private renderStatusItem(event: { status: InteractionStatus; message?: string }): string {
+    const iconClass = event.status === 'success' ? 'success' :
+                      event.status === 'failed' ? 'error' : 'status';
+    const icon = event.status === 'success' ? '✓' :
+                 event.status === 'failed' ? '✕' : '●';
+    return `
+      <div class="activity-item">
+        <div class="activity-icon ${iconClass}">${icon}</div>
+        <div class="activity-content">
+          <div class="activity-text">${this.escapeHtml(event.message || event.status)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderThoughtItem(event: { content: string }): string {
+    return `
+      <div class="activity-item">
+        <div class="activity-icon thought">💭</div>
+        <div class="activity-content">
+          <div class="activity-text muted">${this.escapeHtml(event.content)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderActionItem(event: { action: string; target: string; complete?: boolean }): string {
+    const icons: Record<string, string> = {
+      reading: '📖',
+      writing: '✏️',
+      searching: '🔍',
+      thinking: '🧠',
+    };
+    const verbs: Record<string, string> = {
+      reading: 'Reading',
+      writing: 'Writing',
+      searching: 'Searching',
+      thinking: 'Thinking about',
+    };
+    return `
+      <div class="activity-item">
+        <div class="activity-icon action">${icons[event.action] || '●'}</div>
+        <div class="activity-content">
+          <div class="activity-text">${verbs[event.action] || event.action}${event.complete ? ' ✓' : '...'}</div>
+          <div class="activity-target">${this.escapeHtml(event.target)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderQuestionItem(event: { questionId: string; question: string; options: Array<{ id: string; label: string }>; timestamp: number }): string {
+    // Check if this question was already answered
+    const wasAnswered = this.activityEvents.some(
+      (e) => e.type === 'status' && e.timestamp > event.timestamp
+    );
+
+    if (wasAnswered) {
+      return `
+        <div class="activity-item">
+          <div class="activity-icon question">?</div>
+          <div class="activity-content">
+            <div class="activity-text muted">${this.escapeHtml(event.question)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="question-box">
+        <div class="question-text">${this.escapeHtml(event.question)}</div>
+        <div class="question-options">
+          ${event.options.map((opt) => `
+            <button
+              class="question-option"
+              data-question-id="${event.questionId}"
+              data-answer-id="${opt.id}"
+            >${this.escapeHtml(opt.label)}</button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  private getUserNote(): string {
+    // Find the original focus payload from the first status event or stored value
+    const active = this.activityEvents.find((e) => e.type === 'status');
+    // We need to store this separately
+    return (this as any)._userNote || '';
+  }
+
+  private getStatusText(): string {
+    switch (this.currentStatus) {
+      case 'idle': return 'Ready';
+      case 'pending': return 'Waiting for agent...';
+      case 'fixing': return 'Agent is working...';
+      case 'success': return 'Done!';
+      case 'failed': return 'Failed';
+      default: return this.currentStatus;
+    }
+  }
+
+  private hidePanel(): void {
+    if (this.panel) {
+      this.panel.remove();
+      this.panel = null;
+    }
+  }
+
+  private async submit(userNote: string): Promise<void> {
+    if (!this.currentSnapshot || !userNote.trim()) return;
+
+    this.interactionId = `eyeglass-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    (this as any)._userNote = userNote.trim();
+
+    const payload: FocusPayload = {
+      interactionId: this.interactionId,
+      snapshot: this.currentSnapshot,
+      userNote: userNote.trim(),
+    };
+
+    // Add to history
+    this.addToHistory({
+      interactionId: this.interactionId,
+      userNote: userNote.trim(),
+      componentName: this.currentSnapshot.framework.componentName || this.currentSnapshot.tagName,
+      filePath: this.currentSnapshot.framework.filePath,
+      status: 'pending',
+      timestamp: Date.now(),
+    });
+
+    this.mode = 'activity';
+    this.activityEvents = [];
+    this.currentStatus = 'pending';
+    this.renderPanel();
+
+    try {
+      const response = await fetch(`${BRIDGE_URL}/focus`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (err) {
+      this.currentStatus = 'failed';
+      this.updateHistoryStatus(this.interactionId, 'failed');
+      this.activityEvents.push({
+        type: 'status',
+        interactionId: this.interactionId,
+        status: 'failed',
+        message: 'Failed to connect to bridge',
+        timestamp: Date.now(),
+      });
+      this.renderPanel();
+    }
+  }
+
+  private async submitAnswer(questionId: string, answerId: string, answerLabel: string): Promise<void> {
+    if (!this.interactionId) return;
+
+    const answer: AnswerPayload = {
+      interactionId: this.interactionId,
+      questionId,
+      answerId,
+      answerLabel,
+    };
+
+    try {
+      await fetch(`${BRIDGE_URL}/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(answer),
+      });
+    } catch (err) {
+      // Silently fail
+    }
+  }
+
+  private escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+}
+
+if (!customElements.get('eyeglass-inspector')) {
+  customElements.define('eyeglass-inspector', EyeglassInspector);
+}
+</file>
+
+<file path="packages/inspector/src/snapshot.ts">
+/**
+ * Captures a semantic snapshot of a DOM element
+ */
+
+import type { SemanticSnapshot } from '@eyeglass/types';
+import { extractFrameworkInfo } from './fiber-walker.js';
+
+/**
+ * Get computed accessibility properties
+ */
+function getA11yInfo(element: Element): SemanticSnapshot['a11y'] {
+  const ariaLabel = element.getAttribute('aria-label');
+  const ariaDescribedBy = element.getAttribute('aria-describedby');
+  const ariaDisabled = element.getAttribute('aria-disabled');
+  const ariaExpanded = element.getAttribute('aria-expanded');
+  const ariaChecked = element.getAttribute('aria-checked');
+  const ariaHidden = element.getAttribute('aria-hidden');
+
+  // Get description from aria-describedby if it points to an element
+  let description: string | null = null;
+  if (ariaDescribedBy) {
+    const descElement = document.getElementById(ariaDescribedBy);
+    description = descElement?.textContent?.trim() || null;
+  }
+
+  // Check if element is disabled
+  const disabled =
+    ariaDisabled === 'true' ||
+    (element as HTMLButtonElement).disabled ||
+    element.hasAttribute('disabled');
+
+  return {
+    label: ariaLabel || element.getAttribute('title') || null,
+    description,
+    disabled,
+    expanded: ariaExpanded ? ariaExpanded === 'true' : undefined,
+    checked:
+      ariaChecked === 'true'
+        ? true
+        : ariaChecked === 'false'
+          ? false
+          : ariaChecked === 'mixed'
+            ? 'mixed'
+            : undefined,
+    hidden: ariaHidden === 'true' || (element as HTMLElement).hidden || false,
+  };
+}
+
+/**
+ * Get geometry information
+ */
+function getGeometry(element: Element): SemanticSnapshot['geometry'] {
+  const rect = element.getBoundingClientRect();
+  return {
+    x: Math.round(rect.x),
+    y: Math.round(rect.y),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+    visible: rect.width > 0 && rect.height > 0,
+  };
+}
+
+/**
+ * Get targeted computed styles
+ */
+function getStyles(element: Element): SemanticSnapshot['styles'] {
+  const computed = getComputedStyle(element);
+  return {
+    display: computed.display,
+    position: computed.position,
+    flexDirection: computed.flexDirection !== 'row' ? computed.flexDirection : undefined,
+    gridTemplate:
+      computed.display === 'grid'
+        ? `${computed.gridTemplateColumns} / ${computed.gridTemplateRows}`
+        : undefined,
+    padding: computed.padding,
+    margin: computed.margin,
+    color: computed.color,
+    backgroundColor: computed.backgroundColor,
+    fontFamily: computed.fontFamily,
+    zIndex: computed.zIndex,
+  };
+}
+
+/**
+ * Get the accessible role of an element
+ */
+function getRole(element: Element): string {
+  // Explicit role takes precedence
+  const explicitRole = element.getAttribute('role');
+  if (explicitRole) return explicitRole;
+
+  // Implicit roles based on tag
+  const tag = element.tagName.toLowerCase();
+  const roleMap: Record<string, string> = {
+    a: 'link',
+    button: 'button',
+    input: (element as HTMLInputElement).type || 'textbox',
+    select: 'combobox',
+    textarea: 'textbox',
+    img: 'img',
+    nav: 'navigation',
+    main: 'main',
+    header: 'banner',
+    footer: 'contentinfo',
+    aside: 'complementary',
+    article: 'article',
+    section: 'region',
+    form: 'form',
+    ul: 'list',
+    ol: 'list',
+    li: 'listitem',
+    table: 'table',
+    tr: 'row',
+    td: 'cell',
+    th: 'columnheader',
+    dialog: 'dialog',
+    h1: 'heading',
+    h2: 'heading',
+    h3: 'heading',
+    h4: 'heading',
+    h5: 'heading',
+    h6: 'heading',
+  };
+
+  return roleMap[tag] || 'generic';
+}
+
+/**
+ * Get the accessible name of an element
+ */
+function getAccessibleName(element: Element): string {
+  // aria-label
+  const ariaLabel = element.getAttribute('aria-label');
+  if (ariaLabel) return ariaLabel;
+
+  // aria-labelledby
+  const labelledBy = element.getAttribute('aria-labelledby');
+  if (labelledBy) {
+    const labelElement = document.getElementById(labelledBy);
+    if (labelElement) return labelElement.textContent?.trim() || '';
+  }
+
+  // For inputs, check associated label
+  if (element.tagName === 'INPUT' || element.tagName === 'SELECT' || element.tagName === 'TEXTAREA') {
+    const id = element.getAttribute('id');
+    if (id) {
+      const label = document.querySelector(`label[for="${id}"]`);
+      if (label) return label.textContent?.trim() || '';
+    }
+  }
+
+  // For images, use alt
+  if (element.tagName === 'IMG') {
+    return (element as HTMLImageElement).alt || '';
+  }
+
+  // Text content (truncated)
+  const text = element.textContent?.trim() || '';
+  return text.length > 50 ? text.slice(0, 50) + '...' : text;
+}
+
+/**
+ * Capture a complete semantic snapshot of an element
+ */
+export function captureSnapshot(element: Element): SemanticSnapshot {
+  return {
+    role: getRole(element),
+    name: getAccessibleName(element),
+    tagName: element.tagName.toLowerCase(),
+    framework: extractFrameworkInfo(element),
+    a11y: getA11yInfo(element),
+    geometry: getGeometry(element),
+    styles: getStyles(element),
+    timestamp: Date.now(),
+    url: window.location.href,
+  };
+}
+</file>
+
+<file path="packages/inspector/package.json">
+{
+  "name": "@eyeglass/inspector",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@eyeglass/types": "^0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
+</file>
+
+<file path="packages/inspector/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "bundler",
+    "lib": ["ES2020", "DOM"],
+    "declaration": true,
+    "strict": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"]
+}
+</file>
+
+<file path="packages/types/dist/index.d.ts">
+export type InteractionStatus = 'idle' | 'pending' | 'fixing' | 'success' | 'failed';
+export interface SemanticSnapshot {
+    role: string;
+    name: string;
+    tagName: string;
+    framework: {
+        name: 'react' | 'vue' | 'svelte' | 'vanilla';
+        componentName?: string;
+        filePath?: string;
+        lineNumber?: number;
+        props?: Record<string, unknown>;
+    };
+    a11y: {
+        label: string | null;
+        description: string | null;
+        disabled: boolean;
+        expanded?: boolean;
+        checked?: boolean | 'mixed';
+        hidden: boolean;
+    };
+    geometry: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        visible: boolean;
+    };
+    styles: {
+        display: string;
+        position: string;
+        flexDirection?: string;
+        gridTemplate?: string;
+        padding: string;
+        margin: string;
+        color: string;
+        backgroundColor: string;
+        fontFamily: string;
+        zIndex: string;
+    };
+    timestamp: number;
+    url: string;
+}
+export interface FocusPayload {
+    interactionId: string;
+    snapshot: SemanticSnapshot;
+    userNote: string;
+}
+export type ActivityEventType = 'status' | 'thought' | 'question' | 'action';
+export interface BaseActivityEvent {
+    interactionId: string;
+    timestamp: number;
+}
+export interface StatusEvent extends BaseActivityEvent {
+    type: 'status';
+    status: InteractionStatus;
+    message?: string;
+}
+export interface ThoughtEvent extends BaseActivityEvent {
+    type: 'thought';
+    content: string;
+}
+export interface QuestionEvent extends BaseActivityEvent {
+    type: 'question';
+    questionId: string;
+    question: string;
+    options: Array<{
+        id: string;
+        label: string;
+    }>;
+}
+export interface AnswerPayload {
+    interactionId: string;
+    questionId: string;
+    answerId: string;
+    answerLabel: string;
+}
+export interface ActionEvent extends BaseActivityEvent {
+    type: 'action';
+    action: 'reading' | 'writing' | 'searching' | 'thinking';
+    target: string;
+    complete?: boolean;
+}
+export type ActivityEvent = StatusEvent | ThoughtEvent | QuestionEvent | ActionEvent;
+export interface StatusUpdate {
+    interactionId: string;
+    status: InteractionStatus;
+    agentMessage?: string;
+}
+</file>
+
+<file path="packages/types/dist/index.js">
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+</file>
+
+<file path="packages/types/src/index.ts">
+export type InteractionStatus = 'idle' | 'pending' | 'fixing' | 'success' | 'failed';
+
+export interface SemanticSnapshot {
+  role: string;
+  name: string;
+  tagName: string;
+
+  framework: {
+    name: 'react' | 'vue' | 'svelte' | 'vanilla';
+    componentName?: string;
+    filePath?: string;
+    lineNumber?: number;
+    props?: Record<string, unknown>;
+  };
+
+  a11y: {
+    label: string | null;
+    description: string | null;
+    disabled: boolean;
+    expanded?: boolean;
+    checked?: boolean | 'mixed';
+    hidden: boolean;
+  };
+
+  geometry: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    visible: boolean;
+  };
+
+  styles: {
+    display: string;
+    position: string;
+    flexDirection?: string;
+    gridTemplate?: string;
+    padding: string;
+    margin: string;
+    color: string;
+    backgroundColor: string;
+    fontFamily: string;
+    zIndex: string;
+  };
+
+  timestamp: number;
+  url: string;
+}
+
+export interface FocusPayload {
+  interactionId: string;
+  snapshot: SemanticSnapshot;
+  userNote: string;
+}
+
+// Activity feed event types
+export type ActivityEventType = 'status' | 'thought' | 'question' | 'action';
+
+export interface BaseActivityEvent {
+  interactionId: string;
+  timestamp: number;
+}
+
+export interface StatusEvent extends BaseActivityEvent {
+  type: 'status';
+  status: InteractionStatus;
+  message?: string;
+}
+
+export interface ThoughtEvent extends BaseActivityEvent {
+  type: 'thought';
+  content: string;
+}
+
+export interface QuestionEvent extends BaseActivityEvent {
+  type: 'question';
+  questionId: string;
+  question: string;
+  options: Array<{ id: string; label: string }>;
+}
+
+export interface AnswerPayload {
+  interactionId: string;
+  questionId: string;
+  answerId: string;
+  answerLabel: string;
+}
+
+export interface ActionEvent extends BaseActivityEvent {
+  type: 'action';
+  action: 'reading' | 'writing' | 'searching' | 'thinking';
+  target: string;
+  complete?: boolean;
+}
+
+export type ActivityEvent = StatusEvent | ThoughtEvent | QuestionEvent | ActionEvent;
+
+// Legacy compat
+export interface StatusUpdate {
+  interactionId: string;
+  status: InteractionStatus;
+  agentMessage?: string;
+}
+</file>
+
+<file path="packages/types/package.json">
+{
+  "name": "@eyeglass/types",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
+</file>
+
+<file path="packages/types/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "declaration": true,
+    "strict": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"]
+}
+</file>
+
+<file path="test/index.html">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eyeglass Test Page</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      line-height: 1.6;
+    }
+    h1 { color: #16a34a; }
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin: 0 0 12px 0;
+      letter-spacing: -0.025em;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      padding: 24px;
+      margin: 24px 0;
+      box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 2px 4px -2px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(0, 0, 0, 0.05);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow:
+        0 10px 15px -3px rgba(0, 0, 0, 0.1),
+        0 4px 6px -4px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(0, 0, 0, 0.05);
+    }
+    .card p {
+      color: #64748b;
+      margin: 0 0 16px 0;
+    }
+    .card ul {
+      margin: 0;
+      padding-left: 20px;
+      color: #475569;
+    }
+    .card li {
+      padding: 4px 0;
+    }
+    button {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+      transition: all 0.2s ease;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    input {
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 14px;
+      width: 220px;
+      background: rgba(255, 255, 255, 0.8);
+      transition: all 0.2s ease;
+      outline: none;
+    }
+    input:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+      background: white;
+    }
+    input::placeholder {
+      color: #94a3b8;
+    }
+    .flex { display: flex; gap: 12px; align-items: center; }
+    .card-accent {
+      position: relative;
+      overflow: hidden;
+    }
+    .card-accent::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899);
+      border-radius: 16px 16px 0 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Eyeglass Test Page</h1>
+  <p style="color: #3b82f6;">This page demonstrates the Eyeglass inspector. Hover over elements and click to annotate them.</p>
+
+  <div class="card card-accent">
+    <h2>Sample Card</h2>
+    <p>This is a sample card component with some content.</p>
+    <div class="flex">
+      <input type="text" placeholder="Enter something..." aria-label="Sample input">
+      <button type="button">Submit</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Another Section</h2>
+    <p>Try clicking on different elements to see their semantic snapshots.</p>
+    <ul>
+      <li>List item one</li>
+      <li>List item two</li>
+      <li>List item three</li>
+      <li>List item one</li>
+      <li>List item two</li>
+      <li>List item three</li>
+    </ul>
+  </div>
+
+  <!-- Load the inspector -->
+  <script type="module">
+    // In a real project, you'd do: import '@eyeglass/inspector';
+    // For local testing, we load from the built dist:
+    import '../packages/inspector/dist/index.js';
+  </script>
+</body>
+</html>
+</file>
+
+<file path=".eyeglass_context.md">
+## User Focus Request
+**Interaction ID:** eyeglass-1770450929178-3ik7xhx
+**User Note:** "can you make this more modern ui?"
+**Component:** `<div>` (vanilla element)
+
+### Element Info
+- Tag: `<div>`
+- Role: generic
+- Name: "Sample Card
+    This is a sample card component wi..."
+
+### Accessibility Tree
+- Label: none
+- Description: none
+- Disabled: false
+- Hidden: false
+
+
+
+### Geometry
+- Box: 760x181 at (376, 182)
+- Visible: true
+
+### Computed Styles
+- Display: block
+- Position: static
+
+
+- Padding: 24px
+- Margin: 24px 0px
+- Color: rgb(0, 0, 0)
+- Background: rgba(255, 255, 255, 0.95)
+- Font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+- Z-Index: auto
+
+### Framework
+- Detected: vanilla
+
+
+### Page Context
+- URL: http://127.0.0.1:5500/test/index.html
+- Timestamp: 2026-02-07T07:55:12.891Z
+</file>
+
+<file path=".gitignore">
+node_modules/
+.claude/
+</file>
+
+<file path="BOOKMARKLET.md">
+# Eyeglass Bookmarklet
+
+For quick testing, you can use this bookmarklet to inject the inspector into any page.
+
+## Setup
+
+1. Start the bridge server: `npm run dev:bridge`
+2. Create a new bookmark with this URL:
+
+```
+javascript:(function(){const s=document.createElement('script');s.src='http://localhost:3300/inspector.js';document.head.appendChild(s);})();
+```
+
+## Alternative: CDN (once published)
+
+```
+javascript:(function(){const s=document.createElement('script');s.type='module';s.textContent='import "https://unpkg.com/@eyeglass/inspector"';document.head.appendChild(s);})();
+```
+
+## Usage
+
+1. Navigate to any React/Vue/Svelte app in dev mode
+2. Click the bookmarklet
+3. Hover over elements and click to annotate
+4. Your AI agent can call `get_focused_element()` to get the context
+</file>
+
+<file path="package.json">
+{
+  "name": "eyeglass",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev:bridge": "npm run dev --workspace=@eyeglass/bridge"
+  }
+}
+</file>
+
+<file path="watch-eyeglass.sh">
+#!/bin/bash
+# Eyeglass Watcher - watches for new requests and notifies Claude
+# Usage: ./watch-eyeglass.sh (run in a separate terminal)
+
+CONTEXT_FILE=".eyeglass_context.md"
+
+echo "👓 Eyeglass watcher started. Watching for new requests..."
+
+# Use fswatch on macOS, inotifywait on Linux
+if command -v fswatch &> /dev/null; then
+  fswatch -o "$CONTEXT_FILE" | while read; do
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🔔 New Eyeglass request detected!"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    head -10 "$CONTEXT_FILE"
+    echo "..."
+    echo ""
+    echo "💡 Prompt Claude: 'check eyeglass'"
+  done
+elif command -v inotifywait &> /dev/null; then
+  while inotifywait -q -e modify "$CONTEXT_FILE"; do
+    echo ""
+    echo "🔔 New Eyeglass request! Prompt Claude: 'check eyeglass'"
+  done
+else
+  echo "Please install fswatch (macOS) or inotify-tools (Linux)"
+  exit 1
+fi
+</file>
+
+</files>
