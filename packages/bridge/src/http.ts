@@ -50,24 +50,6 @@ export function startHttpServer(): void {
     res.json({ success: true });
   });
 
-  // Undo changes for a specific interaction
-  app.post('/undo', async (req: Request, res: Response) => {
-    const { interactionId } = req.body as { interactionId: string };
-
-    if (!interactionId) {
-      res.status(400).json({ error: 'Missing interactionId' });
-      return;
-    }
-
-    const result = await store.undoInteraction(interactionId);
-    if (!result.success) {
-      res.status(400).json({ error: result.message });
-      return;
-    }
-
-    res.json({ success: true, message: result.message });
-  });
-
   // SSE endpoint for real-time activity updates
   app.get('/events', (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/event-stream');

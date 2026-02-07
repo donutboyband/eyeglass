@@ -7,7 +7,6 @@ import {
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
 
 const MAX_HISTORY = 5;
 const CONTEXT_FILE = '.eyeglass_context.md';
@@ -17,19 +16,11 @@ interface PendingQuestion {
   resolve: (answer: AnswerPayload) => void;
 }
 
-interface PendingWait {
-  resolve: (payload: FocusPayload) => void;
-  reject: (error: Error) => void;
-  timeoutId?: NodeJS.Timeout;
-}
-
 export class ContextStore extends EventEmitter {
   private active: FocusPayload | null = null;
   private history: FocusPayload[] = [];
   private currentStatus: InteractionStatus = 'idle';
   private pendingQuestion: PendingQuestion | null = null;
-  private pendingWait: PendingWait | null = null;
-  private commitMap: Map<string, string> = new Map(); // interactionId -> commitHash
 
   setFocus(payload: FocusPayload): void {
     if (this.active) {
@@ -40,27 +31,6 @@ export class ContextStore extends EventEmitter {
     }
 
     this.active = payload;
-
-    // If an agent is waiting for a request, resolve immediately and set status to "fixing"
-    if (this.pendingWait) {
-      const { resolve, timeoutId } = this.pendingWait;
-      if (timeoutId) clearTimeout(timeoutId);
-      this.pendingWait = null;
-
-      this.currentStatus = 'fixing';
-      this.emitActivity({
-        type: 'status',
-        interactionId: payload.interactionId,
-        status: 'fixing',
-        message: 'Agent is working...',
-        timestamp: Date.now(),
-      });
-      this.writeContextFile();
-      resolve(payload);
-      return;
-    }
-
-    // Otherwise, set status to "pending" (waiting for agent to pick it up)
     this.currentStatus = 'pending';
     this.emitActivity({
       type: 'status',
@@ -70,49 +40,6 @@ export class ContextStore extends EventEmitter {
       timestamp: Date.now(),
     });
     this.writeContextFile();
-  }
-
-  /**
-   * Wait for a new focus request from the browser.
-   * If there's already an active pending request, resolves immediately.
-   * @param timeoutMs - Optional timeout in milliseconds (default: no timeout)
-   */
-  waitForFocus(timeoutMs?: number): Promise<FocusPayload> {
-    // If there's already a pending request waiting for an agent, return it immediately
-    if (this.active && this.currentStatus === 'pending') {
-      // Update status to fixing since agent is now handling it
-      this.currentStatus = 'fixing';
-      this.emitActivity({
-        type: 'status',
-        interactionId: this.active.interactionId,
-        status: 'fixing',
-        message: 'Agent is working...',
-        timestamp: Date.now(),
-      });
-      return Promise.resolve(this.active);
-    }
-
-    return new Promise((resolve, reject) => {
-      let timeoutId: NodeJS.Timeout | undefined;
-
-      if (timeoutMs) {
-        timeoutId = setTimeout(() => {
-          if (this.pendingWait) {
-            this.pendingWait = null;
-            reject(new Error('Timeout waiting for focus request'));
-          }
-        }, timeoutMs);
-      }
-
-      this.pendingWait = { resolve, reject, timeoutId };
-    });
-  }
-
-  /**
-   * Check if an agent is currently waiting for a request
-   */
-  isWaitingForFocus(): boolean {
-    return this.pendingWait !== null;
   }
 
   getActive(): FocusPayload | null {
@@ -127,12 +54,6 @@ export class ContextStore extends EventEmitter {
   updateStatus(interactionId: string, status: InteractionStatus, message?: string): void {
     if (this.active?.interactionId !== interactionId) return;
     this.currentStatus = status;
-
-    // Auto-commit changes when marked as success
-    if (status === 'success') {
-      this.commitChanges(interactionId, message);
-    }
-
     this.emitActivity({
       type: 'status',
       interactionId,
@@ -140,102 +61,6 @@ export class ContextStore extends EventEmitter {
       message,
       timestamp: Date.now(),
     });
-  }
-
-  /**
-   * Commit all staged and unstaged changes with the interaction ID
-   */
-  private commitChanges(interactionId: string, message?: string): void {
-    try {
-      const cwd = process.cwd();
-
-      // Check if we're in a git repo
-      try {
-        execSync('git rev-parse --git-dir', { cwd, stdio: 'pipe' });
-      } catch {
-        // Not a git repo, skip committing
-        return;
-      }
-
-      // Check if there are any changes to commit
-      const status = execSync('git status --porcelain', { cwd, encoding: 'utf-8' });
-      if (!status.trim()) {
-        // No changes to commit
-        return;
-      }
-
-      // Stage all changes
-      execSync('git add -A', { cwd, stdio: 'pipe' });
-
-      // Commit with eyeglass marker
-      const commitMessage = `[eyeglass:${interactionId}] ${message || 'Eyeglass change'}`;
-      execSync(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, { cwd, stdio: 'pipe' });
-
-      // Get the commit hash
-      const commitHash = execSync('git rev-parse HEAD', { cwd, encoding: 'utf-8' }).trim();
-      this.commitMap.set(interactionId, commitHash);
-    } catch (err) {
-      // Silently fail git operations
-      console.error('[eyeglass] Failed to commit changes:', err);
-    }
-  }
-
-  /**
-   * Undo changes for a specific interaction by reverting its commit
-   */
-  async undoInteraction(interactionId: string): Promise<{ success: boolean; message: string }> {
-    const commitHash = this.commitMap.get(interactionId);
-
-    if (!commitHash) {
-      // Try to find the commit by searching git log
-      try {
-        const cwd = process.cwd();
-        const log = execSync(
-          `git log --oneline --grep="\\[eyeglass:${interactionId}\\]" -n 1`,
-          { cwd, encoding: 'utf-8' }
-        ).trim();
-
-        if (!log) {
-          return { success: false, message: 'No commit found for this interaction' };
-        }
-
-        const foundHash = log.split(' ')[0];
-        if (foundHash) {
-          this.commitMap.set(interactionId, foundHash);
-          return this.revertCommit(interactionId, foundHash);
-        }
-      } catch {
-        return { success: false, message: 'Could not find commit for this interaction' };
-      }
-    }
-
-    return this.revertCommit(interactionId, commitHash!);
-  }
-
-  private revertCommit(interactionId: string, commitHash: string): { success: boolean; message: string } {
-    try {
-      const cwd = process.cwd();
-
-      // Revert the commit (creates a new commit that undoes the changes)
-      execSync(`git revert --no-edit ${commitHash}`, { cwd, stdio: 'pipe' });
-
-      // Remove from commit map
-      this.commitMap.delete(interactionId);
-
-      // Emit status update
-      this.emitActivity({
-        type: 'status',
-        interactionId,
-        status: 'idle',
-        message: 'Changes reverted',
-        timestamp: Date.now(),
-      });
-
-      return { success: true, message: 'Changes reverted successfully' };
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      return { success: false, message: `Failed to revert: ${errorMessage}` };
-    }
   }
 
   // Send a thought/reasoning to the user

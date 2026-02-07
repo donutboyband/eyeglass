@@ -5,34 +5,10 @@ export declare class ContextStore extends EventEmitter {
     private history;
     private currentStatus;
     private pendingQuestion;
-    private pendingWait;
-    private commitMap;
     setFocus(payload: FocusPayload): void;
-    /**
-     * Wait for a new focus request from the browser.
-     * If there's already an active pending request, resolves immediately.
-     * @param timeoutMs - Optional timeout in milliseconds (default: no timeout)
-     */
-    waitForFocus(timeoutMs?: number): Promise<FocusPayload>;
-    /**
-     * Check if an agent is currently waiting for a request
-     */
-    isWaitingForFocus(): boolean;
     getActive(): FocusPayload | null;
     getHistory(): FocusPayload[];
     updateStatus(interactionId: string, status: InteractionStatus, message?: string): void;
-    /**
-     * Commit all staged and unstaged changes with the interaction ID
-     */
-    private commitChanges;
-    /**
-     * Undo changes for a specific interaction by reverting its commit
-     */
-    undoInteraction(interactionId: string): Promise<{
-        success: boolean;
-        message: string;
-    }>;
-    private revertCommit;
     sendThought(interactionId: string, content: string): void;
     reportAction(interactionId: string, action: 'reading' | 'writing' | 'searching' | 'thinking', target: string, complete?: boolean): void;
     askQuestion(interactionId: string, questionId: string, question: string, options: Array<{
