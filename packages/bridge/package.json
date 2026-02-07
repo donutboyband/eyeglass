@@ -8,7 +8,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "test": "vitest run --project node --testNamePattern bridge"
   },
   "dependencies": {
     "@eyeglass/types": "^0.1.0",

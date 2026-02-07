@@ -16,6 +16,9 @@ const STORAGE_KEY = 'eyeglass_session';
 const HISTORY_KEY = 'eyeglass_history';
 const SESSION_TTL = 10000; // 10 seconds
 
+// Eye cursor as base64-encoded SVG (16x16 eye icon, indigo color)
+const EYE_CURSOR = `url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2MzY2ZjEiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xIDEyczQtOCAxMS04IDExIDggMTEgOC00IDgtMTEgOC0xMS04LTExLTh6Ii8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMyIgZmlsbD0iIzYzNjZmMSIvPjwvc3ZnPg==") 8 8, crosshair`;
+
 const STYLES = `
 :host {
   all: initial;
@@ -52,16 +55,21 @@ const STYLES = `
 /* Highlight overlay */
 .highlight {
   position: absolute;
+  z-index: 2147483640;
   border: 2px solid var(--accent);
-  background: var(--accent-soft);
+  background: rgba(99, 102, 241, 0.06);
   pointer-events: none;
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 4px;
+  border-radius: 6px;
+  transition: all 0.1s ease-out;
+  box-shadow:
+    0 0 0 3px rgba(99, 102, 241, 0.08),
+    0 2px 8px rgba(99, 102, 241, 0.1);
 }
 
 /* Glass Panel */
 .glass-panel {
   position: absolute;
+  z-index: 2147483647;
   background: var(--glass-bg);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -72,6 +80,19 @@ const STYLES = `
   width: 340px;
   overflow: hidden;
   animation: panelIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: default;
+}
+
+.glass-panel *, .glass-panel *::before, .glass-panel *::after {
+  cursor: inherit;
+}
+
+.glass-panel button, .glass-panel input {
+  cursor: pointer;
+}
+
+.glass-panel input[type="text"] {
+  cursor: text;
 }
 
 @keyframes panelIn {
@@ -513,6 +534,15 @@ const STYLES = `
   max-width: 200px;
   overflow: hidden;
   animation: hubIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: default;
+}
+
+.hub *, .hub *::before, .hub *::after {
+  cursor: inherit;
+}
+
+.hub button {
+  cursor: pointer;
 }
 
 @keyframes hubIn {
@@ -749,6 +779,9 @@ const STYLES = `
 .highlight.multi {
   border-style: dashed;
   border-width: 2px;
+  box-shadow:
+    0 0 0 2px rgba(99, 102, 241, 0.06),
+    0 2px 6px rgba(99, 102, 241, 0.08);
 }
 
 .highlight-badge {
@@ -927,6 +960,9 @@ export class EyeglassInspector extends HTMLElement {
   private submittedSnapshots: SemanticSnapshot[] = []; // Track what was submitted for activity mode display
   private static readonly MAX_SELECTION = 5;
 
+  // Cursor style element (injected into document head)
+  private cursorStyleElement: HTMLStyleElement | null = null;
+
   constructor() {
     super();
     this.shadow = this.attachShadow({ mode: 'closed' });
@@ -955,6 +991,7 @@ export class EyeglassInspector extends HTMLElement {
     this.renderHub();
     this.connectSSE();
     this.restoreSession();
+    this.updateCursor();
   }
 
   private saveSession(message?: string): void {
@@ -1146,6 +1183,7 @@ export class EyeglassInspector extends HTMLElement {
       if (!this.inspectorEnabled) {
         this.unfreeze();
       }
+      this.updateCursor();
       this.renderHub();
     });
 
@@ -1202,6 +1240,11 @@ export class EyeglassInspector extends HTMLElement {
     document.removeEventListener('click', this.handleClick, true);
     document.removeEventListener('keydown', this.handleKeyDown, true);
     this.eventSource?.close();
+    // Clean up cursor style
+    if (this.cursorStyleElement) {
+      this.cursorStyleElement.remove();
+      this.cursorStyleElement = null;
+    }
   }
 
   private connectSSE(): void {
@@ -1348,11 +1391,12 @@ export class EyeglassInspector extends HTMLElement {
     if (!this.highlight) return;
 
     const rect = element.getBoundingClientRect();
+    const padding = 3;
     this.highlight.style.display = 'block';
-    this.highlight.style.left = `${rect.left - 2}px`;
-    this.highlight.style.top = `${rect.top - 2}px`;
-    this.highlight.style.width = `${rect.width + 4}px`;
-    this.highlight.style.height = `${rect.height + 4}px`;
+    this.highlight.style.left = `${rect.left - padding}px`;
+    this.highlight.style.top = `${rect.top - padding}px`;
+    this.highlight.style.width = `${rect.width + padding * 2}px`;
+    this.highlight.style.height = `${rect.height + padding * 2}px`;
   }
 
   private hideHighlight(): void {
@@ -1373,6 +1417,7 @@ export class EyeglassInspector extends HTMLElement {
     this.mode = 'input';
     this.activityEvents = [];
     this.currentStatus = 'idle';
+    this.updateCursor();
     this.renderPanel();
   }
 
@@ -1382,6 +1427,7 @@ export class EyeglassInspector extends HTMLElement {
     this.multiSelectMode = true;
     // Render highlight for the first selected element
     this.renderMultiSelectHighlights();
+    this.updateCursor();
     this.renderPanel();
   }
 
@@ -1442,6 +1488,7 @@ export class EyeglassInspector extends HTMLElement {
     if (this.currentElement) {
       this.showHighlight(this.currentElement);
     }
+    this.updateCursor();
     this.renderPanel();
   }
 
@@ -1449,15 +1496,16 @@ export class EyeglassInspector extends HTMLElement {
     // Clear existing multi-select highlights
     this.clearMultiSelectHighlights();
 
+    const padding = 3;
     this.selectedElements.forEach((element, index) => {
       const rect = element.getBoundingClientRect();
       const highlight = document.createElement('div');
       highlight.className = 'highlight multi';
       highlight.style.display = 'block';
-      highlight.style.left = `${rect.left - 2}px`;
-      highlight.style.top = `${rect.top - 2}px`;
-      highlight.style.width = `${rect.width + 4}px`;
-      highlight.style.height = `${rect.height + 4}px`;
+      highlight.style.left = `${rect.left - padding}px`;
+      highlight.style.top = `${rect.top - padding}px`;
+      highlight.style.width = `${rect.width + padding * 2}px`;
+      highlight.style.height = `${rect.height + padding * 2}px`;
 
       // Add numbered badge
       const badge = document.createElement('div');
@@ -1497,6 +1545,7 @@ export class EyeglassInspector extends HTMLElement {
 
     this.hidePanel();
     this.hideHighlight();
+    this.updateCursor();
 
     // Clear persisted session
     try {
@@ -1940,6 +1989,30 @@ export class EyeglassInspector extends HTMLElement {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  private updateCursor(): void {
+    // Show eye cursor when: enabled AND (not frozen OR in multi-select mode)
+    const showEyeCursor = this.inspectorEnabled && (!this.frozen || this.multiSelectMode);
+
+    if (showEyeCursor) {
+      // Add eye cursor to document
+      if (!this.cursorStyleElement) {
+        this.cursorStyleElement = document.createElement('style');
+        this.cursorStyleElement.id = 'eyeglass-cursor-style';
+        document.head.appendChild(this.cursorStyleElement);
+      }
+      this.cursorStyleElement.textContent = `
+        html, body, body * {
+          cursor: ${EYE_CURSOR} !important;
+        }
+      `;
+    } else {
+      // Remove custom cursor
+      if (this.cursorStyleElement) {
+        this.cursorStyleElement.textContent = '';
+      }
+    }
   }
 }
 

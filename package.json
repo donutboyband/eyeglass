@@ -6,6 +6,14 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces",
-    "dev:bridge": "npm run dev --workspace=@eyeglass/bridge"
+    "dev:bridge": "npm run dev --workspace=@eyeglass/bridge",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "happy-dom": "^17.0.0"
   }
 }

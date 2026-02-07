@@ -6,7 +6,8 @@
     "eyeglass": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "vitest run --project node --testNamePattern cli"
   },
   "dependencies": {
     "@eyeglass/inspector": "^0.1.0",
