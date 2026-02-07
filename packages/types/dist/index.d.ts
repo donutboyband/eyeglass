@@ -43,7 +43,8 @@ export interface SemanticSnapshot {
 }
 export interface FocusPayload {
     interactionId: string;
-    snapshot: SemanticSnapshot;
+    snapshot?: SemanticSnapshot;
+    snapshots?: SemanticSnapshot[];
     userNote: string;
 }
 export type ActivityEventType = 'status' | 'thought' | 'question' | 'action';

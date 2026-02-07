@@ -22,6 +22,11 @@ export declare class EyeglassInspector extends HTMLElement {
     private isDragging;
     private dragOffset;
     private customPanelPosition;
+    private multiSelectMode;
+    private selectedElements;
+    private selectedSnapshots;
+    private multiSelectHighlights;
+    private static readonly MAX_SELECTION;
     constructor();
     connectedCallback(): void;
     private saveSession;
@@ -46,6 +51,12 @@ export declare class EyeglassInspector extends HTMLElement {
     private showHighlight;
     private hideHighlight;
     private freeze;
+    private enterMultiSelectMode;
+    private toggleInSelection;
+    private removeFromSelection;
+    private exitMultiSelectMode;
+    private renderMultiSelectHighlights;
+    private clearMultiSelectHighlights;
     private unfreeze;
     private renderPanel;
     private renderInputMode;

@@ -744,6 +744,137 @@ const STYLES = `
 .hub.collapsed .hub-header-left {
   gap: 4px;
 }
+
+/* Multi-select styles */
+.highlight.multi {
+  border-style: dashed;
+  border-width: 2px;
+}
+
+.highlight-badge {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  width: 20px;
+  height: 20px;
+  background: var(--accent);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.multi-select-icon {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.multi-select-icon:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.multi-select-icon.active {
+  background: var(--accent);
+  color: white;
+}
+
+.selected-list {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--divider);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.selected-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.selected-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.selected-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.selected-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--accent-soft);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.selected-chip-number {
+  width: 16px;
+  height: 16px;
+  background: var(--accent);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.selected-chip-remove {
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.selected-chip-remove:hover {
+  opacity: 1;
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.multi-mode-hint {
+  padding: 8px 16px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--divider);
+  font-size: 11px;
+  color: var(--accent);
+  text-align: center;
+}
 `;
 
 type PanelMode = 'input' | 'activity';
@@ -787,6 +918,13 @@ export class EyeglassInspector extends HTMLElement {
   private isDragging = false;
   private dragOffset = { x: 0, y: 0 };
   private customPanelPosition: { x: number; y: number } | null = null;
+
+  // Multi-select state
+  private multiSelectMode = false;
+  private selectedElements: Element[] = [];
+  private selectedSnapshots: SemanticSnapshot[] = [];
+  private multiSelectHighlights: HTMLDivElement[] = [];
+  private static readonly MAX_SELECTION = 5;
 
   constructor() {
     super();
@@ -1109,14 +1247,18 @@ export class EyeglassInspector extends HTMLElement {
   }
 
   private handleMouseMove(e: MouseEvent): void {
-    if (this.frozen || !this.inspectorEnabled) return;
+    // In multi-select mode, continue raycasting even when frozen
+    if (!this.multiSelectMode && this.frozen) return;
+    if (!this.inspectorEnabled) return;
 
     // Don't raycast if hovering over our own UI (hub, panel, etc.)
     // When pointer-events: auto elements in our shadow DOM are hovered,
     // the host element will be in the composed path
     const path = e.composedPath();
     if (path.includes(this)) {
-      this.hideHighlight();
+      if (!this.multiSelectMode) {
+        this.hideHighlight();
+      }
       return;
     }
 
@@ -1130,7 +1272,9 @@ export class EyeglassInspector extends HTMLElement {
     this.style.pointerEvents = '';
 
     if (!target || target === document.documentElement || target === document.body) {
-      this.hideHighlight();
+      if (!this.multiSelectMode) {
+        this.hideHighlight();
+      }
       return;
     }
 
@@ -1141,7 +1285,7 @@ export class EyeglassInspector extends HTMLElement {
   }
 
   private handleClick(e: MouseEvent): void {
-    if (this.frozen || !this.inspectorEnabled) return;
+    if (!this.inspectorEnabled) return;
     if (!this.currentElement) return;
 
     const path = e.composedPath();
@@ -1150,6 +1294,14 @@ export class EyeglassInspector extends HTMLElement {
     e.preventDefault();
     e.stopPropagation();
 
+    // In multi-select mode, add/toggle element in selection
+    if (this.multiSelectMode) {
+      this.toggleInSelection(this.currentElement);
+      return;
+    }
+
+    // Normal single-select behavior
+    if (this.frozen) return;
     this.freeze();
   }
 
@@ -1214,10 +1366,117 @@ export class EyeglassInspector extends HTMLElement {
 
     this.frozen = true;
     this.currentSnapshot = captureSnapshot(this.currentElement);
+    // Initialize selectedElements with the first element
+    this.selectedElements = [this.currentElement];
+    this.selectedSnapshots = [this.currentSnapshot];
     this.mode = 'input';
     this.activityEvents = [];
     this.currentStatus = 'idle';
     this.renderPanel();
+  }
+
+  private enterMultiSelectMode(): void {
+    if (!this.frozen || this.multiSelectMode) return;
+
+    this.multiSelectMode = true;
+    // Render highlight for the first selected element
+    this.renderMultiSelectHighlights();
+    this.renderPanel();
+  }
+
+  private toggleInSelection(element: Element): void {
+    if (!this.multiSelectMode) return;
+
+    // Check if element is already selected (by reference)
+    const existingIndex = this.selectedElements.indexOf(element);
+
+    if (existingIndex >= 0) {
+      // Remove from selection
+      this.removeFromSelection(existingIndex);
+    } else {
+      // Add to selection (if under limit)
+      if (this.selectedElements.length >= EyeglassInspector.MAX_SELECTION) {
+        // Could show a toast/warning, for now just ignore
+        return;
+      }
+
+      const snapshot = captureSnapshot(element);
+      this.selectedElements.push(element);
+      this.selectedSnapshots.push(snapshot);
+    }
+
+    this.renderMultiSelectHighlights();
+    this.renderPanel();
+  }
+
+  private removeFromSelection(index: number): void {
+    if (index < 0 || index >= this.selectedElements.length) return;
+
+    // Don't allow removing the last element
+    if (this.selectedElements.length === 1) {
+      this.exitMultiSelectMode();
+      return;
+    }
+
+    this.selectedElements.splice(index, 1);
+    this.selectedSnapshots.splice(index, 1);
+
+    this.renderMultiSelectHighlights();
+    this.renderPanel();
+  }
+
+  private exitMultiSelectMode(): void {
+    this.multiSelectMode = false;
+    // Keep the first selected element as the current single selection
+    if (this.selectedElements.length > 0) {
+      this.currentElement = this.selectedElements[0];
+      this.currentSnapshot = this.selectedSnapshots[0];
+    }
+    this.selectedElements = this.currentElement ? [this.currentElement] : [];
+    this.selectedSnapshots = this.currentSnapshot ? [this.currentSnapshot] : [];
+
+    // Clear multi-select highlights
+    this.clearMultiSelectHighlights();
+    // Show single highlight for current element
+    if (this.currentElement) {
+      this.showHighlight(this.currentElement);
+    }
+    this.renderPanel();
+  }
+
+  private renderMultiSelectHighlights(): void {
+    // Clear existing multi-select highlights
+    this.clearMultiSelectHighlights();
+
+    this.selectedElements.forEach((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const highlight = document.createElement('div');
+      highlight.className = 'highlight multi';
+      highlight.style.display = 'block';
+      highlight.style.left = `${rect.left - 2}px`;
+      highlight.style.top = `${rect.top - 2}px`;
+      highlight.style.width = `${rect.width + 4}px`;
+      highlight.style.height = `${rect.height + 4}px`;
+
+      // Add numbered badge
+      const badge = document.createElement('div');
+      badge.className = 'highlight-badge';
+      badge.textContent = String(index + 1);
+      highlight.appendChild(badge);
+
+      this.shadow.appendChild(highlight);
+      this.multiSelectHighlights.push(highlight);
+    });
+
+    // Hide the main single highlight when in multi-select mode
+    if (this.highlight) {
+      this.highlight.style.display = 'none';
+    }
+  }
+
+  private clearMultiSelectHighlights(): void {
+    this.multiSelectHighlights.forEach((h) => h.remove());
+    this.multiSelectHighlights = [];
   }
 
   private unfreeze(): void {
@@ -1227,6 +1486,13 @@ export class EyeglassInspector extends HTMLElement {
     this.mode = 'input';
     this.activityEvents = [];
     this.customPanelPosition = null;
+
+    // Clear multi-select state
+    this.multiSelectMode = false;
+    this.selectedElements = [];
+    this.selectedSnapshots = [];
+    this.clearMultiSelectHighlights();
+
     this.hidePanel();
     this.hideHighlight();
 
@@ -1287,17 +1553,48 @@ export class EyeglassInspector extends HTMLElement {
   private renderInputMode(componentName: string, filePath: string | null): void {
     if (!this.panel) return;
 
+    const isMultiSelect = this.multiSelectMode;
+    const multiSelectIconClass = isMultiSelect ? 'multi-select-icon active' : 'multi-select-icon';
+
+    // Build selected list HTML for multi-select mode
+    const selectedListHtml = isMultiSelect ? `
+      <div class="selected-list">
+        <div class="selected-list-header">
+          <span class="selected-count">${this.selectedElements.length} element${this.selectedElements.length !== 1 ? 's' : ''} selected</span>
+        </div>
+        <div class="selected-chips">
+          ${this.selectedSnapshots.map((snapshot, index) => {
+            const name = snapshot.framework.componentName || snapshot.tagName;
+            return `
+              <div class="selected-chip" data-index="${index}">
+                <span class="selected-chip-number">${index + 1}</span>
+                <span>${this.escapeHtml(name)}</span>
+                <button class="selected-chip-remove" data-index="${index}" title="Remove">&times;</button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : '';
+
+    const multiModeHint = isMultiSelect ? `
+      <div class="multi-mode-hint">Click elements to add/remove from selection (max ${EyeglassInspector.MAX_SELECTION})</div>
+    ` : '';
+
     this.panel.innerHTML = `
       <div class="panel-header">
         <span class="component-tag">&lt;${componentName} /&gt;</span>
         ${filePath ? `<span class="file-path">${filePath}</span>` : ''}
+        <button class="${multiSelectIconClass}" title="${isMultiSelect ? 'Exit multi-select' : 'Select multiple elements'}">+</button>
         <button class="close-btn" title="Cancel (Esc)">&times;</button>
       </div>
+      ${multiModeHint}
+      ${selectedListHtml}
       <div class="input-area">
         <input
           type="text"
           class="input-field"
-          placeholder="What do you want to change?"
+          placeholder="${isMultiSelect ? 'Describe what to change for these elements...' : 'What do you want to change?'}"
           autofocus
         />
         <div class="btn-row">
@@ -1311,6 +1608,7 @@ export class EyeglassInspector extends HTMLElement {
     const closeBtn = this.panel.querySelector('.close-btn') as HTMLButtonElement;
     const cancelBtn = this.panel.querySelector('.btn-secondary') as HTMLButtonElement;
     const sendBtn = this.panel.querySelector('.btn-primary') as HTMLButtonElement;
+    const multiSelectBtn = this.panel.querySelector('.multi-select-icon') as HTMLButtonElement;
 
     closeBtn.addEventListener('click', () => this.unfreeze());
     cancelBtn.addEventListener('click', () => this.unfreeze());
@@ -1319,6 +1617,24 @@ export class EyeglassInspector extends HTMLElement {
       if (e.key === 'Enter' && input.value.trim()) {
         this.submit(input.value);
       }
+    });
+
+    // Multi-select toggle button
+    multiSelectBtn.addEventListener('click', () => {
+      if (this.multiSelectMode) {
+        this.exitMultiSelectMode();
+      } else {
+        this.enterMultiSelectMode();
+      }
+    });
+
+    // Wire up chip remove buttons
+    this.panel.querySelectorAll('.selected-chip-remove').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const index = parseInt((e.currentTarget as HTMLButtonElement).dataset.index!, 10);
+        this.removeFromSelection(index);
+      });
     });
 
     // Make panel draggable via header
@@ -1509,26 +1825,46 @@ export class EyeglassInspector extends HTMLElement {
   }
 
   private async submit(userNote: string): Promise<void> {
-    if (!this.currentSnapshot || !userNote.trim()) return;
+    if (!userNote.trim()) return;
+    if (this.selectedSnapshots.length === 0 && !this.currentSnapshot) return;
 
     this.interactionId = `eyeglass-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     (this as any)._userNote = userNote.trim();
 
+    // Build payload - use snapshots array if multiple, otherwise single snapshot for backwards compat
+    const snapshots = this.selectedSnapshots.length > 0 ? this.selectedSnapshots : (this.currentSnapshot ? [this.currentSnapshot] : []);
     const payload: FocusPayload = {
       interactionId: this.interactionId,
-      snapshot: this.currentSnapshot,
       userNote: userNote.trim(),
+      ...(snapshots.length === 1
+        ? { snapshot: snapshots[0] }
+        : { snapshots }),
     };
+
+    // Build component name for history (combine if multiple)
+    const componentNames = snapshots.map(s => s.framework.componentName || s.tagName);
+    const historyComponentName = snapshots.length === 1
+      ? componentNames[0]
+      : `${componentNames.length} elements`;
 
     // Add to history
     this.addToHistory({
       interactionId: this.interactionId,
       userNote: userNote.trim(),
-      componentName: this.currentSnapshot.framework.componentName || this.currentSnapshot.tagName,
-      filePath: this.currentSnapshot.framework.filePath,
+      componentName: historyComponentName,
+      filePath: snapshots[0]?.framework.filePath,
       status: 'pending',
       timestamp: Date.now(),
     });
+
+    // Store multi-select state to restore on failure
+    const wasMultiSelect = this.multiSelectMode;
+    const savedElements = [...this.selectedElements];
+    const savedSnapshots = [...this.selectedSnapshots];
+
+    // Clear multi-select highlights before switching to activity mode
+    this.clearMultiSelectHighlights();
+    this.multiSelectMode = false;
 
     this.mode = 'activity';
     this.activityEvents = [];
@@ -1555,6 +1891,16 @@ export class EyeglassInspector extends HTMLElement {
         message: 'Failed to connect to bridge',
         timestamp: Date.now(),
       });
+
+      // Restore multi-select state on failure so user doesn't lose their selection
+      if (wasMultiSelect && savedElements.length > 1) {
+        this.multiSelectMode = true;
+        this.selectedElements = savedElements;
+        this.selectedSnapshots = savedSnapshots;
+        this.mode = 'input';
+        this.renderMultiSelectHighlights();
+      }
+
       this.renderPanel();
     }
   }

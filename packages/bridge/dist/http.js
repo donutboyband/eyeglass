@@ -15,7 +15,9 @@ export function startHttpServer() {
     // Browser posts focus payload here
     app.post('/focus', (req, res) => {
         const payload = req.body;
-        if (!payload.interactionId || !payload.snapshot || !payload.userNote) {
+        // Validate: must have interactionId, userNote, and either snapshot or snapshots
+        const hasSnapshot = payload.snapshot || (payload.snapshots && payload.snapshots.length > 0);
+        if (!payload.interactionId || !hasSnapshot || !payload.userNote) {
             res.status(400).json({ error: 'Invalid payload' });
             return;
         }

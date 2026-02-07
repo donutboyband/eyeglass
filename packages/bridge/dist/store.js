@@ -255,7 +255,20 @@ export class ContextStore extends EventEmitter {
         if (!this.active) {
             return '# No Active Focus\n\nNo element is currently focused.';
         }
-        const { snapshot, userNote, interactionId } = this.active;
+        const { snapshot, snapshots, userNote, interactionId } = this.active;
+        // Handle both single and multi-select payloads
+        const allSnapshots = snapshots || (snapshot ? [snapshot] : []);
+        if (allSnapshots.length === 0) {
+            return '# No Active Focus\n\nNo element is currently focused.';
+        }
+        // Single element - use original format
+        if (allSnapshots.length === 1) {
+            return this.formatSingleSnapshot(allSnapshots[0], userNote, interactionId);
+        }
+        // Multiple elements - new format
+        return this.formatMultipleSnapshots(allSnapshots, userNote, interactionId);
+    }
+    formatSingleSnapshot(snapshot, userNote, interactionId) {
         const { framework, a11y, geometry, styles } = snapshot;
         const componentInfo = framework.componentName
             ? `\`<${framework.componentName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
@@ -302,6 +315,61 @@ ${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
 ### Page Context
 - URL: ${snapshot.url}
 - Timestamp: ${new Date(snapshot.timestamp).toISOString()}
+`;
+    }
+    formatMultipleSnapshots(snapshots, userNote, interactionId) {
+        const elementSections = snapshots.map((snapshot, index) => {
+            const { framework, a11y, geometry, styles } = snapshot;
+            const componentInfo = framework.componentName
+                ? `\`<${framework.componentName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
+                : `\`<${snapshot.tagName}>\` (vanilla element)`;
+            return `## Element ${index + 1}: ${componentInfo}
+
+### Element Info
+- Tag: \`<${snapshot.tagName}>\`
+- Role: ${snapshot.role}
+- Name: "${snapshot.name}"
+
+### Accessibility Tree
+- Label: ${a11y.label ?? 'none'}
+- Description: ${a11y.description ?? 'none'}
+- Disabled: ${a11y.disabled}
+- Hidden: ${a11y.hidden}
+${a11y.expanded !== undefined ? `- Expanded: ${a11y.expanded}` : ''}
+${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}
+
+### Geometry
+- Box: ${geometry.width}x${geometry.height} at (${geometry.x}, ${geometry.y})
+- Visible: ${geometry.visible}
+
+### Computed Styles
+- Display: ${styles.display}
+- Position: ${styles.position}
+${styles.flexDirection ? `- Flex Direction: ${styles.flexDirection}` : ''}
+${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
+- Padding: ${styles.padding}
+- Margin: ${styles.margin}
+- Color: ${styles.color}
+- Background: ${styles.backgroundColor}
+- Font: ${styles.fontFamily}
+- Z-Index: ${styles.zIndex}
+
+### Framework
+- Detected: ${framework.name}
+${framework.ancestry ? `- Component Tree: ${framework.ancestry.join(' > ')}` : ''}
+${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
+`;
+        }).join('\n---\n\n');
+        return `# User Focus Request (${snapshots.length} Elements)
+**Interaction ID:** ${interactionId}
+**User Note:** "${userNote}"
+
+---
+
+${elementSections}
+### Page Context
+- URL: ${snapshots[0].url}
+- Timestamp: ${new Date(snapshots[0].timestamp).toISOString()}
 `;
     }
     writeContextFile() {

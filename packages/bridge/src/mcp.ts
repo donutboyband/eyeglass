@@ -350,8 +350,12 @@ Handle this request now.`,
 
         const summary = history
           .map((p, i) => {
-            const { snapshot, userNote } = p;
-            return `${i + 1}. **${snapshot.framework.componentName || snapshot.tagName}** - "${userNote}"`;
+            const { snapshot, snapshots, userNote } = p;
+            // Handle both single and multi-select payloads
+            const firstSnapshot = snapshot || (snapshots && snapshots[0]);
+            if (!firstSnapshot) return `${i + 1}. **unknown** - "${userNote}"`;
+            const elementCount = snapshots ? ` (${snapshots.length} elements)` : '';
+            return `${i + 1}. **${firstSnapshot.framework.componentName || firstSnapshot.tagName}**${elementCount} - "${userNote}"`;
           })
           .join('\n');
 

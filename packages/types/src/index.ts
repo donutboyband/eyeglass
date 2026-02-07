@@ -50,7 +50,8 @@ export interface SemanticSnapshot {
 
 export interface FocusPayload {
   interactionId: string;
-  snapshot: SemanticSnapshot;
+  snapshot?: SemanticSnapshot;      // Single (backwards compat)
+  snapshots?: SemanticSnapshot[];   // Multiple (new - for multi-select)
   userNote: string;
 }
 

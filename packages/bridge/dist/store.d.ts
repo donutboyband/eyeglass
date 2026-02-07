@@ -43,6 +43,8 @@ export declare class ContextStore extends EventEmitter {
     hasPendingQuestion(): boolean;
     private emitActivity;
     formatAsMarkdown(): string;
+    private formatSingleSnapshot;
+    private formatMultipleSnapshots;
     private writeContextFile;
 }
 export declare const store: ContextStore;
