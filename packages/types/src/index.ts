@@ -5,6 +5,11 @@ export interface SemanticSnapshot {
   name: string;
   tagName: string;
 
+  // Element identifiers for locating in code
+  id?: string;
+  className?: string;
+  dataAttributes?: Record<string, string>;
+
   framework: {
     name: 'react' | 'vue' | 'svelte' | 'vanilla';
     componentName?: string;

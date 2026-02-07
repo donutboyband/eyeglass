@@ -161,13 +161,57 @@ function getAccessibleName(element: Element): string {
 }
 
 /**
+ * Get element identifiers (id, className, data-* attributes)
+ */
+function getElementIdentifiers(element: Element): {
+  id?: string;
+  className?: string;
+  dataAttributes?: Record<string, string>;
+} {
+  const result: {
+    id?: string;
+    className?: string;
+    dataAttributes?: Record<string, string>;
+  } = {};
+
+  // Get id
+  const id = element.getAttribute('id');
+  if (id) {
+    result.id = id;
+  }
+
+  // Get class names
+  const className = element.getAttribute('class');
+  if (className?.trim()) {
+    result.className = className.trim();
+  }
+
+  // Get data-* attributes
+  const dataAttrs: Record<string, string> = {};
+  for (let i = 0; i < element.attributes.length; i++) {
+    const attr = element.attributes[i];
+    if (attr.name.startsWith('data-')) {
+      dataAttrs[attr.name] = attr.value;
+    }
+  }
+  if (Object.keys(dataAttrs).length > 0) {
+    result.dataAttributes = dataAttrs;
+  }
+
+  return result;
+}
+
+/**
  * Capture a complete semantic snapshot of an element
  */
 export function captureSnapshot(element: Element): SemanticSnapshot {
+  const identifiers = getElementIdentifiers(element);
+
   return {
     role: getRole(element),
     name: getAccessibleName(element),
     tagName: element.tagName.toLowerCase(),
+    ...identifiers,
     framework: extractFrameworkInfo(element),
     a11y: getA11yInfo(element),
     geometry: getGeometry(element),

@@ -924,6 +924,7 @@ export class EyeglassInspector extends HTMLElement {
   private selectedElements: Element[] = [];
   private selectedSnapshots: SemanticSnapshot[] = [];
   private multiSelectHighlights: HTMLDivElement[] = [];
+  private submittedSnapshots: SemanticSnapshot[] = []; // Track what was submitted for activity mode display
   private static readonly MAX_SELECTION = 5;
 
   constructor() {
@@ -1491,6 +1492,7 @@ export class EyeglassInspector extends HTMLElement {
     this.multiSelectMode = false;
     this.selectedElements = [];
     this.selectedSnapshots = [];
+    this.submittedSnapshots = [];
     this.clearMultiSelectHighlights();
 
     this.hidePanel();
@@ -1653,10 +1655,16 @@ export class EyeglassInspector extends HTMLElement {
 
     const isDone = this.currentStatus === 'success' || this.currentStatus === 'failed';
 
+    // Build header display based on submitted snapshots
+    const snapshotCount = this.submittedSnapshots.length;
+    const headerDisplay = snapshotCount > 1
+      ? `${snapshotCount} elements`
+      : `&lt;${componentName} /&gt;`;
+
     this.panel.innerHTML = `
       <div class="panel-header">
-        <span class="component-tag">&lt;${componentName} /&gt;</span>
-        ${filePath ? `<span class="file-path">${filePath}</span>` : ''}
+        <span class="component-tag">${headerDisplay}</span>
+        ${snapshotCount <= 1 && filePath ? `<span class="file-path">${filePath}</span>` : ''}
         <button class="close-btn" title="Close">&times;</button>
       </div>
       <div class="user-request">
@@ -1833,6 +1841,8 @@ export class EyeglassInspector extends HTMLElement {
 
     // Build payload - use snapshots array if multiple, otherwise single snapshot for backwards compat
     const snapshots = this.selectedSnapshots.length > 0 ? this.selectedSnapshots : (this.currentSnapshot ? [this.currentSnapshot] : []);
+    // Store for activity mode display
+    this.submittedSnapshots = [...snapshots];
     const payload: FocusPayload = {
       interactionId: this.interactionId,
       userNote: userNote.trim(),

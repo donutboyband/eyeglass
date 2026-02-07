@@ -145,13 +145,43 @@ function getAccessibleName(element) {
     return text.length > 50 ? text.slice(0, 50) + '...' : text;
 }
 /**
+ * Get element identifiers (id, className, data-* attributes)
+ */
+function getElementIdentifiers(element) {
+    const result = {};
+    // Get id
+    const id = element.getAttribute('id');
+    if (id) {
+        result.id = id;
+    }
+    // Get class names
+    const className = element.getAttribute('class');
+    if (className?.trim()) {
+        result.className = className.trim();
+    }
+    // Get data-* attributes
+    const dataAttrs = {};
+    for (let i = 0; i < element.attributes.length; i++) {
+        const attr = element.attributes[i];
+        if (attr.name.startsWith('data-')) {
+            dataAttrs[attr.name] = attr.value;
+        }
+    }
+    if (Object.keys(dataAttrs).length > 0) {
+        result.dataAttributes = dataAttrs;
+    }
+    return result;
+}
+/**
  * Capture a complete semantic snapshot of an element
  */
 export function captureSnapshot(element) {
+    const identifiers = getElementIdentifiers(element);
     return {
         role: getRole(element),
         name: getAccessibleName(element),
         tagName: element.tagName.toLowerCase(),
+        ...identifiers,
         framework: extractFrameworkInfo(element),
         a11y: getA11yInfo(element),
         geometry: getGeometry(element),

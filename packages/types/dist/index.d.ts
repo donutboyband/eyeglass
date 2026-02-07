@@ -3,6 +3,9 @@ export interface SemanticSnapshot {
     role: string;
     name: string;
     tagName: string;
+    id?: string;
+    className?: string;
+    dataAttributes?: Record<string, string>;
     framework: {
         name: 'react' | 'vue' | 'svelte' | 'vanilla';
         componentName?: string;

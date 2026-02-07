@@ -352,6 +352,9 @@ export class ContextStore extends EventEmitter {
 - Tag: \`<${snapshot.tagName}>\`
 - Role: ${snapshot.role}
 - Name: "${snapshot.name}"
+${snapshot.id ? `- ID: \`#${snapshot.id}\`` : ''}
+${snapshot.className ? `- Classes: \`${snapshot.className}\`` : ''}
+${snapshot.dataAttributes ? `- Data attrs: ${Object.entries(snapshot.dataAttributes).map(([k, v]) => `\`${k}="${v}"\``).join(', ')}` : ''}
 
 ### Accessibility Tree
 - Label: ${a11y.label ?? 'none'}
@@ -402,6 +405,9 @@ ${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
 - Tag: \`<${snapshot.tagName}>\`
 - Role: ${snapshot.role}
 - Name: "${snapshot.name}"
+${snapshot.id ? `- ID: \`#${snapshot.id}\`` : ''}
+${snapshot.className ? `- Classes: \`${snapshot.className}\`` : ''}
+${snapshot.dataAttributes ? `- Data attrs: ${Object.entries(snapshot.dataAttributes).map(([k, v]) => `\`${k}="${v}"\``).join(', ')}` : ''}
 
 ### Accessibility Tree
 - Label: ${a11y.label ?? 'none'}

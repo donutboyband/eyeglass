@@ -893,6 +893,7 @@ export class EyeglassInspector extends HTMLElement {
         this.selectedElements = [];
         this.selectedSnapshots = [];
         this.multiSelectHighlights = [];
+        this.submittedSnapshots = []; // Track what was submitted for activity mode display
         this.handlePanelDrag = (e) => {
             if (!this.isDragging || !this.panel)
                 return;
@@ -1393,6 +1394,7 @@ export class EyeglassInspector extends HTMLElement {
         this.multiSelectMode = false;
         this.selectedElements = [];
         this.selectedSnapshots = [];
+        this.submittedSnapshots = [];
         this.clearMultiSelectHighlights();
         this.hidePanel();
         this.hideHighlight();
@@ -1538,10 +1540,15 @@ export class EyeglassInspector extends HTMLElement {
             ? (this.panel.querySelector('.user-request-text')?.textContent || '')
             : '';
         const isDone = this.currentStatus === 'success' || this.currentStatus === 'failed';
+        // Build header display based on submitted snapshots
+        const snapshotCount = this.submittedSnapshots.length;
+        const headerDisplay = snapshotCount > 1
+            ? `${snapshotCount} elements`
+            : `&lt;${componentName} /&gt;`;
         this.panel.innerHTML = `
       <div class="panel-header">
-        <span class="component-tag">&lt;${componentName} /&gt;</span>
-        ${filePath ? `<span class="file-path">${filePath}</span>` : ''}
+        <span class="component-tag">${headerDisplay}</span>
+        ${snapshotCount <= 1 && filePath ? `<span class="file-path">${filePath}</span>` : ''}
         <button class="close-btn" title="Close">&times;</button>
       </div>
       <div class="user-request">
@@ -1702,6 +1709,8 @@ export class EyeglassInspector extends HTMLElement {
         this._userNote = userNote.trim();
         // Build payload - use snapshots array if multiple, otherwise single snapshot for backwards compat
         const snapshots = this.selectedSnapshots.length > 0 ? this.selectedSnapshots : (this.currentSnapshot ? [this.currentSnapshot] : []);
+        // Store for activity mode display
+        this.submittedSnapshots = [...snapshots];
         const payload = {
             interactionId: this.interactionId,
             userNote: userNote.trim(),

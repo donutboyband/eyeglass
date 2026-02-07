@@ -26,6 +26,7 @@ export declare class EyeglassInspector extends HTMLElement {
     private selectedElements;
     private selectedSnapshots;
     private multiSelectHighlights;
+    private submittedSnapshots;
     private static readonly MAX_SELECTION;
     constructor();
     connectedCallback(): void;
