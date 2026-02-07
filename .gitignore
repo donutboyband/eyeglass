@@ -5,3 +5,5 @@ repomix-output.xml
 coverage/
 hooks/
 test/
+.eyeglass_context.md
+BOOKMARKLET.md
