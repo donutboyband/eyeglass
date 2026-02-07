@@ -1,0 +1,64 @@
+/**
+ * Eyeglass Inspector - Glass UI for visual element inspection
+ */
+export declare class EyeglassInspector extends HTMLElement {
+    private shadow;
+    private highlight;
+    private panel;
+    private toast;
+    private hub;
+    private currentElement;
+    private currentSnapshot;
+    private interactionId;
+    private frozen;
+    private eventSource;
+    private throttleTimeout;
+    private mode;
+    private activityEvents;
+    private currentStatus;
+    private hubExpanded;
+    private inspectorEnabled;
+    private history;
+    private isDragging;
+    private dragOffset;
+    private customPanelPosition;
+    constructor();
+    connectedCallback(): void;
+    private saveSession;
+    private restoreSession;
+    private showResultToast;
+    private hideToast;
+    private loadHistory;
+    private saveHistory;
+    private addToHistory;
+    private updateHistoryStatus;
+    private renderHub;
+    private requestUndo;
+    disconnectedCallback(): void;
+    private connectSSE;
+    private handleActivityEvent;
+    private handleMouseMove;
+    private handleClick;
+    private handleKeyDown;
+    private handlePanelDragStart;
+    private handlePanelDrag;
+    private handlePanelDragEnd;
+    private showHighlight;
+    private hideHighlight;
+    private freeze;
+    private unfreeze;
+    private renderPanel;
+    private renderInputMode;
+    private renderActivityMode;
+    private renderActivityFeed;
+    private renderStatusItem;
+    private renderThoughtItem;
+    private renderActionItem;
+    private renderQuestionItem;
+    private getUserNote;
+    private getStatusText;
+    private hidePanel;
+    private submit;
+    private submitAnswer;
+    private escapeHtml;
+}

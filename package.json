@@ -1,0 +1,11 @@
+{
+  "name": "eyeglass",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev:bridge": "npm run dev --workspace=@eyeglass/bridge"
+  }
+}
