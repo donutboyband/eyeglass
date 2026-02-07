@@ -11,6 +11,7 @@ export interface SemanticSnapshot {
     filePath?: string;
     lineNumber?: number;
     props?: Record<string, unknown>;
+    ancestry?: string[]; // Parent component chain, e.g., ['Card', 'App']
   };
 
   a11y: {

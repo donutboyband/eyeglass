@@ -7,6 +7,7 @@ export interface FrameworkInfo {
     filePath?: string;
     lineNumber?: number;
     props?: Record<string, unknown>;
+    ancestry?: string[];
 }
 /**
  * Extract framework information from a DOM element

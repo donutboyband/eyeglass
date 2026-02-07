@@ -9,6 +9,7 @@ export interface SemanticSnapshot {
         filePath?: string;
         lineNumber?: number;
         props?: Record<string, unknown>;
+        ancestry?: string[];
     };
     a11y: {
         label: string | null;

@@ -25,21 +25,54 @@ function getFiberFromElement(element) {
     return element[fiberKey];
 }
 /**
+ * Check if a fiber is a user-defined component (not built-in React internals)
+ */
+function isUserComponent(fiber) {
+    if (!COMPONENT_TAGS.has(fiber.tag) || typeof fiber.type !== 'function') {
+        return false;
+    }
+    const name = fiber.type.displayName || fiber.type.name || '';
+    // Skip built-in React components (Context.Provider, StrictMode, etc.)
+    if (!name || name.startsWith('Context') || name.endsWith('Provider') || name === 'StrictMode') {
+        return false;
+    }
+    return true;
+}
+/**
+ * Get component name from fiber
+ */
+function getComponentName(fiber) {
+    return fiber.type.displayName || fiber.type.name || undefined;
+}
+/**
  * Walk up the fiber tree to find the nearest user-defined component
  */
 function findComponentFiber(fiber) {
     let current = fiber;
     while (current) {
-        if (COMPONENT_TAGS.has(current.tag) && typeof current.type === 'function') {
-            // Skip built-in React components (Context.Provider, etc.)
-            const name = current.type.displayName || current.type.name || '';
-            if (name && !name.startsWith('Context') && !name.endsWith('Provider')) {
-                return current;
-            }
+        if (isUserComponent(current)) {
+            return current;
         }
         current = current.return;
     }
     return null;
+}
+/**
+ * Collect all parent component names by walking up the fiber tree
+ */
+function collectAncestry(fiber) {
+    const ancestry = [];
+    let current = fiber;
+    while (current) {
+        if (isUserComponent(current)) {
+            const name = getComponentName(current);
+            if (name) {
+                ancestry.push(name);
+            }
+        }
+        current = current.return;
+    }
+    return ancestry;
 }
 /**
  * Get safe props (primitives only, no functions/objects)
@@ -157,18 +190,25 @@ export function extractFrameworkInfo(element) {
     if (fiber) {
         const componentFiber = findComponentFiber(fiber);
         if (componentFiber) {
-            const componentName = componentFiber.type.displayName || componentFiber.type.name || undefined;
+            const componentName = getComponentName(componentFiber);
             const debugSource = componentFiber._debugSource;
+            const ancestry = collectAncestry(componentFiber);
             return {
                 name: 'react',
                 componentName,
                 filePath: debugSource?.fileName,
                 lineNumber: debugSource?.lineNumber,
                 props: getSafeProps(componentFiber.memoizedProps),
+                ancestry: ancestry.length > 0 ? ancestry : undefined,
             };
         }
         // React element but no user component found (just DOM nodes)
-        return { name: 'react' };
+        // Still try to get ancestry from the fiber
+        const ancestry = collectAncestry(fiber);
+        return {
+            name: 'react',
+            ancestry: ancestry.length > 0 ? ancestry : undefined,
+        };
     }
     // Try Vue
     const vueInfo = detectVue(element);

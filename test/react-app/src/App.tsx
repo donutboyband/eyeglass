@@ -55,6 +55,28 @@ function InputField({ label, value, onChange, placeholder }: InputFieldProps) {
   )
 }
 
+interface TextAreaProps {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  rows?: number
+}
+
+function TextArea({ label, value, onChange, placeholder, rows = 4 }: TextAreaProps) {
+  return (
+    <div className="input-field">
+      <label>{label}</label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+      />
+    </div>
+  )
+}
+
 function Header() {
   return (
     <header className="header">
@@ -68,6 +90,7 @@ function App() {
   const [count, setCount] = useState(0)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [message, setMessage] = useState('')
 
   return (
     <div className="app">
@@ -101,6 +124,12 @@ function App() {
             value={email}
             onChange={setEmail}
             placeholder="Enter your email..."
+          />
+          <TextArea
+            label="Message"
+            value={message}
+            onChange={setMessage}
+            placeholder="Enter your message..."
           />
           <Button onClick={() => alert(`Hello, ${name}!`)}>
             Submit

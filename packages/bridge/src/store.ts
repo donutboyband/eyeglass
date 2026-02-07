@@ -361,6 +361,7 @@ ${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
 
 ### Framework
 - Detected: ${framework.name}
+${framework.ancestry ? `- Component Tree: ${framework.ancestry.join(' > ')}` : ''}
 ${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
 
 ### Page Context
