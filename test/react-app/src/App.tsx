@@ -90,6 +90,7 @@ function App() {
   const [count, setCount] = useState(0)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [message, setMessage] = useState('')
 
   return (
@@ -124,6 +125,12 @@ function App() {
             value={email}
             onChange={setEmail}
             placeholder="Enter your email..."
+          />
+          <InputField
+            label="Phone"
+            value={phone}
+            onChange={setPhone}
+            placeholder="Enter your phone number..."
           />
           <TextArea
             label="Message"
