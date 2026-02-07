@@ -1634,8 +1634,8 @@ export class EyeglassInspector extends HTMLElement {
 
     this.panel.innerHTML = `
       <div class="panel-header">
-        <span class="component-tag">&lt;${componentName} /&gt;</span>
-        ${filePath ? `<span class="file-path">${filePath}</span>` : ''}
+        <span class="component-tag">&lt;${this.escapeHtml(componentName)} /&gt;</span>
+        ${filePath ? `<span class="file-path">${this.escapeHtml(filePath)}</span>` : ''}
         <button class="${multiSelectIconClass}" title="${isMultiSelect ? 'Exit multi-select' : 'Select multiple elements'}">+</button>
         <button class="close-btn" title="Cancel (Esc)">&times;</button>
       </div>
@@ -1708,12 +1708,12 @@ export class EyeglassInspector extends HTMLElement {
     const snapshotCount = this.submittedSnapshots.length;
     const headerDisplay = snapshotCount > 1
       ? `${snapshotCount} elements`
-      : `&lt;${componentName} /&gt;`;
+      : `&lt;${this.escapeHtml(componentName)} /&gt;`;
 
     this.panel.innerHTML = `
       <div class="panel-header">
         <span class="component-tag">${headerDisplay}</span>
-        ${snapshotCount <= 1 && filePath ? `<span class="file-path">${filePath}</span>` : ''}
+        ${snapshotCount <= 1 && filePath ? `<span class="file-path">${this.escapeHtml(filePath)}</span>` : ''}
         <button class="close-btn" title="Close">&times;</button>
       </div>
       <div class="user-request">

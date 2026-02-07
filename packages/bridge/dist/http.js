@@ -16,7 +16,12 @@ export function startHttpServer() {
     app.post('/focus', (req, res) => {
         const payload = req.body;
         // Validate: must have interactionId, userNote, and either snapshot or snapshots
-        const hasSnapshot = payload.snapshot || (payload.snapshots && payload.snapshots.length > 0);
+        // Type validation to prevent crashes from malformed payloads
+        if (typeof payload.interactionId !== 'string' || typeof payload.userNote !== 'string') {
+            res.status(400).json({ error: 'Invalid payload: interactionId and userNote must be strings' });
+            return;
+        }
+        const hasSnapshot = payload.snapshot || (Array.isArray(payload.snapshots) && payload.snapshots.length > 0);
         if (!payload.interactionId || !hasSnapshot || !payload.userNote) {
             res.status(400).json({ error: 'Invalid payload' });
             return;
@@ -27,6 +32,13 @@ export function startHttpServer() {
     // Browser posts answer to a question
     app.post('/answer', (req, res) => {
         const answer = req.body;
+        // Type validation
+        if (typeof answer.interactionId !== 'string' ||
+            typeof answer.questionId !== 'string' ||
+            typeof answer.answerId !== 'string') {
+            res.status(400).json({ error: 'Invalid answer payload: all fields must be strings' });
+            return;
+        }
         if (!answer.interactionId || !answer.questionId || !answer.answerId) {
             res.status(400).json({ error: 'Invalid answer payload' });
             return;
@@ -41,8 +53,9 @@ export function startHttpServer() {
     // Undo changes for a specific interaction
     app.post('/undo', async (req, res) => {
         const { interactionId } = req.body;
-        if (!interactionId) {
-            res.status(400).json({ error: 'Missing interactionId' });
+        // Type validation
+        if (typeof interactionId !== 'string' || !interactionId) {
+            res.status(400).json({ error: 'Missing or invalid interactionId' });
             return;
         }
         const result = await store.undoInteraction(interactionId);

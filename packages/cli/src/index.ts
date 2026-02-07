@@ -2,7 +2,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync, spawnSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 // ============================================================================
 // Templates
@@ -104,11 +104,14 @@ function installPackage(packageName: string, dev = true): boolean {
     bun: 'add',
   };
 
-  const cmd = `${pm} ${installCmd[pm]} ${packageName} ${devFlag[pm]}`.trim();
   log(`Installing ${packageName} with ${pm}...`);
 
   try {
-    execSync(cmd, { stdio: 'pipe', cwd: process.cwd() });
+    const args = [installCmd[pm], packageName];
+    if (devFlag[pm]) {
+      args.push(devFlag[pm]);
+    }
+    execFileSync(pm, args, { stdio: 'pipe', cwd: process.cwd() });
     return true;
   } catch (error) {
     return false;

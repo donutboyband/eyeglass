@@ -111,6 +111,45 @@ The bridge exposes these tools to Claude:
 
 ---
 
+## Git Integration
+
+Eyeglass automatically tracks changes using Git, making it easy to review and undo AI-generated modifications.
+
+### How It Works
+
+1. **Auto-commit on success** — When Claude marks a request as complete (`update_status("success")`), Eyeglass automatically:
+   - Stages all changes (`git add -A`)
+   - Creates a commit with a tagged message: `[eyeglass:<interaction-id>] <message>`
+
+2. **One-click undo** — In the Eyeglass hub (bottom-left of your browser), completed requests show an undo button (↩). Clicking it:
+   - Finds the commit by its interaction ID
+   - Runs `git revert --no-edit <commit>` to cleanly undo the changes
+   - Creates a new revert commit (preserving history)
+
+### Example Git History
+
+```
+* a1b2c3d (HEAD) Revert "[eyeglass:abc123] Made button blue"
+* f4e5d6c [eyeglass:abc123] Made button blue
+* 9g8h7i6 [eyeglass:xyz789] Fixed header padding
+* previous commits...
+```
+
+### Requirements
+
+- Your project must be a Git repository
+- There must be uncommitted changes when Claude completes a task
+- Git must be available in your PATH
+
+### Notes
+
+- If you're not in a Git repo, Eyeglass silently skips committing (no errors)
+- Empty changes (no files modified) are not committed
+- Undo only works for changes that were committed by Eyeglass
+- Each interaction gets a unique ID, so you can undo specific changes without affecting others
+
+---
+
 ## Configuration
 
 ### Claude Code Settings
@@ -263,9 +302,9 @@ npm run build
 ### Testing
 
 ```bash
-npm test              # Watch mode
-npm run test:run      # Single run
-npm run test:coverage # With coverage
+npx vitest            # Watch mode
+npx vitest run        # Single run
+npx vitest --coverage # With coverage
 ```
 
 ### Project Structure

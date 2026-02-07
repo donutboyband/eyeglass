@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 const MAX_HISTORY = 5;
 const CONTEXT_FILE = '.eyeglass_context.md';
 export class ContextStore extends EventEmitter {
@@ -120,25 +120,25 @@ export class ContextStore extends EventEmitter {
             const cwd = process.cwd();
             // Check if we're in a git repo
             try {
-                execSync('git rev-parse --git-dir', { cwd, stdio: 'pipe' });
+                execFileSync('git', ['rev-parse', '--git-dir'], { cwd, stdio: 'pipe' });
             }
             catch {
                 // Not a git repo, skip committing
                 return;
             }
             // Check if there are any changes to commit
-            const status = execSync('git status --porcelain', { cwd, encoding: 'utf-8' });
+            const status = execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf-8' });
             if (!status.trim()) {
                 // No changes to commit
                 return;
             }
             // Stage all changes
-            execSync('git add -A', { cwd, stdio: 'pipe' });
+            execFileSync('git', ['add', '-A'], { cwd, stdio: 'pipe' });
             // Commit with eyeglass marker
             const commitMessage = `[eyeglass:${interactionId}] ${message || 'Eyeglass change'}`;
-            execSync(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, { cwd, stdio: 'pipe' });
+            execFileSync('git', ['commit', '-m', commitMessage], { cwd, stdio: 'pipe' });
             // Get the commit hash
-            const commitHash = execSync('git rev-parse HEAD', { cwd, encoding: 'utf-8' }).trim();
+            const commitHash = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf-8' }).trim();
             this.commitMap.set(interactionId, commitHash);
         }
         catch (err) {
@@ -155,7 +155,7 @@ export class ContextStore extends EventEmitter {
             // Try to find the commit by searching git log
             try {
                 const cwd = process.cwd();
-                const log = execSync(`git log --oneline --grep="\\[eyeglass:${interactionId}\\]" -n 1`, { cwd, encoding: 'utf-8' }).trim();
+                const log = execFileSync('git', ['log', '--oneline', `--grep=[eyeglass:${interactionId}]`, '-n', '1'], { cwd, encoding: 'utf-8' }).trim();
                 if (!log) {
                     return { success: false, message: 'No commit found for this interaction' };
                 }
@@ -175,7 +175,7 @@ export class ContextStore extends EventEmitter {
         try {
             const cwd = process.cwd();
             // Revert the commit (creates a new commit that undoes the changes)
-            execSync(`git revert --no-edit ${commitHash}`, { cwd, stdio: 'pipe' });
+            execFileSync('git', ['revert', '--no-edit', commitHash], { cwd, stdio: 'pipe' });
             // Remove from commit map
             this.commitMap.delete(interactionId);
             // Emit status update

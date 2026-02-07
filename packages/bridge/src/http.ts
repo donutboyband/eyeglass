@@ -24,7 +24,13 @@ export function startHttpServer(): void {
     const payload = req.body as FocusPayload;
 
     // Validate: must have interactionId, userNote, and either snapshot or snapshots
-    const hasSnapshot = payload.snapshot || (payload.snapshots && payload.snapshots.length > 0);
+    // Type validation to prevent crashes from malformed payloads
+    if (typeof payload.interactionId !== 'string' || typeof payload.userNote !== 'string') {
+      res.status(400).json({ error: 'Invalid payload: interactionId and userNote must be strings' });
+      return;
+    }
+
+    const hasSnapshot = payload.snapshot || (Array.isArray(payload.snapshots) && payload.snapshots.length > 0);
     if (!payload.interactionId || !hasSnapshot || !payload.userNote) {
       res.status(400).json({ error: 'Invalid payload' });
       return;
@@ -37,6 +43,14 @@ export function startHttpServer(): void {
   // Browser posts answer to a question
   app.post('/answer', (req: Request, res: Response) => {
     const answer = req.body as AnswerPayload;
+
+    // Type validation
+    if (typeof answer.interactionId !== 'string' ||
+        typeof answer.questionId !== 'string' ||
+        typeof answer.answerId !== 'string') {
+      res.status(400).json({ error: 'Invalid answer payload: all fields must be strings' });
+      return;
+    }
 
     if (!answer.interactionId || !answer.questionId || !answer.answerId) {
       res.status(400).json({ error: 'Invalid answer payload' });
@@ -56,8 +70,9 @@ export function startHttpServer(): void {
   app.post('/undo', async (req: Request, res: Response) => {
     const { interactionId } = req.body as { interactionId: string };
 
-    if (!interactionId) {
-      res.status(400).json({ error: 'Missing interactionId' });
+    // Type validation
+    if (typeof interactionId !== 'string' || !interactionId) {
+      res.status(400).json({ error: 'Missing or invalid interactionId' });
       return;
     }
 
