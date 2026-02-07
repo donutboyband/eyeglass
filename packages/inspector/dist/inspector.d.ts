@@ -29,6 +29,7 @@ export declare class EyeglassInspector extends HTMLElement {
     private submittedSnapshots;
     private static readonly MAX_SELECTION;
     private cursorStyleElement;
+    private scrollTimeout;
     constructor();
     connectedCallback(): void;
     private saveSession;
@@ -47,6 +48,10 @@ export declare class EyeglassInspector extends HTMLElement {
     private handleMouseMove;
     private handleClick;
     private handleKeyDown;
+    private handleScroll;
+    private disableHighlightTransitions;
+    private enableHighlightTransitions;
+    private updateMultiSelectHighlightPositions;
     private handlePanelDragStart;
     private handlePanelDrag;
     private handlePanelDragEnd;

@@ -66,6 +66,10 @@ const STYLES = `
     0 2px 8px rgba(99, 102, 241, 0.1);
 }
 
+.highlight.no-transition {
+  transition: none;
+}
+
 /* Glass Panel */
 .glass-panel {
   position: absolute;
@@ -963,6 +967,9 @@ export class EyeglassInspector extends HTMLElement {
   // Cursor style element (injected into document head)
   private cursorStyleElement: HTMLStyleElement | null = null;
 
+  // Scroll handling
+  private scrollTimeout: number | null = null;
+
   constructor() {
     super();
     this.shadow = this.attachShadow({ mode: 'closed' });
@@ -982,10 +989,12 @@ export class EyeglassInspector extends HTMLElement {
     this.handleClick = this.handleClick.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.handlePanelDragStart = this.handlePanelDragStart.bind(this);
+    this.handleScroll = this.handleScroll.bind(this);
 
     document.addEventListener('mousemove', this.handleMouseMove, true);
     document.addEventListener('click', this.handleClick, true);
     document.addEventListener('keydown', this.handleKeyDown, true);
+    window.addEventListener('scroll', this.handleScroll, true);
 
     this.loadHistory();
     this.renderHub();
@@ -1239,6 +1248,7 @@ export class EyeglassInspector extends HTMLElement {
     document.removeEventListener('mousemove', this.handleMouseMove, true);
     document.removeEventListener('click', this.handleClick, true);
     document.removeEventListener('keydown', this.handleKeyDown, true);
+    window.removeEventListener('scroll', this.handleScroll, true);
     this.eventSource?.close();
     // Clean up cursor style
     if (this.cursorStyleElement) {
@@ -1353,6 +1363,60 @@ export class EyeglassInspector extends HTMLElement {
     if (e.key === 'Escape') {
       this.unfreeze();
     }
+  }
+
+  private handleScroll(): void {
+    if (!this.frozen) return;
+
+    // Disable transitions during scroll for instant updates
+    this.disableHighlightTransitions();
+
+    // Update single highlight position
+    if (this.currentElement && this.highlight && !this.multiSelectMode) {
+      this.showHighlight(this.currentElement);
+    }
+
+    // Update multi-select highlights
+    if (this.multiSelectMode && this.selectedElements.length > 0) {
+      this.updateMultiSelectHighlightPositions();
+    }
+
+    // Re-enable transitions after scrolling stops
+    if (this.scrollTimeout) {
+      window.clearTimeout(this.scrollTimeout);
+    }
+    this.scrollTimeout = window.setTimeout(() => {
+      this.enableHighlightTransitions();
+      this.scrollTimeout = null;
+    }, 150);
+  }
+
+  private disableHighlightTransitions(): void {
+    if (this.highlight) {
+      this.highlight.classList.add('no-transition');
+    }
+    this.multiSelectHighlights.forEach(h => h.classList.add('no-transition'));
+  }
+
+  private enableHighlightTransitions(): void {
+    if (this.highlight) {
+      this.highlight.classList.remove('no-transition');
+    }
+    this.multiSelectHighlights.forEach(h => h.classList.remove('no-transition'));
+  }
+
+  private updateMultiSelectHighlightPositions(): void {
+    const padding = 3;
+    this.selectedElements.forEach((element, index) => {
+      const highlight = this.multiSelectHighlights[index];
+      if (!highlight) return;
+
+      const rect = element.getBoundingClientRect();
+      highlight.style.left = `${rect.left - padding}px`;
+      highlight.style.top = `${rect.top - padding}px`;
+      highlight.style.width = `${rect.width + padding * 2}px`;
+      highlight.style.height = `${rect.height + padding * 2}px`;
+    });
   }
 
   private handlePanelDragStart(e: MouseEvent): void {
