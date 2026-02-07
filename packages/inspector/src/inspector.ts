@@ -533,6 +533,7 @@ const STYLES = `
 .hub-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   padding: 6px 8px;
   cursor: pointer;
@@ -541,6 +542,12 @@ const STYLES = `
 
 .hub-header:hover {
   background: rgba(0, 0, 0, 0.03);
+}
+
+.hub-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .hub-logo {
@@ -603,7 +610,6 @@ const STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
   transition: all 0.15s;
   flex-shrink: 0;
 }
@@ -615,6 +621,11 @@ const STYLES = `
 
 .hub-disable.active {
   color: var(--accent);
+}
+
+.hub-disable svg {
+  width: 14px;
+  height: 14px;
 }
 
 .hub-content {
@@ -728,6 +739,9 @@ const STYLES = `
 
 .hub.collapsed .hub-header {
   padding: 5px;
+}
+
+.hub.collapsed .hub-header-left {
   gap: 4px;
 }
 `;
@@ -937,14 +951,19 @@ export class EyeglassInspector extends HTMLElement {
 
     this.hub.className = `hub ${collapsedClass} ${disabledClass}`.trim();
 
+    const eyeOpenSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    const eyeClosedSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
     this.hub.innerHTML = `
       <div class="hub-header">
-        <div class="hub-logo">👁</div>
-        <span class="hub-title">Eyeglass</span>
-        ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ''}
-        <button class="hub-toggle ${expandedClass}" title="Toggle history">▼</button>
+        <div class="hub-header-left">
+          <div class="hub-logo">👁</div>
+          <span class="hub-title">Eyeglass</span>
+          ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ''}
+          <button class="hub-toggle ${expandedClass}" title="Toggle history">▼</button>
+        </div>
         <button class="hub-disable ${this.inspectorEnabled ? 'active' : ''}" title="${this.inspectorEnabled ? 'Disable' : 'Enable'} inspector">
-          ${this.inspectorEnabled ? '●' : '○'}
+          ${this.inspectorEnabled ? eyeOpenSvg : eyeClosedSvg}
         </button>
       </div>
       <div class="hub-content ${expandedClass}">
@@ -1002,8 +1021,13 @@ export class EyeglassInspector extends HTMLElement {
   }
 
   private async requestUndo(interactionId: string): Promise<void> {
-    const item = this.history.find(h => h.interactionId === interactionId);
-    if (!item) return;
+    const itemIndex = this.history.findIndex(h => h.interactionId === interactionId);
+    if (itemIndex === -1) return;
+
+    // Mark as pending while undo is in progress
+    this.history[itemIndex].status = 'pending';
+    this.saveHistory();
+    this.renderHub();
 
     try {
       const response = await fetch(`${BRIDGE_URL}/undo`, {
@@ -1013,13 +1037,23 @@ export class EyeglassInspector extends HTMLElement {
       });
 
       if (response.ok) {
-        // Mark as pending while undo is in progress
-        item.status = 'pending';
+        // Remove from history on successful undo
+        this.history.splice(itemIndex, 1);
+        this.saveHistory();
+        this.renderHub();
+      } else {
+        // Mark as failed if undo didn't work
+        this.history[itemIndex].status = 'failed';
         this.saveHistory();
         this.renderHub();
       }
     } catch (err) {
-      // Silently fail, bridge may not support undo yet
+      // Mark as failed on error
+      if (this.history[itemIndex]) {
+        this.history[itemIndex].status = 'failed';
+        this.saveHistory();
+        this.renderHub();
+      }
       console.warn('Undo request failed:', err);
     }
   }

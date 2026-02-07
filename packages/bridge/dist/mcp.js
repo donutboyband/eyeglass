@@ -189,6 +189,20 @@ Handle this request now.`,
                         required: [],
                     },
                 },
+                {
+                    name: 'wait_for_request',
+                    description: 'Blocks execution until the user selects a new element in the browser. Use this to enter a listening mode where you automatically react to user actions. Returns the focused element context when a request arrives.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            timeout_ms: {
+                                type: 'number',
+                                description: 'Optional timeout in milliseconds. If not provided, waits indefinitely.',
+                            },
+                        },
+                        required: [],
+                    },
+                },
             ],
         };
     });
@@ -289,6 +303,23 @@ Handle this request now.`,
                 return {
                     content: [{ type: 'text', text: `## Focus History\n\n${summary}` }],
                 };
+            }
+            case 'wait_for_request': {
+                const { timeout_ms } = args;
+                try {
+                    await store.waitForFocus(timeout_ms);
+                    // After waiting resolves, return the formatted markdown
+                    const markdown = store.formatAsMarkdown();
+                    return {
+                        content: [{ type: 'text', text: markdown }],
+                    };
+                }
+                catch (err) {
+                    return {
+                        content: [{ type: 'text', text: `Wait cancelled: ${err.message}` }],
+                        isError: true,
+                    };
+                }
             }
             default:
                 return {
