@@ -473,7 +473,7 @@ Point at UI elements in your browser and tell Claude what to change.
 Claude watches for requests, so you never need to leave your browser.
 
 \x1b[1mUSAGE\x1b[0m
-  npx eyeglass <command> [options]
+  npx @eyeglass/cli <command> [options]
 
 \x1b[1mCOMMANDS\x1b[0m
   init          Initialize Eyeglass in your project
@@ -484,11 +484,11 @@ Claude watches for requests, so you never need to leave your browser.
   --skip-install  Skip installing @eyeglass/inspector
 
 \x1b[1mEXAMPLES\x1b[0m
-  npx eyeglass init              # Full automatic setup
-  npx eyeglass init --dry-run    # Preview what would change
+  npx @eyeglass/cli init              # Full automatic setup
+  npx @eyeglass/cli init --dry-run    # Preview what would change
 
 \x1b[1mWORKFLOW\x1b[0m
-  1. Run \x1b[36mnpx eyeglass init\x1b[0m in your project
+  1. Run \x1b[36mnpx @eyeglass/cli init\x1b[0m in your project
   2. Start your dev server
   3. Run \x1b[36mclaude\x1b[0m and say "watch eyeglass" or "eg"
   4. In your browser: hover over element → press E → type request

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/npm/v/eyeglass?style=flat-square" alt="npm version" />
+  <img src="https://img.shields.io/npm/v/@eyeglass/cli?style=flat-square" alt="npm version" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="license" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs welcome" />
 </p>
@@ -36,18 +36,18 @@ Eyeglass bridges the gap between what you *see* in your browser and what your AI
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ### Installation
 
 ```bash
-npx eyeglass init
+npx @eyeglass/cli init
 ```
 
 This single command will:
-- ✅ Install `@eyeglass/inspector` as a dev dependency
-- ✅ Create `.claude/settings.json` with MCP server configuration
-- ✅ Configure your bundler (Vite, Next.js, CRA, or Remix)
+- Install `@eyeglass/inspector` as a dev dependency
+- Create `.claude/settings.json` with MCP server configuration
+- Configure your bundler (Vite, Next.js, CRA, or Remix)
 
 ### Usage
 
@@ -59,9 +59,7 @@ npm run dev
 claude
 
 # 3. Tell Claude to watch for requests
-> watch eyeglass
-# or simply:
-> eg
+> wait_for_request
 ```
 
 Then in your browser:
@@ -77,7 +75,7 @@ Then in your browser:
 
 | Package | Description | npm |
 |---------|-------------|-----|
-| `eyeglass` | CLI for project initialization | [![npm](https://img.shields.io/npm/v/eyeglass?style=flat-square)](https://www.npmjs.com/package/eyeglass) |
+| `@eyeglass/cli` | CLI for project initialization | [![npm](https://img.shields.io/npm/v/@eyeglass/cli?style=flat-square)](https://www.npmjs.com/package/@eyeglass/cli) |
 | `@eyeglass/inspector` | Browser-side Web Component | [![npm](https://img.shields.io/npm/v/@eyeglass/inspector?style=flat-square)](https://www.npmjs.com/package/@eyeglass/inspector) |
 | `@eyeglass/bridge` | MCP server connecting browser to Claude | [![npm](https://img.shields.io/npm/v/@eyeglass/bridge?style=flat-square)](https://www.npmjs.com/package/@eyeglass/bridge) |
 | `@eyeglass/types` | Shared TypeScript definitions | [![npm](https://img.shields.io/npm/v/@eyeglass/types?style=flat-square)](https://www.npmjs.com/package/@eyeglass/types) |
@@ -97,7 +95,7 @@ Eyeglass works with **any framework**. For React, Vue, and Svelte, it extracts c
 
 ---
 
-## 🛠 MCP Tools Reference
+## MCP Tools Reference
 
 The bridge exposes these tools to Claude:
 
@@ -113,7 +111,7 @@ The bridge exposes these tools to Claude:
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 ### Claude Code Settings
 
@@ -181,7 +179,7 @@ If automatic setup doesn't work for your project:
 
 ---
 
-## 📋 Semantic Snapshot
+## Semantic Snapshot
 
 When you select an element, Eyeglass captures comprehensive context:
 
@@ -251,7 +249,7 @@ interface SemanticSnapshot {
 
 ---
 
-## 🧪 Development
+## Development
 
 ### Setup
 
@@ -299,7 +297,7 @@ eyeglass/
 
 ---
 
-## ❓ Troubleshooting
+## Troubleshooting
 
 <details>
 <summary><strong>Inspector not appearing</strong></summary>
@@ -339,19 +337,19 @@ File paths require framework-specific debug information:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+2. Create a feature branch (`git checkout -b feature/*`)
 3. Make your changes with tests
-4. Commit your changes (`git commit -m 'Add amazing feature'`)
-5. Push to the branch (`git push origin feature/amazing-feature`)
+4. Commit your changes (`git commit -m 'Hello feature'`)
+5. Push to the branch (`git push origin feature/*`)
 6. Open a Pull Request
 
 ---
 
-## 📄 License
+## License
 
 MIT © [donutboyband](https://github.com/donutboyband)

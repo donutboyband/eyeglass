@@ -1,5 +1,5 @@
 {
-  "name": "eyeglass",
+  "name": "@eyeglass/cli",
   "version": "0.1.0",
   "description": "Visual debugging for AI coding agents - CLI",
   "type": "module",
