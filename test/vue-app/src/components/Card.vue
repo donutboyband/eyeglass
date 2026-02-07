@@ -23,6 +23,6 @@ defineProps<{
 h2 {
   margin: 0 0 16px 0;
   color: #1e293b;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
 }
 </style>

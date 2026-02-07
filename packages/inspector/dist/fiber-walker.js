@@ -62,6 +62,7 @@ function getSafeProps(props) {
  * Detect Vue component
  */
 function detectVue(element) {
+    // Vue 2
     const vueInstance = element.__vue__;
     if (vueInstance) {
         const componentName = vueInstance.$options?.name || vueInstance.$options?._componentTag;
@@ -70,14 +71,51 @@ function detectVue(element) {
             componentName,
         };
     }
-    // Vue 3
-    const vueKey = Object.keys(element).find((k) => k.startsWith('__vueParentComponent'));
+    // Vue 3 - check for any __vue* property
+    const keys = Object.keys(element);
+    const vueKey = keys.find((k) => k.startsWith('__vue'));
     if (vueKey) {
-        const instance = element[vueKey];
-        return {
-            name: 'vue',
-            componentName: instance?.type?.name,
-        };
+        const vnode = element[vueKey];
+        // Try to get component info from vnode
+        if (vnode) {
+            // Walk up to find component instance
+            let instance = vnode;
+            let componentName;
+            let props;
+            // Check various Vue 3 internal structures
+            if (instance?.type?.name) {
+                componentName = instance.type.name;
+            }
+            else if (instance?.type?.__name) {
+                componentName = instance.type.__name;
+            }
+            else if (instance?.component?.type?.name) {
+                componentName = instance.component.type.name;
+            }
+            else if (instance?.component?.type?.__name) {
+                componentName = instance.component.type.__name;
+            }
+            // Try to get props
+            const rawProps = instance?.props || instance?.component?.props;
+            if (rawProps) {
+                props = getSafeProps(rawProps);
+            }
+            // Try to get file info from __file
+            let filePath;
+            if (instance?.type?.__file) {
+                filePath = instance.type.__file;
+            }
+            else if (instance?.component?.type?.__file) {
+                filePath = instance.component.type.__file;
+            }
+            return {
+                name: 'vue',
+                componentName,
+                filePath,
+                props,
+            };
+        }
+        return { name: 'vue' };
     }
     return null;
 }
@@ -85,10 +123,27 @@ function detectVue(element) {
  * Detect Svelte component
  */
 function detectSvelte(element) {
-    const svelteKey = Object.keys(element).find((k) => k.startsWith('__svelte'));
+    const keys = Object.keys(element);
+    const svelteKey = keys.find((k) => k.startsWith('__svelte'));
     if (svelteKey) {
+        const svelteData = element[svelteKey];
+        // Try to extract component info from Svelte internals
+        let componentName;
+        // Svelte 5 uses different structure
+        if (svelteData?.constructor?.name && svelteData.constructor.name !== 'Object') {
+            componentName = svelteData.constructor.name;
+        }
+        // Check for component context
+        if (!componentName && svelteData?.$$?.ctx) {
+            // Svelte 4 structure
+            const ctx = svelteData.$$.ctx;
+            if (ctx?.constructor?.name && ctx.constructor.name !== 'Object') {
+                componentName = ctx.constructor.name;
+            }
+        }
         return {
             name: 'svelte',
+            componentName,
         };
     }
     return null;
