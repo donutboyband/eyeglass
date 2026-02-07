@@ -58,12 +58,14 @@
 }
 
 .btn-primary {
-  background: #10b981;
-  color: white;
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 2px solid #10b981;
 }
 
 .btn-primary:hover {
   background: #059669;
+  color: white;
 }
 
 .btn-secondary {
