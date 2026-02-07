@@ -1,14 +1,34 @@
 {
   "name": "@eyeglass/inspector",
   "version": "0.1.0",
+  "description": "Browser inspector component for Eyeglass",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest run --project browser"
+    "test": "vitest run --project browser",
+    "prepublishOnly": "npm run build"
   },
+  "keywords": [
+    "eyeglass",
+    "inspector",
+    "web-component",
+    "react",
+    "vue",
+    "svelte"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/donutboyband/eyeglass.git",
+    "directory": "packages/inspector"
+  },
+  "sideEffects": true,
   "dependencies": {
     "@eyeglass/types": "^0.1.0"
   },

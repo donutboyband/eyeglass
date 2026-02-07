@@ -1,15 +1,33 @@
 {
   "name": "@eyeglass/bridge",
   "version": "0.1.0",
+  "description": "MCP server bridge for Eyeglass",
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "bin": {
     "eyeglass-bridge": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "test": "vitest run --project node --testNamePattern bridge"
+    "test": "vitest run --project node --testNamePattern bridge",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "eyeglass",
+    "mcp",
+    "bridge",
+    "server"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/donutboyband/eyeglass.git",
+    "directory": "packages/bridge"
   },
   "dependencies": {
     "@eyeglass/types": "^0.1.0",

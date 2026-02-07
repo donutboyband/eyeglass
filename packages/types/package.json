@@ -1,11 +1,28 @@
 {
   "name": "@eyeglass/types",
   "version": "0.1.0",
+  "description": "Shared TypeScript types for Eyeglass",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
-    "test": "vitest run --project node --testNamePattern types"
+    "test": "vitest run --project node --testNamePattern types",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "eyeglass",
+    "types",
+    "typescript"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/donutboyband/eyeglass.git",
+    "directory": "packages/types"
   },
   "devDependencies": {
     "typescript": "^5.3.0"
