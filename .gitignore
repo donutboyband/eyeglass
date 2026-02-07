@@ -7,3 +7,4 @@ hooks/
 test/
 .eyeglass_context.md
 BOOKMARKLET.md
+watch-eyeglass.sh
