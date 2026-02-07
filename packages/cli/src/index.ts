@@ -459,7 +459,7 @@ function init(options: InitOptions): void {
   console.log('  2. Run \x1b[36mclaude\x1b[0m in this directory');
   console.log('  3. Tell Claude: \x1b[36m"watch eyeglass"\x1b[0m or \x1b[36m"eg"\x1b[0m');
   console.log('     → Claude will start listening for requests');
-  console.log('  4. In your browser, hover over any element and press \x1b[36mE\x1b[0m');
+  console.log('  4. In your browser, hover over any element and click it to select for Eyeglass context. You can multi-select up to 5 items.');
   console.log('  5. Type your request (e.g., "make this blue") and submit');
   console.log('     → Claude automatically receives it and starts working!\n');
   console.log('\x1b[2mTip: You never need to leave your browser - Claude watches for requests.\x1b[0m\n');
