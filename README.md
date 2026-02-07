@@ -71,7 +71,7 @@ Then in your browser:
 
 ---
 
-## 📦 Packages
+## Packages
 
 | Package | Description | npm |
 |---------|-------------|-----|
@@ -82,7 +82,7 @@ Then in your browser:
 
 ---
 
-## 🎯 Supported Frameworks
+## Supported Frameworks
 
 | Framework | Auto-Detection | Component Names | File Paths |
 |-----------|:--------------:|:---------------:|:----------:|
