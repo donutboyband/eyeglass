@@ -1385,7 +1385,8 @@ export class EyeglassInspector extends HTMLElement {
     return this.activityEvents.map((event) => {
       switch (event.type) {
         case 'status':
-          if (event.status === 'pending') return ''; // Skip initial pending
+          // Skip pending/fixing - these are shown in the footer status bar
+          if (event.status === 'pending' || event.status === 'fixing') return '';
           return this.renderStatusItem(event);
         case 'thought':
           return this.renderThoughtItem(event);

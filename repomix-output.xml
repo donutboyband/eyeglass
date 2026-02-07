@@ -118,78 +118,6 @@ echo "New Eyeglass request received. Please check get_focused_element() and resp
 export declare function startHttpServer(): void;
 </file>
 
-<file path="packages/bridge/dist/http.js">
-import express from 'express';
-import cors from 'cors';
-import { store } from './store.js';
-const PORT = 3300;
-const KEEPALIVE_INTERVAL = 30000;
-export function startHttpServer() {
-    const app = express();
-    app.use(cors());
-    app.use(express.json());
-    const sseClients = new Set();
-    // Health check
-    app.get('/health', (_req, res) => {
-        res.json({ status: 'ok', active: store.getActive() !== null });
-    });
-    // Browser posts focus payload here
-    app.post('/focus', (req, res) => {
-        const payload = req.body;
-        if (!payload.interactionId || !payload.snapshot || !payload.userNote) {
-            res.status(400).json({ error: 'Invalid payload' });
-            return;
-        }
-        store.setFocus(payload);
-        res.json({ success: true, interactionId: payload.interactionId });
-    });
-    // Browser posts answer to a question
-    app.post('/answer', (req, res) => {
-        const answer = req.body;
-        if (!answer.interactionId || !answer.questionId || !answer.answerId) {
-            res.status(400).json({ error: 'Invalid answer payload' });
-            return;
-        }
-        const success = store.receiveAnswer(answer);
-        if (!success) {
-            res.status(404).json({ error: 'No pending question with that ID' });
-            return;
-        }
-        res.json({ success: true });
-    });
-    // SSE endpoint for real-time activity updates
-    app.get('/events', (req, res) => {
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-        res.flushHeaders();
-        sseClients.add(res);
-        // Send current state if there's an active focus
-        const active = store.getActive();
-        if (active) {
-            res.write(`data: ${JSON.stringify({ type: 'focus', payload: active })}\n\n`);
-        }
-        const keepAlive = setInterval(() => {
-            res.write(': keepalive\n\n');
-        }, KEEPALIVE_INTERVAL);
-        req.on('close', () => {
-            clearInterval(keepAlive);
-            sseClients.delete(res);
-        });
-    });
-    // Broadcast activity events to all SSE clients
-    store.on('activity', (event) => {
-        const message = `data: ${JSON.stringify({ type: 'activity', payload: event })}\n\n`;
-        for (const client of sseClients) {
-            client.write(message);
-        }
-    });
-    app.listen(PORT, () => {
-        // Server started silently
-    });
-}
-</file>
-
 <file path="packages/bridge/dist/index.d.ts">
 #!/usr/bin/env node
 export {};
@@ -215,604 +143,6 @@ main().catch((err) => {
 export declare function startMcpServer(): Promise<void>;
 </file>
 
-<file path="packages/bridge/dist/mcp.js">
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
-import { store } from './store.js';
-export async function startMcpServer() {
-    const server = new Server({
-        name: 'eyeglass-bridge',
-        version: '0.1.0',
-    }, {
-        capabilities: {
-            tools: {},
-            resources: {},
-        },
-    });
-    // Track if client supports sampling
-    let clientSupportsSampling = false;
-    // Check client capabilities after connection
-    server.oninitialized = () => {
-        const clientCaps = server.getClientCapabilities();
-        clientSupportsSampling = !!clientCaps?.sampling;
-        // Debug: log client capabilities to stderr
-        console.error('[eyeglass] Client capabilities:', JSON.stringify(clientCaps, null, 2));
-        console.error('[eyeglass] Sampling supported:', clientSupportsSampling);
-    };
-    // When a new focus comes in, trigger sampling if supported
-    store.on('activity', async (event) => {
-        if (event.type === 'status' && event.status === 'pending' && clientSupportsSampling) {
-            try {
-                // Request the client to handle the new focus
-                await server.request({
-                    method: 'sampling/createMessage',
-                    params: {
-                        messages: [
-                            {
-                                role: 'user',
-                                content: {
-                                    type: 'text',
-                                    text: `🔔 New Eyeglass request received!
-
-A user has selected a UI element and needs your help. Please:
-1. Call get_focused_element() to see what they selected
-2. Use report_action() to show your progress
-3. Use send_thought() to share your reasoning
-4. Make the requested changes
-5. Call update_status("success", "message") when done
-
-Handle this request now.`,
-                                },
-                            },
-                        ],
-                        maxTokens: 4096,
-                        systemPrompt: 'You are an AI assistant helping with UI development. The user has selected an element in their browser using Eyeglass and wants you to make changes. Use the available MCP tools to see the request and fulfill it.',
-                        modelPreferences: {
-                            intelligencePriority: 0.8,
-                            speedPriority: 0.6,
-                        },
-                    },
-                }, { method: 'sampling/createMessage' });
-            }
-            catch (err) {
-                // Sampling failed or was rejected - that's okay
-            }
-        }
-    });
-    // List available resources
-    server.setRequestHandler(ListResourcesRequestSchema, async () => {
-        return {
-            resources: [
-                {
-                    uri: 'eyeglass://focus',
-                    name: 'Current Focus',
-                    description: 'The currently focused UI element and user request.',
-                    mimeType: 'text/markdown',
-                },
-            ],
-        };
-    });
-    // Read resource content
-    server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-        const { uri } = request.params;
-        if (uri === 'eyeglass://focus') {
-            const content = store.formatAsMarkdown();
-            return {
-                contents: [
-                    {
-                        uri,
-                        mimeType: 'text/markdown',
-                        text: content,
-                    },
-                ],
-            };
-        }
-        throw new Error(`Unknown resource: ${uri}`);
-    });
-    // List tools
-    server.setRequestHandler(ListToolsRequestSchema, async () => {
-        return {
-            tools: [
-                {
-                    name: 'get_focused_element',
-                    description: "Get the currently focused UI element with its semantic snapshot, accessibility tree, computed styles, and the user's change request.",
-                    inputSchema: {
-                        type: 'object',
-                        properties: {},
-                        required: [],
-                    },
-                },
-                {
-                    name: 'update_status',
-                    description: 'Update the status shown to the user in the browser overlay. Use this to communicate progress.',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            status: {
-                                type: 'string',
-                                enum: ['idle', 'pending', 'fixing', 'success', 'failed'],
-                                description: 'The new status',
-                            },
-                            message: {
-                                type: 'string',
-                                description: 'Optional message to show the user',
-                            },
-                        },
-                        required: ['status'],
-                    },
-                },
-                {
-                    name: 'send_thought',
-                    description: 'Share your reasoning or decision-making with the user. Use this to explain what you are considering or why you made a choice.',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            content: {
-                                type: 'string',
-                                description: 'The thought or reasoning to share',
-                            },
-                        },
-                        required: ['content'],
-                    },
-                },
-                {
-                    name: 'report_action',
-                    description: 'Report an action you are taking (reading a file, writing code, searching). This shows progress to the user.',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            action: {
-                                type: 'string',
-                                enum: ['reading', 'writing', 'searching', 'thinking'],
-                                description: 'The type of action',
-                            },
-                            target: {
-                                type: 'string',
-                                description: 'What you are acting on (e.g., file path, search query)',
-                            },
-                            complete: {
-                                type: 'boolean',
-                                description: 'Whether this action is complete (default: false)',
-                            },
-                        },
-                        required: ['action', 'target'],
-                    },
-                },
-                {
-                    name: 'ask_question',
-                    description: 'Ask the user a question and wait for their answer. Use this when you need clarification or want to offer choices. This tool BLOCKS until the user responds.',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            question: {
-                                type: 'string',
-                                description: 'The question to ask',
-                            },
-                            options: {
-                                type: 'array',
-                                items: { type: 'string' },
-                                description: 'The options for the user to choose from (2-4 options)',
-                            },
-                        },
-                        required: ['question', 'options'],
-                    },
-                },
-                {
-                    name: 'get_focus_history',
-                    description: 'Get the history of previously focused elements (up to 5).',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {},
-                        required: [],
-                    },
-                },
-            ],
-        };
-    });
-    // Handle tool calls
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
-        const { name, arguments: args } = request.params;
-        const active = store.getActive();
-        switch (name) {
-            case 'get_focused_element': {
-                const markdown = store.formatAsMarkdown();
-                return {
-                    content: [{ type: 'text', text: markdown }],
-                };
-            }
-            case 'update_status': {
-                const { status, message } = args;
-                if (!active) {
-                    return {
-                        content: [{ type: 'text', text: 'No active focus to update.' }],
-                        isError: true,
-                    };
-                }
-                store.updateStatus(active.interactionId, status, message);
-                return {
-                    content: [
-                        { type: 'text', text: `Status updated to "${status}"${message ? `: ${message}` : ''}` },
-                    ],
-                };
-            }
-            case 'send_thought': {
-                const { content } = args;
-                if (!active) {
-                    return {
-                        content: [{ type: 'text', text: 'No active focus.' }],
-                        isError: true,
-                    };
-                }
-                store.sendThought(active.interactionId, content);
-                return {
-                    content: [{ type: 'text', text: 'Thought shared with user.' }],
-                };
-            }
-            case 'report_action': {
-                const { action, target, complete } = args;
-                if (!active) {
-                    return {
-                        content: [{ type: 'text', text: 'No active focus.' }],
-                        isError: true,
-                    };
-                }
-                store.reportAction(active.interactionId, action, target, complete ?? false);
-                return {
-                    content: [{ type: 'text', text: `Action reported: ${action} ${target}` }],
-                };
-            }
-            case 'ask_question': {
-                const { question, options } = args;
-                if (!active) {
-                    return {
-                        content: [{ type: 'text', text: 'No active focus.' }],
-                        isError: true,
-                    };
-                }
-                if (!options || options.length < 2 || options.length > 4) {
-                    return {
-                        content: [{ type: 'text', text: 'Please provide 2-4 options.' }],
-                        isError: true,
-                    };
-                }
-                const questionId = `q-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-                const formattedOptions = options.map((label, i) => ({
-                    id: `opt-${i}`,
-                    label,
-                }));
-                const answer = await store.askQuestion(active.interactionId, questionId, question, formattedOptions);
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: `User selected: "${answer.answerLabel}"`,
-                        },
-                    ],
-                };
-            }
-            case 'get_focus_history': {
-                const history = store.getHistory();
-                if (history.length === 0) {
-                    return {
-                        content: [{ type: 'text', text: 'No focus history available.' }],
-                    };
-                }
-                const summary = history
-                    .map((p, i) => {
-                    const { snapshot, userNote } = p;
-                    return `${i + 1}. **${snapshot.framework.componentName || snapshot.tagName}** - "${userNote}"`;
-                })
-                    .join('\n');
-                return {
-                    content: [{ type: 'text', text: `## Focus History\n\n${summary}` }],
-                };
-            }
-            default:
-                return {
-                    content: [{ type: 'text', text: `Unknown tool: ${name}` }],
-                    isError: true,
-                };
-        }
-    });
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-}
-</file>
-
-<file path="packages/bridge/dist/store.d.ts">
-import { FocusPayload, InteractionStatus, AnswerPayload } from '@eyeglass/types';
-import { EventEmitter } from 'events';
-export declare class ContextStore extends EventEmitter {
-    private active;
-    private history;
-    private currentStatus;
-    private pendingQuestion;
-    setFocus(payload: FocusPayload): void;
-    getActive(): FocusPayload | null;
-    getHistory(): FocusPayload[];
-    updateStatus(interactionId: string, status: InteractionStatus, message?: string): void;
-    sendThought(interactionId: string, content: string): void;
-    reportAction(interactionId: string, action: 'reading' | 'writing' | 'searching' | 'thinking', target: string, complete?: boolean): void;
-    askQuestion(interactionId: string, questionId: string, question: string, options: Array<{
-        id: string;
-        label: string;
-    }>): Promise<AnswerPayload>;
-    receiveAnswer(answer: AnswerPayload): boolean;
-    hasPendingQuestion(): boolean;
-    private emitActivity;
-    formatAsMarkdown(): string;
-    private writeContextFile;
-}
-export declare const store: ContextStore;
-</file>
-
-<file path="packages/bridge/dist/store.js">
-import { EventEmitter } from 'events';
-import * as fs from 'fs';
-import * as path from 'path';
-const MAX_HISTORY = 5;
-const CONTEXT_FILE = '.eyeglass_context.md';
-export class ContextStore extends EventEmitter {
-    constructor() {
-        super(...arguments);
-        this.active = null;
-        this.history = [];
-        this.currentStatus = 'idle';
-        this.pendingQuestion = null;
-    }
-    setFocus(payload) {
-        if (this.active) {
-            this.history.unshift(this.active);
-            if (this.history.length > MAX_HISTORY) {
-                this.history.pop();
-            }
-        }
-        this.active = payload;
-        this.currentStatus = 'pending';
-        this.emitActivity({
-            type: 'status',
-            interactionId: payload.interactionId,
-            status: 'pending',
-            message: 'Waiting for agent...',
-            timestamp: Date.now(),
-        });
-        this.writeContextFile();
-    }
-    getActive() {
-        return this.active;
-    }
-    getHistory() {
-        return this.history;
-    }
-    // Status update
-    updateStatus(interactionId, status, message) {
-        if (this.active?.interactionId !== interactionId)
-            return;
-        this.currentStatus = status;
-        this.emitActivity({
-            type: 'status',
-            interactionId,
-            status,
-            message,
-            timestamp: Date.now(),
-        });
-    }
-    // Send a thought/reasoning to the user
-    sendThought(interactionId, content) {
-        if (this.active?.interactionId !== interactionId)
-            return;
-        this.emitActivity({
-            type: 'thought',
-            interactionId,
-            content,
-            timestamp: Date.now(),
-        });
-    }
-    // Report an action being taken
-    reportAction(interactionId, action, target, complete = false) {
-        if (this.active?.interactionId !== interactionId)
-            return;
-        this.emitActivity({
-            type: 'action',
-            interactionId,
-            action,
-            target,
-            complete,
-            timestamp: Date.now(),
-        });
-    }
-    // Ask a question and wait for answer
-    async askQuestion(interactionId, questionId, question, options) {
-        if (this.active?.interactionId !== interactionId) {
-            throw new Error('No active interaction');
-        }
-        // Emit the question event
-        this.emitActivity({
-            type: 'question',
-            interactionId,
-            questionId,
-            question,
-            options,
-            timestamp: Date.now(),
-        });
-        // Wait for the answer
-        return new Promise((resolve) => {
-            this.pendingQuestion = { questionId, resolve };
-        });
-    }
-    // Receive answer from the browser
-    receiveAnswer(answer) {
-        if (!this.pendingQuestion || this.pendingQuestion.questionId !== answer.questionId) {
-            return false;
-        }
-        this.pendingQuestion.resolve(answer);
-        this.pendingQuestion = null;
-        return true;
-    }
-    hasPendingQuestion() {
-        return this.pendingQuestion !== null;
-    }
-    emitActivity(event) {
-        this.emit('activity', event);
-    }
-    formatAsMarkdown() {
-        if (!this.active) {
-            return '# No Active Focus\n\nNo element is currently focused.';
-        }
-        const { snapshot, userNote, interactionId } = this.active;
-        const { framework, a11y, geometry, styles } = snapshot;
-        const componentInfo = framework.componentName
-            ? `\`<${framework.componentName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
-            : `\`<${snapshot.tagName}>\` (vanilla element)`;
-        return `## User Focus Request
-**Interaction ID:** ${interactionId}
-**User Note:** "${userNote}"
-**Component:** ${componentInfo}
-
-### Element Info
-- Tag: \`<${snapshot.tagName}>\`
-- Role: ${snapshot.role}
-- Name: "${snapshot.name}"
-
-### Accessibility Tree
-- Label: ${a11y.label ?? 'none'}
-- Description: ${a11y.description ?? 'none'}
-- Disabled: ${a11y.disabled}
-- Hidden: ${a11y.hidden}
-${a11y.expanded !== undefined ? `- Expanded: ${a11y.expanded}` : ''}
-${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}
-
-### Geometry
-- Box: ${geometry.width}x${geometry.height} at (${geometry.x}, ${geometry.y})
-- Visible: ${geometry.visible}
-
-### Computed Styles
-- Display: ${styles.display}
-- Position: ${styles.position}
-${styles.flexDirection ? `- Flex Direction: ${styles.flexDirection}` : ''}
-${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
-- Padding: ${styles.padding}
-- Margin: ${styles.margin}
-- Color: ${styles.color}
-- Background: ${styles.backgroundColor}
-- Font: ${styles.fontFamily}
-- Z-Index: ${styles.zIndex}
-
-### Framework
-- Detected: ${framework.name}
-${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
-
-### Page Context
-- URL: ${snapshot.url}
-- Timestamp: ${new Date(snapshot.timestamp).toISOString()}
-`;
-    }
-    writeContextFile() {
-        try {
-            const content = this.formatAsMarkdown();
-            fs.writeFileSync(path.resolve(process.cwd(), CONTEXT_FILE), content, 'utf-8');
-        }
-        catch (err) {
-            // Silently fail file writes
-        }
-    }
-}
-export const store = new ContextStore();
-</file>
-
-<file path="packages/bridge/src/http.ts">
-import express, { Request, Response } from 'express';
-import cors from 'cors';
-import { FocusPayload, ActivityEvent, AnswerPayload } from '@eyeglass/types';
-import { store } from './store.js';
-
-const PORT = 3300;
-const KEEPALIVE_INTERVAL = 30000;
-
-export function startHttpServer(): void {
-  const app = express();
-
-  app.use(cors());
-  app.use(express.json());
-
-  const sseClients: Set<Response> = new Set();
-
-  // Health check
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', active: store.getActive() !== null });
-  });
-
-  // Browser posts focus payload here
-  app.post('/focus', (req: Request, res: Response) => {
-    const payload = req.body as FocusPayload;
-
-    if (!payload.interactionId || !payload.snapshot || !payload.userNote) {
-      res.status(400).json({ error: 'Invalid payload' });
-      return;
-    }
-
-    store.setFocus(payload);
-    res.json({ success: true, interactionId: payload.interactionId });
-  });
-
-  // Browser posts answer to a question
-  app.post('/answer', (req: Request, res: Response) => {
-    const answer = req.body as AnswerPayload;
-
-    if (!answer.interactionId || !answer.questionId || !answer.answerId) {
-      res.status(400).json({ error: 'Invalid answer payload' });
-      return;
-    }
-
-    const success = store.receiveAnswer(answer);
-    if (!success) {
-      res.status(404).json({ error: 'No pending question with that ID' });
-      return;
-    }
-
-    res.json({ success: true });
-  });
-
-  // SSE endpoint for real-time activity updates
-  app.get('/events', (req: Request, res: Response) => {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
-
-    sseClients.add(res);
-
-    // Send current state if there's an active focus
-    const active = store.getActive();
-    if (active) {
-      res.write(`data: ${JSON.stringify({ type: 'focus', payload: active })}\n\n`);
-    }
-
-    const keepAlive = setInterval(() => {
-      res.write(': keepalive\n\n');
-    }, KEEPALIVE_INTERVAL);
-
-    req.on('close', () => {
-      clearInterval(keepAlive);
-      sseClients.delete(res);
-    });
-  });
-
-  // Broadcast activity events to all SSE clients
-  store.on('activity', (event: ActivityEvent) => {
-    const message = `data: ${JSON.stringify({ type: 'activity', payload: event })}\n\n`;
-    for (const client of sseClients) {
-      client.write(message);
-    }
-  });
-
-  app.listen(PORT, () => {
-    // Server started silently
-  });
-}
-</file>
-
 <file path="packages/bridge/src/index.ts">
 #!/usr/bin/env node
 
@@ -831,577 +161,6 @@ main().catch((err) => {
   console.error('[eyeglass] Fatal error:', err);
   process.exit(1);
 });
-</file>
-
-<file path="packages/bridge/src/mcp.ts">
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  ListResourcesRequestSchema,
-  ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
-import { InteractionStatus } from '@eyeglass/types';
-import { store } from './store.js';
-
-export async function startMcpServer(): Promise<void> {
-  const server = new Server(
-    {
-      name: 'eyeglass-bridge',
-      version: '0.1.0',
-    },
-    {
-      capabilities: {
-        tools: {},
-        resources: {},
-      },
-    }
-  );
-
-  // Track if client supports sampling
-  let clientSupportsSampling = false;
-
-  // Check client capabilities after connection
-  server.oninitialized = () => {
-    const clientCaps = server.getClientCapabilities();
-    clientSupportsSampling = !!clientCaps?.sampling;
-    // Debug: log client capabilities to stderr
-    console.error('[eyeglass] Client capabilities:', JSON.stringify(clientCaps, null, 2));
-    console.error('[eyeglass] Sampling supported:', clientSupportsSampling);
-  };
-
-  // When a new focus comes in, trigger sampling if supported
-  store.on('activity', async (event) => {
-    if (event.type === 'status' && event.status === 'pending' && clientSupportsSampling) {
-      try {
-        // Request the client to handle the new focus
-        await server.request(
-          {
-            method: 'sampling/createMessage',
-            params: {
-              messages: [
-                {
-                  role: 'user',
-                  content: {
-                    type: 'text',
-                    text: `🔔 New Eyeglass request received!
-
-A user has selected a UI element and needs your help. Please:
-1. Call get_focused_element() to see what they selected
-2. Use report_action() to show your progress
-3. Use send_thought() to share your reasoning
-4. Make the requested changes
-5. Call update_status("success", "message") when done
-
-Handle this request now.`,
-                  },
-                },
-              ],
-              maxTokens: 4096,
-              systemPrompt: 'You are an AI assistant helping with UI development. The user has selected an element in their browser using Eyeglass and wants you to make changes. Use the available MCP tools to see the request and fulfill it.',
-              modelPreferences: {
-                intelligencePriority: 0.8,
-                speedPriority: 0.6,
-              },
-            },
-          },
-          { method: 'sampling/createMessage' } as any
-        );
-      } catch (err) {
-        // Sampling failed or was rejected - that's okay
-      }
-    }
-  });
-
-  // List available resources
-  server.setRequestHandler(ListResourcesRequestSchema, async () => {
-    return {
-      resources: [
-        {
-          uri: 'eyeglass://focus',
-          name: 'Current Focus',
-          description: 'The currently focused UI element and user request.',
-          mimeType: 'text/markdown',
-        },
-      ],
-    };
-  });
-
-  // Read resource content
-  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-    const { uri } = request.params;
-
-    if (uri === 'eyeglass://focus') {
-      const content = store.formatAsMarkdown();
-      return {
-        contents: [
-          {
-            uri,
-            mimeType: 'text/markdown',
-            text: content,
-          },
-        ],
-      };
-    }
-
-    throw new Error(`Unknown resource: ${uri}`);
-  });
-
-  // List tools
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-      tools: [
-        {
-          name: 'get_focused_element',
-          description:
-            "Get the currently focused UI element with its semantic snapshot, accessibility tree, computed styles, and the user's change request.",
-          inputSchema: {
-            type: 'object' as const,
-            properties: {},
-            required: [],
-          },
-        },
-        {
-          name: 'update_status',
-          description:
-            'Update the status shown to the user in the browser overlay. Use this to communicate progress.',
-          inputSchema: {
-            type: 'object' as const,
-            properties: {
-              status: {
-                type: 'string',
-                enum: ['idle', 'pending', 'fixing', 'success', 'failed'],
-                description: 'The new status',
-              },
-              message: {
-                type: 'string',
-                description: 'Optional message to show the user',
-              },
-            },
-            required: ['status'],
-          },
-        },
-        {
-          name: 'send_thought',
-          description:
-            'Share your reasoning or decision-making with the user. Use this to explain what you are considering or why you made a choice.',
-          inputSchema: {
-            type: 'object' as const,
-            properties: {
-              content: {
-                type: 'string',
-                description: 'The thought or reasoning to share',
-              },
-            },
-            required: ['content'],
-          },
-        },
-        {
-          name: 'report_action',
-          description:
-            'Report an action you are taking (reading a file, writing code, searching). This shows progress to the user.',
-          inputSchema: {
-            type: 'object' as const,
-            properties: {
-              action: {
-                type: 'string',
-                enum: ['reading', 'writing', 'searching', 'thinking'],
-                description: 'The type of action',
-              },
-              target: {
-                type: 'string',
-                description: 'What you are acting on (e.g., file path, search query)',
-              },
-              complete: {
-                type: 'boolean',
-                description: 'Whether this action is complete (default: false)',
-              },
-            },
-            required: ['action', 'target'],
-          },
-        },
-        {
-          name: 'ask_question',
-          description:
-            'Ask the user a question and wait for their answer. Use this when you need clarification or want to offer choices. This tool BLOCKS until the user responds.',
-          inputSchema: {
-            type: 'object' as const,
-            properties: {
-              question: {
-                type: 'string',
-                description: 'The question to ask',
-              },
-              options: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'The options for the user to choose from (2-4 options)',
-              },
-            },
-            required: ['question', 'options'],
-          },
-        },
-        {
-          name: 'get_focus_history',
-          description: 'Get the history of previously focused elements (up to 5).',
-          inputSchema: {
-            type: 'object' as const,
-            properties: {},
-            required: [],
-          },
-        },
-      ],
-    };
-  });
-
-  // Handle tool calls
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
-    const active = store.getActive();
-
-    switch (name) {
-      case 'get_focused_element': {
-        const markdown = store.formatAsMarkdown();
-        return {
-          content: [{ type: 'text', text: markdown }],
-        };
-      }
-
-      case 'update_status': {
-        const { status, message } = args as { status: InteractionStatus; message?: string };
-
-        if (!active) {
-          return {
-            content: [{ type: 'text', text: 'No active focus to update.' }],
-            isError: true,
-          };
-        }
-
-        store.updateStatus(active.interactionId, status, message);
-        return {
-          content: [
-            { type: 'text', text: `Status updated to "${status}"${message ? `: ${message}` : ''}` },
-          ],
-        };
-      }
-
-      case 'send_thought': {
-        const { content } = args as { content: string };
-
-        if (!active) {
-          return {
-            content: [{ type: 'text', text: 'No active focus.' }],
-            isError: true,
-          };
-        }
-
-        store.sendThought(active.interactionId, content);
-        return {
-          content: [{ type: 'text', text: 'Thought shared with user.' }],
-        };
-      }
-
-      case 'report_action': {
-        const { action, target, complete } = args as {
-          action: 'reading' | 'writing' | 'searching' | 'thinking';
-          target: string;
-          complete?: boolean;
-        };
-
-        if (!active) {
-          return {
-            content: [{ type: 'text', text: 'No active focus.' }],
-            isError: true,
-          };
-        }
-
-        store.reportAction(active.interactionId, action, target, complete ?? false);
-        return {
-          content: [{ type: 'text', text: `Action reported: ${action} ${target}` }],
-        };
-      }
-
-      case 'ask_question': {
-        const { question, options } = args as { question: string; options: string[] };
-
-        if (!active) {
-          return {
-            content: [{ type: 'text', text: 'No active focus.' }],
-            isError: true,
-          };
-        }
-
-        if (!options || options.length < 2 || options.length > 4) {
-          return {
-            content: [{ type: 'text', text: 'Please provide 2-4 options.' }],
-            isError: true,
-          };
-        }
-
-        const questionId = `q-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const formattedOptions = options.map((label, i) => ({
-          id: `opt-${i}`,
-          label,
-        }));
-
-        const answer = await store.askQuestion(
-          active.interactionId,
-          questionId,
-          question,
-          formattedOptions
-        );
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `User selected: "${answer.answerLabel}"`,
-            },
-          ],
-        };
-      }
-
-      case 'get_focus_history': {
-        const history = store.getHistory();
-        if (history.length === 0) {
-          return {
-            content: [{ type: 'text', text: 'No focus history available.' }],
-          };
-        }
-
-        const summary = history
-          .map((p, i) => {
-            const { snapshot, userNote } = p;
-            return `${i + 1}. **${snapshot.framework.componentName || snapshot.tagName}** - "${userNote}"`;
-          })
-          .join('\n');
-
-        return {
-          content: [{ type: 'text', text: `## Focus History\n\n${summary}` }],
-        };
-      }
-
-      default:
-        return {
-          content: [{ type: 'text', text: `Unknown tool: ${name}` }],
-          isError: true,
-        };
-    }
-  });
-
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-}
-</file>
-
-<file path="packages/bridge/src/store.ts">
-import {
-  FocusPayload,
-  InteractionStatus,
-  ActivityEvent,
-  AnswerPayload,
-} from '@eyeglass/types';
-import { EventEmitter } from 'events';
-import * as fs from 'fs';
-import * as path from 'path';
-
-const MAX_HISTORY = 5;
-const CONTEXT_FILE = '.eyeglass_context.md';
-
-interface PendingQuestion {
-  questionId: string;
-  resolve: (answer: AnswerPayload) => void;
-}
-
-export class ContextStore extends EventEmitter {
-  private active: FocusPayload | null = null;
-  private history: FocusPayload[] = [];
-  private currentStatus: InteractionStatus = 'idle';
-  private pendingQuestion: PendingQuestion | null = null;
-
-  setFocus(payload: FocusPayload): void {
-    if (this.active) {
-      this.history.unshift(this.active);
-      if (this.history.length > MAX_HISTORY) {
-        this.history.pop();
-      }
-    }
-
-    this.active = payload;
-    this.currentStatus = 'pending';
-    this.emitActivity({
-      type: 'status',
-      interactionId: payload.interactionId,
-      status: 'pending',
-      message: 'Waiting for agent...',
-      timestamp: Date.now(),
-    });
-    this.writeContextFile();
-  }
-
-  getActive(): FocusPayload | null {
-    return this.active;
-  }
-
-  getHistory(): FocusPayload[] {
-    return this.history;
-  }
-
-  // Status update
-  updateStatus(interactionId: string, status: InteractionStatus, message?: string): void {
-    if (this.active?.interactionId !== interactionId) return;
-    this.currentStatus = status;
-    this.emitActivity({
-      type: 'status',
-      interactionId,
-      status,
-      message,
-      timestamp: Date.now(),
-    });
-  }
-
-  // Send a thought/reasoning to the user
-  sendThought(interactionId: string, content: string): void {
-    if (this.active?.interactionId !== interactionId) return;
-    this.emitActivity({
-      type: 'thought',
-      interactionId,
-      content,
-      timestamp: Date.now(),
-    });
-  }
-
-  // Report an action being taken
-  reportAction(
-    interactionId: string,
-    action: 'reading' | 'writing' | 'searching' | 'thinking',
-    target: string,
-    complete = false
-  ): void {
-    if (this.active?.interactionId !== interactionId) return;
-    this.emitActivity({
-      type: 'action',
-      interactionId,
-      action,
-      target,
-      complete,
-      timestamp: Date.now(),
-    });
-  }
-
-  // Ask a question and wait for answer
-  async askQuestion(
-    interactionId: string,
-    questionId: string,
-    question: string,
-    options: Array<{ id: string; label: string }>
-  ): Promise<AnswerPayload> {
-    if (this.active?.interactionId !== interactionId) {
-      throw new Error('No active interaction');
-    }
-
-    // Emit the question event
-    this.emitActivity({
-      type: 'question',
-      interactionId,
-      questionId,
-      question,
-      options,
-      timestamp: Date.now(),
-    });
-
-    // Wait for the answer
-    return new Promise((resolve) => {
-      this.pendingQuestion = { questionId, resolve };
-    });
-  }
-
-  // Receive answer from the browser
-  receiveAnswer(answer: AnswerPayload): boolean {
-    if (!this.pendingQuestion || this.pendingQuestion.questionId !== answer.questionId) {
-      return false;
-    }
-
-    this.pendingQuestion.resolve(answer);
-    this.pendingQuestion = null;
-    return true;
-  }
-
-  hasPendingQuestion(): boolean {
-    return this.pendingQuestion !== null;
-  }
-
-  private emitActivity(event: ActivityEvent): void {
-    this.emit('activity', event);
-  }
-
-  formatAsMarkdown(): string {
-    if (!this.active) {
-      return '# No Active Focus\n\nNo element is currently focused.';
-    }
-
-    const { snapshot, userNote, interactionId } = this.active;
-    const { framework, a11y, geometry, styles } = snapshot;
-
-    const componentInfo = framework.componentName
-      ? `\`<${framework.componentName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
-      : `\`<${snapshot.tagName}>\` (vanilla element)`;
-
-    return `## User Focus Request
-**Interaction ID:** ${interactionId}
-**User Note:** "${userNote}"
-**Component:** ${componentInfo}
-
-### Element Info
-- Tag: \`<${snapshot.tagName}>\`
-- Role: ${snapshot.role}
-- Name: "${snapshot.name}"
-
-### Accessibility Tree
-- Label: ${a11y.label ?? 'none'}
-- Description: ${a11y.description ?? 'none'}
-- Disabled: ${a11y.disabled}
-- Hidden: ${a11y.hidden}
-${a11y.expanded !== undefined ? `- Expanded: ${a11y.expanded}` : ''}
-${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}
-
-### Geometry
-- Box: ${geometry.width}x${geometry.height} at (${geometry.x}, ${geometry.y})
-- Visible: ${geometry.visible}
-
-### Computed Styles
-- Display: ${styles.display}
-- Position: ${styles.position}
-${styles.flexDirection ? `- Flex Direction: ${styles.flexDirection}` : ''}
-${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
-- Padding: ${styles.padding}
-- Margin: ${styles.margin}
-- Color: ${styles.color}
-- Background: ${styles.backgroundColor}
-- Font: ${styles.fontFamily}
-- Z-Index: ${styles.zIndex}
-
-### Framework
-- Detected: ${framework.name}
-${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
-
-### Page Context
-- URL: ${snapshot.url}
-- Timestamp: ${new Date(snapshot.timestamp).toISOString()}
-`;
-  }
-
-  private writeContextFile(): void {
-    try {
-      const content = this.formatAsMarkdown();
-      fs.writeFileSync(path.resolve(process.cwd(), CONTEXT_FILE), content, 'utf-8');
-    } catch (err) {
-      // Silently fail file writes
-    }
-  }
-}
-
-export const store = new ContextStore();
 </file>
 
 <file path="packages/bridge/.eyeglass_context.md">
@@ -2116,6 +875,2601 @@ export declare class EyeglassInspector extends HTMLElement {
 }
 </file>
 
+<file path="packages/inspector/dist/snapshot.d.ts">
+/**
+ * Captures a semantic snapshot of a DOM element
+ */
+import type { SemanticSnapshot } from '@eyeglass/types';
+/**
+ * Capture a complete semantic snapshot of an element
+ */
+export declare function captureSnapshot(element: Element): SemanticSnapshot;
+</file>
+
+<file path="packages/inspector/dist/snapshot.js">
+/**
+ * Captures a semantic snapshot of a DOM element
+ */
+import { extractFrameworkInfo } from './fiber-walker.js';
+/**
+ * Get computed accessibility properties
+ */
+function getA11yInfo(element) {
+    const ariaLabel = element.getAttribute('aria-label');
+    const ariaDescribedBy = element.getAttribute('aria-describedby');
+    const ariaDisabled = element.getAttribute('aria-disabled');
+    const ariaExpanded = element.getAttribute('aria-expanded');
+    const ariaChecked = element.getAttribute('aria-checked');
+    const ariaHidden = element.getAttribute('aria-hidden');
+    // Get description from aria-describedby if it points to an element
+    let description = null;
+    if (ariaDescribedBy) {
+        const descElement = document.getElementById(ariaDescribedBy);
+        description = descElement?.textContent?.trim() || null;
+    }
+    // Check if element is disabled
+    const disabled = ariaDisabled === 'true' ||
+        element.disabled ||
+        element.hasAttribute('disabled');
+    return {
+        label: ariaLabel || element.getAttribute('title') || null,
+        description,
+        disabled,
+        expanded: ariaExpanded ? ariaExpanded === 'true' : undefined,
+        checked: ariaChecked === 'true'
+            ? true
+            : ariaChecked === 'false'
+                ? false
+                : ariaChecked === 'mixed'
+                    ? 'mixed'
+                    : undefined,
+        hidden: ariaHidden === 'true' || element.hidden || false,
+    };
+}
+/**
+ * Get geometry information
+ */
+function getGeometry(element) {
+    const rect = element.getBoundingClientRect();
+    return {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        visible: rect.width > 0 && rect.height > 0,
+    };
+}
+/**
+ * Get targeted computed styles
+ */
+function getStyles(element) {
+    const computed = getComputedStyle(element);
+    return {
+        display: computed.display,
+        position: computed.position,
+        flexDirection: computed.flexDirection !== 'row' ? computed.flexDirection : undefined,
+        gridTemplate: computed.display === 'grid'
+            ? `${computed.gridTemplateColumns} / ${computed.gridTemplateRows}`
+            : undefined,
+        padding: computed.padding,
+        margin: computed.margin,
+        color: computed.color,
+        backgroundColor: computed.backgroundColor,
+        fontFamily: computed.fontFamily,
+        zIndex: computed.zIndex,
+    };
+}
+/**
+ * Get the accessible role of an element
+ */
+function getRole(element) {
+    // Explicit role takes precedence
+    const explicitRole = element.getAttribute('role');
+    if (explicitRole)
+        return explicitRole;
+    // Implicit roles based on tag
+    const tag = element.tagName.toLowerCase();
+    const roleMap = {
+        a: 'link',
+        button: 'button',
+        input: element.type || 'textbox',
+        select: 'combobox',
+        textarea: 'textbox',
+        img: 'img',
+        nav: 'navigation',
+        main: 'main',
+        header: 'banner',
+        footer: 'contentinfo',
+        aside: 'complementary',
+        article: 'article',
+        section: 'region',
+        form: 'form',
+        ul: 'list',
+        ol: 'list',
+        li: 'listitem',
+        table: 'table',
+        tr: 'row',
+        td: 'cell',
+        th: 'columnheader',
+        dialog: 'dialog',
+        h1: 'heading',
+        h2: 'heading',
+        h3: 'heading',
+        h4: 'heading',
+        h5: 'heading',
+        h6: 'heading',
+    };
+    return roleMap[tag] || 'generic';
+}
+/**
+ * Get the accessible name of an element
+ */
+function getAccessibleName(element) {
+    // aria-label
+    const ariaLabel = element.getAttribute('aria-label');
+    if (ariaLabel)
+        return ariaLabel;
+    // aria-labelledby
+    const labelledBy = element.getAttribute('aria-labelledby');
+    if (labelledBy) {
+        const labelElement = document.getElementById(labelledBy);
+        if (labelElement)
+            return labelElement.textContent?.trim() || '';
+    }
+    // For inputs, check associated label
+    if (element.tagName === 'INPUT' || element.tagName === 'SELECT' || element.tagName === 'TEXTAREA') {
+        const id = element.getAttribute('id');
+        if (id) {
+            const label = document.querySelector(`label[for="${id}"]`);
+            if (label)
+                return label.textContent?.trim() || '';
+        }
+    }
+    // For images, use alt
+    if (element.tagName === 'IMG') {
+        return element.alt || '';
+    }
+    // Text content (truncated)
+    const text = element.textContent?.trim() || '';
+    return text.length > 50 ? text.slice(0, 50) + '...' : text;
+}
+/**
+ * Capture a complete semantic snapshot of an element
+ */
+export function captureSnapshot(element) {
+    return {
+        role: getRole(element),
+        name: getAccessibleName(element),
+        tagName: element.tagName.toLowerCase(),
+        framework: extractFrameworkInfo(element),
+        a11y: getA11yInfo(element),
+        geometry: getGeometry(element),
+        styles: getStyles(element),
+        timestamp: Date.now(),
+        url: window.location.href,
+    };
+}
+</file>
+
+<file path="packages/inspector/src/fiber-walker.ts">
+/**
+ * React Fiber Walker - extracts component info from React DevTools internals
+ */
+
+interface ReactFiber {
+  tag: number;
+  type: any;
+  return: ReactFiber | null;
+  _debugSource?: {
+    fileName: string;
+    lineNumber: number;
+    columnNumber?: number;
+  };
+  memoizedProps?: Record<string, unknown>;
+}
+
+export interface FrameworkInfo {
+  name: 'react' | 'vue' | 'svelte' | 'vanilla';
+  componentName?: string;
+  filePath?: string;
+  lineNumber?: number;
+  props?: Record<string, unknown>;
+}
+
+// Fiber tag constants
+const FunctionComponent = 0;
+const ClassComponent = 1;
+const ForwardRef = 11;
+const MemoComponent = 14;
+const SimpleMemoComponent = 15;
+
+const COMPONENT_TAGS = new Set([
+  FunctionComponent,
+  ClassComponent,
+  ForwardRef,
+  MemoComponent,
+  SimpleMemoComponent,
+]);
+
+/**
+ * Find the React Fiber attached to a DOM element
+ */
+function getFiberFromElement(element: Element): ReactFiber | null {
+  const keys = Object.keys(element);
+  const fiberKey = keys.find(
+    (k) => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$')
+  );
+  if (!fiberKey) return null;
+  return (element as any)[fiberKey] as ReactFiber;
+}
+
+/**
+ * Walk up the fiber tree to find the nearest user-defined component
+ */
+function findComponentFiber(fiber: ReactFiber | null): ReactFiber | null {
+  let current = fiber;
+  while (current) {
+    if (COMPONENT_TAGS.has(current.tag) && typeof current.type === 'function') {
+      // Skip built-in React components (Context.Provider, etc.)
+      const name = current.type.displayName || current.type.name || '';
+      if (name && !name.startsWith('Context') && !name.endsWith('Provider')) {
+        return current;
+      }
+    }
+    current = current.return;
+  }
+  return null;
+}
+
+/**
+ * Get safe props (primitives only, no functions/objects)
+ */
+function getSafeProps(props: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!props) return undefined;
+  const safe: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(props)) {
+    if (key === 'children') continue;
+    const type = typeof value;
+    if (type === 'string' || type === 'number' || type === 'boolean' || value === null) {
+      safe[key] = value;
+    }
+  }
+  return Object.keys(safe).length > 0 ? safe : undefined;
+}
+
+/**
+ * Detect Vue component
+ */
+function detectVue(element: Element): FrameworkInfo | null {
+  const vueInstance = (element as any).__vue__;
+  if (vueInstance) {
+    const componentName = vueInstance.$options?.name || vueInstance.$options?._componentTag;
+    return {
+      name: 'vue',
+      componentName,
+    };
+  }
+
+  // Vue 3
+  const vueKey = Object.keys(element).find((k) => k.startsWith('__vueParentComponent'));
+  if (vueKey) {
+    const instance = (element as any)[vueKey];
+    return {
+      name: 'vue',
+      componentName: instance?.type?.name,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Detect Svelte component
+ */
+function detectSvelte(element: Element): FrameworkInfo | null {
+  const svelteKey = Object.keys(element).find((k) => k.startsWith('__svelte'));
+  if (svelteKey) {
+    return {
+      name: 'svelte',
+    };
+  }
+  return null;
+}
+
+/**
+ * Extract framework information from a DOM element
+ */
+export function extractFrameworkInfo(element: Element): FrameworkInfo {
+  // Try React first
+  const fiber = getFiberFromElement(element);
+  if (fiber) {
+    const componentFiber = findComponentFiber(fiber);
+    if (componentFiber) {
+      const componentName =
+        componentFiber.type.displayName || componentFiber.type.name || undefined;
+      const debugSource = componentFiber._debugSource;
+
+      return {
+        name: 'react',
+        componentName,
+        filePath: debugSource?.fileName,
+        lineNumber: debugSource?.lineNumber,
+        props: getSafeProps(componentFiber.memoizedProps),
+      };
+    }
+    // React element but no user component found (just DOM nodes)
+    return { name: 'react' };
+  }
+
+  // Try Vue
+  const vueInfo = detectVue(element);
+  if (vueInfo) return vueInfo;
+
+  // Try Svelte
+  const svelteInfo = detectSvelte(element);
+  if (svelteInfo) return svelteInfo;
+
+  // Vanilla fallback
+  return { name: 'vanilla' };
+}
+</file>
+
+<file path="packages/inspector/src/index.ts">
+/**
+ * @eyeglass/inspector - Browser-side inspection web component
+ *
+ * Usage:
+ *   import '@eyeglass/inspector';
+ *   // Or inject via script tag
+ *
+ * This automatically registers the <eyeglass-inspector> custom element.
+ */
+
+export { EyeglassInspector } from './inspector.js';
+export { captureSnapshot } from './snapshot.js';
+export { extractFrameworkInfo } from './fiber-walker.js';
+export type { FrameworkInfo } from './fiber-walker.js';
+
+/**
+ * Initialize the inspector by appending it to the document
+ */
+export function initInspector(): void {
+  if (document.querySelector('eyeglass-inspector')) {
+    console.warn('[eyeglass] Inspector already initialized');
+    return;
+  }
+
+  const inspector = document.createElement('eyeglass-inspector');
+  document.body.appendChild(inspector);
+  console.log('[eyeglass] Inspector initialized. Hover over elements and click to annotate.');
+}
+
+// Auto-initialize when imported in a browser context
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initInspector);
+  } else {
+    initInspector();
+  }
+}
+</file>
+
+<file path="packages/inspector/src/snapshot.ts">
+/**
+ * Captures a semantic snapshot of a DOM element
+ */
+
+import type { SemanticSnapshot } from '@eyeglass/types';
+import { extractFrameworkInfo } from './fiber-walker.js';
+
+/**
+ * Get computed accessibility properties
+ */
+function getA11yInfo(element: Element): SemanticSnapshot['a11y'] {
+  const ariaLabel = element.getAttribute('aria-label');
+  const ariaDescribedBy = element.getAttribute('aria-describedby');
+  const ariaDisabled = element.getAttribute('aria-disabled');
+  const ariaExpanded = element.getAttribute('aria-expanded');
+  const ariaChecked = element.getAttribute('aria-checked');
+  const ariaHidden = element.getAttribute('aria-hidden');
+
+  // Get description from aria-describedby if it points to an element
+  let description: string | null = null;
+  if (ariaDescribedBy) {
+    const descElement = document.getElementById(ariaDescribedBy);
+    description = descElement?.textContent?.trim() || null;
+  }
+
+  // Check if element is disabled
+  const disabled =
+    ariaDisabled === 'true' ||
+    (element as HTMLButtonElement).disabled ||
+    element.hasAttribute('disabled');
+
+  return {
+    label: ariaLabel || element.getAttribute('title') || null,
+    description,
+    disabled,
+    expanded: ariaExpanded ? ariaExpanded === 'true' : undefined,
+    checked:
+      ariaChecked === 'true'
+        ? true
+        : ariaChecked === 'false'
+          ? false
+          : ariaChecked === 'mixed'
+            ? 'mixed'
+            : undefined,
+    hidden: ariaHidden === 'true' || (element as HTMLElement).hidden || false,
+  };
+}
+
+/**
+ * Get geometry information
+ */
+function getGeometry(element: Element): SemanticSnapshot['geometry'] {
+  const rect = element.getBoundingClientRect();
+  return {
+    x: Math.round(rect.x),
+    y: Math.round(rect.y),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+    visible: rect.width > 0 && rect.height > 0,
+  };
+}
+
+/**
+ * Get targeted computed styles
+ */
+function getStyles(element: Element): SemanticSnapshot['styles'] {
+  const computed = getComputedStyle(element);
+  return {
+    display: computed.display,
+    position: computed.position,
+    flexDirection: computed.flexDirection !== 'row' ? computed.flexDirection : undefined,
+    gridTemplate:
+      computed.display === 'grid'
+        ? `${computed.gridTemplateColumns} / ${computed.gridTemplateRows}`
+        : undefined,
+    padding: computed.padding,
+    margin: computed.margin,
+    color: computed.color,
+    backgroundColor: computed.backgroundColor,
+    fontFamily: computed.fontFamily,
+    zIndex: computed.zIndex,
+  };
+}
+
+/**
+ * Get the accessible role of an element
+ */
+function getRole(element: Element): string {
+  // Explicit role takes precedence
+  const explicitRole = element.getAttribute('role');
+  if (explicitRole) return explicitRole;
+
+  // Implicit roles based on tag
+  const tag = element.tagName.toLowerCase();
+  const roleMap: Record<string, string> = {
+    a: 'link',
+    button: 'button',
+    input: (element as HTMLInputElement).type || 'textbox',
+    select: 'combobox',
+    textarea: 'textbox',
+    img: 'img',
+    nav: 'navigation',
+    main: 'main',
+    header: 'banner',
+    footer: 'contentinfo',
+    aside: 'complementary',
+    article: 'article',
+    section: 'region',
+    form: 'form',
+    ul: 'list',
+    ol: 'list',
+    li: 'listitem',
+    table: 'table',
+    tr: 'row',
+    td: 'cell',
+    th: 'columnheader',
+    dialog: 'dialog',
+    h1: 'heading',
+    h2: 'heading',
+    h3: 'heading',
+    h4: 'heading',
+    h5: 'heading',
+    h6: 'heading',
+  };
+
+  return roleMap[tag] || 'generic';
+}
+
+/**
+ * Get the accessible name of an element
+ */
+function getAccessibleName(element: Element): string {
+  // aria-label
+  const ariaLabel = element.getAttribute('aria-label');
+  if (ariaLabel) return ariaLabel;
+
+  // aria-labelledby
+  const labelledBy = element.getAttribute('aria-labelledby');
+  if (labelledBy) {
+    const labelElement = document.getElementById(labelledBy);
+    if (labelElement) return labelElement.textContent?.trim() || '';
+  }
+
+  // For inputs, check associated label
+  if (element.tagName === 'INPUT' || element.tagName === 'SELECT' || element.tagName === 'TEXTAREA') {
+    const id = element.getAttribute('id');
+    if (id) {
+      const label = document.querySelector(`label[for="${id}"]`);
+      if (label) return label.textContent?.trim() || '';
+    }
+  }
+
+  // For images, use alt
+  if (element.tagName === 'IMG') {
+    return (element as HTMLImageElement).alt || '';
+  }
+
+  // Text content (truncated)
+  const text = element.textContent?.trim() || '';
+  return text.length > 50 ? text.slice(0, 50) + '...' : text;
+}
+
+/**
+ * Capture a complete semantic snapshot of an element
+ */
+export function captureSnapshot(element: Element): SemanticSnapshot {
+  return {
+    role: getRole(element),
+    name: getAccessibleName(element),
+    tagName: element.tagName.toLowerCase(),
+    framework: extractFrameworkInfo(element),
+    a11y: getA11yInfo(element),
+    geometry: getGeometry(element),
+    styles: getStyles(element),
+    timestamp: Date.now(),
+    url: window.location.href,
+  };
+}
+</file>
+
+<file path="packages/inspector/package.json">
+{
+  "name": "@eyeglass/inspector",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@eyeglass/types": "^0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
+</file>
+
+<file path="packages/inspector/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "bundler",
+    "lib": ["ES2020", "DOM"],
+    "declaration": true,
+    "strict": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"]
+}
+</file>
+
+<file path="packages/types/dist/index.d.ts">
+export type InteractionStatus = 'idle' | 'pending' | 'fixing' | 'success' | 'failed';
+export interface SemanticSnapshot {
+    role: string;
+    name: string;
+    tagName: string;
+    framework: {
+        name: 'react' | 'vue' | 'svelte' | 'vanilla';
+        componentName?: string;
+        filePath?: string;
+        lineNumber?: number;
+        props?: Record<string, unknown>;
+    };
+    a11y: {
+        label: string | null;
+        description: string | null;
+        disabled: boolean;
+        expanded?: boolean;
+        checked?: boolean | 'mixed';
+        hidden: boolean;
+    };
+    geometry: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        visible: boolean;
+    };
+    styles: {
+        display: string;
+        position: string;
+        flexDirection?: string;
+        gridTemplate?: string;
+        padding: string;
+        margin: string;
+        color: string;
+        backgroundColor: string;
+        fontFamily: string;
+        zIndex: string;
+    };
+    timestamp: number;
+    url: string;
+}
+export interface FocusPayload {
+    interactionId: string;
+    snapshot: SemanticSnapshot;
+    userNote: string;
+}
+export type ActivityEventType = 'status' | 'thought' | 'question' | 'action';
+export interface BaseActivityEvent {
+    interactionId: string;
+    timestamp: number;
+}
+export interface StatusEvent extends BaseActivityEvent {
+    type: 'status';
+    status: InteractionStatus;
+    message?: string;
+}
+export interface ThoughtEvent extends BaseActivityEvent {
+    type: 'thought';
+    content: string;
+}
+export interface QuestionEvent extends BaseActivityEvent {
+    type: 'question';
+    questionId: string;
+    question: string;
+    options: Array<{
+        id: string;
+        label: string;
+    }>;
+}
+export interface AnswerPayload {
+    interactionId: string;
+    questionId: string;
+    answerId: string;
+    answerLabel: string;
+}
+export interface ActionEvent extends BaseActivityEvent {
+    type: 'action';
+    action: 'reading' | 'writing' | 'searching' | 'thinking';
+    target: string;
+    complete?: boolean;
+}
+export type ActivityEvent = StatusEvent | ThoughtEvent | QuestionEvent | ActionEvent;
+export interface StatusUpdate {
+    interactionId: string;
+    status: InteractionStatus;
+    agentMessage?: string;
+}
+</file>
+
+<file path="packages/types/dist/index.js">
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+</file>
+
+<file path="packages/types/src/index.ts">
+export type InteractionStatus = 'idle' | 'pending' | 'fixing' | 'success' | 'failed';
+
+export interface SemanticSnapshot {
+  role: string;
+  name: string;
+  tagName: string;
+
+  framework: {
+    name: 'react' | 'vue' | 'svelte' | 'vanilla';
+    componentName?: string;
+    filePath?: string;
+    lineNumber?: number;
+    props?: Record<string, unknown>;
+  };
+
+  a11y: {
+    label: string | null;
+    description: string | null;
+    disabled: boolean;
+    expanded?: boolean;
+    checked?: boolean | 'mixed';
+    hidden: boolean;
+  };
+
+  geometry: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    visible: boolean;
+  };
+
+  styles: {
+    display: string;
+    position: string;
+    flexDirection?: string;
+    gridTemplate?: string;
+    padding: string;
+    margin: string;
+    color: string;
+    backgroundColor: string;
+    fontFamily: string;
+    zIndex: string;
+  };
+
+  timestamp: number;
+  url: string;
+}
+
+export interface FocusPayload {
+  interactionId: string;
+  snapshot: SemanticSnapshot;
+  userNote: string;
+}
+
+// Activity feed event types
+export type ActivityEventType = 'status' | 'thought' | 'question' | 'action';
+
+export interface BaseActivityEvent {
+  interactionId: string;
+  timestamp: number;
+}
+
+export interface StatusEvent extends BaseActivityEvent {
+  type: 'status';
+  status: InteractionStatus;
+  message?: string;
+}
+
+export interface ThoughtEvent extends BaseActivityEvent {
+  type: 'thought';
+  content: string;
+}
+
+export interface QuestionEvent extends BaseActivityEvent {
+  type: 'question';
+  questionId: string;
+  question: string;
+  options: Array<{ id: string; label: string }>;
+}
+
+export interface AnswerPayload {
+  interactionId: string;
+  questionId: string;
+  answerId: string;
+  answerLabel: string;
+}
+
+export interface ActionEvent extends BaseActivityEvent {
+  type: 'action';
+  action: 'reading' | 'writing' | 'searching' | 'thinking';
+  target: string;
+  complete?: boolean;
+}
+
+export type ActivityEvent = StatusEvent | ThoughtEvent | QuestionEvent | ActionEvent;
+
+// Legacy compat
+export interface StatusUpdate {
+  interactionId: string;
+  status: InteractionStatus;
+  agentMessage?: string;
+}
+</file>
+
+<file path="packages/types/package.json">
+{
+  "name": "@eyeglass/types",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
+</file>
+
+<file path="packages/types/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "declaration": true,
+    "strict": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"]
+}
+</file>
+
+<file path="BOOKMARKLET.md">
+# Eyeglass Bookmarklet
+
+For quick testing, you can use this bookmarklet to inject the inspector into any page.
+
+## Setup
+
+1. Start the bridge server: `npm run dev:bridge`
+2. Create a new bookmark with this URL:
+
+```
+javascript:(function(){const s=document.createElement('script');s.src='http://localhost:3300/inspector.js';document.head.appendChild(s);})();
+```
+
+## Alternative: CDN (once published)
+
+```
+javascript:(function(){const s=document.createElement('script');s.type='module';s.textContent='import "https://unpkg.com/@eyeglass/inspector"';document.head.appendChild(s);})();
+```
+
+## Usage
+
+1. Navigate to any React/Vue/Svelte app in dev mode
+2. Click the bookmarklet
+3. Hover over elements and click to annotate
+4. Your AI agent can call `get_focused_element()` to get the context
+</file>
+
+<file path="package.json">
+{
+  "name": "eyeglass",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev:bridge": "npm run dev --workspace=@eyeglass/bridge"
+  }
+}
+</file>
+
+<file path="watch-eyeglass.sh">
+#!/bin/bash
+# Eyeglass Watcher - watches for new requests and notifies Claude
+# Usage: ./watch-eyeglass.sh (run in a separate terminal)
+
+CONTEXT_FILE=".eyeglass_context.md"
+
+echo "👓 Eyeglass watcher started. Watching for new requests..."
+
+# Use fswatch on macOS, inotifywait on Linux
+if command -v fswatch &> /dev/null; then
+  fswatch -o "$CONTEXT_FILE" | while read; do
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🔔 New Eyeglass request detected!"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    head -10 "$CONTEXT_FILE"
+    echo "..."
+    echo ""
+    echo "💡 Prompt Claude: 'check eyeglass'"
+  done
+elif command -v inotifywait &> /dev/null; then
+  while inotifywait -q -e modify "$CONTEXT_FILE"; do
+    echo ""
+    echo "🔔 New Eyeglass request! Prompt Claude: 'check eyeglass'"
+  done
+else
+  echo "Please install fswatch (macOS) or inotify-tools (Linux)"
+  exit 1
+fi
+</file>
+
+<file path=".gitignore">
+node_modules/
+.claude/
+repomix
+</file>
+
+<file path="packages/bridge/dist/http.js">
+import express from 'express';
+import cors from 'cors';
+import { store } from './store.js';
+const PORT = 3300;
+const KEEPALIVE_INTERVAL = 30000;
+export function startHttpServer() {
+    const app = express();
+    app.use(cors());
+    app.use(express.json());
+    const sseClients = new Set();
+    // Health check
+    app.get('/health', (_req, res) => {
+        res.json({ status: 'ok', active: store.getActive() !== null });
+    });
+    // Browser posts focus payload here
+    app.post('/focus', (req, res) => {
+        const payload = req.body;
+        if (!payload.interactionId || !payload.snapshot || !payload.userNote) {
+            res.status(400).json({ error: 'Invalid payload' });
+            return;
+        }
+        store.setFocus(payload);
+        res.json({ success: true, interactionId: payload.interactionId });
+    });
+    // Browser posts answer to a question
+    app.post('/answer', (req, res) => {
+        const answer = req.body;
+        if (!answer.interactionId || !answer.questionId || !answer.answerId) {
+            res.status(400).json({ error: 'Invalid answer payload' });
+            return;
+        }
+        const success = store.receiveAnswer(answer);
+        if (!success) {
+            res.status(404).json({ error: 'No pending question with that ID' });
+            return;
+        }
+        res.json({ success: true });
+    });
+    // Undo changes for a specific interaction
+    app.post('/undo', async (req, res) => {
+        const { interactionId } = req.body;
+        if (!interactionId) {
+            res.status(400).json({ error: 'Missing interactionId' });
+            return;
+        }
+        const result = await store.undoInteraction(interactionId);
+        if (!result.success) {
+            res.status(400).json({ error: result.message });
+            return;
+        }
+        res.json({ success: true, message: result.message });
+    });
+    // SSE endpoint for real-time activity updates
+    app.get('/events', (req, res) => {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+        sseClients.add(res);
+        // Send current state if there's an active focus
+        const active = store.getActive();
+        if (active) {
+            res.write(`data: ${JSON.stringify({ type: 'focus', payload: active })}\n\n`);
+        }
+        const keepAlive = setInterval(() => {
+            res.write(': keepalive\n\n');
+        }, KEEPALIVE_INTERVAL);
+        req.on('close', () => {
+            clearInterval(keepAlive);
+            sseClients.delete(res);
+        });
+    });
+    // Broadcast activity events to all SSE clients
+    store.on('activity', (event) => {
+        const message = `data: ${JSON.stringify({ type: 'activity', payload: event })}\n\n`;
+        for (const client of sseClients) {
+            client.write(message);
+        }
+    });
+    app.listen(PORT, () => {
+        // Server started silently
+    });
+}
+</file>
+
+<file path="packages/bridge/dist/mcp.js">
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
+import { store } from './store.js';
+export async function startMcpServer() {
+    const server = new Server({
+        name: 'eyeglass-bridge',
+        version: '0.1.0',
+    }, {
+        capabilities: {
+            tools: {},
+            resources: {},
+        },
+    });
+    // Track if client supports sampling
+    let clientSupportsSampling = false;
+    // Check client capabilities after connection
+    server.oninitialized = () => {
+        const clientCaps = server.getClientCapabilities();
+        clientSupportsSampling = !!clientCaps?.sampling;
+        // Debug: log client capabilities to stderr
+        console.error('[eyeglass] Client capabilities:', JSON.stringify(clientCaps, null, 2));
+        console.error('[eyeglass] Sampling supported:', clientSupportsSampling);
+    };
+    // When a new focus comes in, trigger sampling if supported
+    store.on('activity', async (event) => {
+        if (event.type === 'status' && event.status === 'pending' && clientSupportsSampling) {
+            try {
+                // Request the client to handle the new focus
+                await server.request({
+                    method: 'sampling/createMessage',
+                    params: {
+                        messages: [
+                            {
+                                role: 'user',
+                                content: {
+                                    type: 'text',
+                                    text: `🔔 New Eyeglass request received!
+
+A user has selected a UI element and needs your help. Please:
+1. Call get_focused_element() to see what they selected
+2. Use report_action() to show your progress
+3. Use send_thought() to share your reasoning
+4. Make the requested changes
+5. Call update_status("success", "message") when done
+
+Handle this request now.`,
+                                },
+                            },
+                        ],
+                        maxTokens: 4096,
+                        systemPrompt: 'You are an AI assistant helping with UI development. The user has selected an element in their browser using Eyeglass and wants you to make changes. Use the available MCP tools to see the request and fulfill it.',
+                        modelPreferences: {
+                            intelligencePriority: 0.8,
+                            speedPriority: 0.6,
+                        },
+                    },
+                }, { method: 'sampling/createMessage' });
+            }
+            catch (err) {
+                // Sampling failed or was rejected - that's okay
+            }
+        }
+    });
+    // List available resources
+    server.setRequestHandler(ListResourcesRequestSchema, async () => {
+        return {
+            resources: [
+                {
+                    uri: 'eyeglass://focus',
+                    name: 'Current Focus',
+                    description: 'The currently focused UI element and user request.',
+                    mimeType: 'text/markdown',
+                },
+            ],
+        };
+    });
+    // Read resource content
+    server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+        const { uri } = request.params;
+        if (uri === 'eyeglass://focus') {
+            const content = store.formatAsMarkdown();
+            return {
+                contents: [
+                    {
+                        uri,
+                        mimeType: 'text/markdown',
+                        text: content,
+                    },
+                ],
+            };
+        }
+        throw new Error(`Unknown resource: ${uri}`);
+    });
+    // List tools
+    server.setRequestHandler(ListToolsRequestSchema, async () => {
+        return {
+            tools: [
+                {
+                    name: 'get_focused_element',
+                    description: "Get the currently focused UI element with its semantic snapshot, accessibility tree, computed styles, and the user's change request.",
+                    inputSchema: {
+                        type: 'object',
+                        properties: {},
+                        required: [],
+                    },
+                },
+                {
+                    name: 'update_status',
+                    description: 'Update the status shown to the user in the browser overlay. Use this to communicate progress.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            status: {
+                                type: 'string',
+                                enum: ['idle', 'pending', 'fixing', 'success', 'failed'],
+                                description: 'The new status',
+                            },
+                            message: {
+                                type: 'string',
+                                description: 'Optional message to show the user',
+                            },
+                        },
+                        required: ['status'],
+                    },
+                },
+                {
+                    name: 'send_thought',
+                    description: 'Share your reasoning or decision-making with the user. Use this to explain what you are considering or why you made a choice.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            content: {
+                                type: 'string',
+                                description: 'The thought or reasoning to share',
+                            },
+                        },
+                        required: ['content'],
+                    },
+                },
+                {
+                    name: 'report_action',
+                    description: 'Report an action you are taking (reading a file, writing code, searching). This shows progress to the user.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            action: {
+                                type: 'string',
+                                enum: ['reading', 'writing', 'searching', 'thinking'],
+                                description: 'The type of action',
+                            },
+                            target: {
+                                type: 'string',
+                                description: 'What you are acting on (e.g., file path, search query)',
+                            },
+                            complete: {
+                                type: 'boolean',
+                                description: 'Whether this action is complete (default: false)',
+                            },
+                        },
+                        required: ['action', 'target'],
+                    },
+                },
+                {
+                    name: 'ask_question',
+                    description: 'Ask the user a question and wait for their answer. Use this when you need clarification or want to offer choices. This tool BLOCKS until the user responds.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            question: {
+                                type: 'string',
+                                description: 'The question to ask',
+                            },
+                            options: {
+                                type: 'array',
+                                items: { type: 'string' },
+                                description: 'The options for the user to choose from (2-4 options)',
+                            },
+                        },
+                        required: ['question', 'options'],
+                    },
+                },
+                {
+                    name: 'get_focus_history',
+                    description: 'Get the history of previously focused elements (up to 5).',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {},
+                        required: [],
+                    },
+                },
+                {
+                    name: 'wait_for_request',
+                    description: 'Blocks execution until the user selects a new element in the browser. Use this to enter a listening mode where you automatically react to user actions. Returns the focused element context when a request arrives.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            timeout_ms: {
+                                type: 'number',
+                                description: 'Optional timeout in milliseconds. If not provided, waits indefinitely.',
+                            },
+                        },
+                        required: [],
+                    },
+                },
+            ],
+        };
+    });
+    // Handle tool calls
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+        const { name, arguments: args } = request.params;
+        const active = store.getActive();
+        switch (name) {
+            case 'get_focused_element': {
+                const markdown = store.formatAsMarkdown();
+                return {
+                    content: [{ type: 'text', text: markdown }],
+                };
+            }
+            case 'update_status': {
+                const { status, message } = args;
+                if (!active) {
+                    return {
+                        content: [{ type: 'text', text: 'No active focus to update.' }],
+                        isError: true,
+                    };
+                }
+                store.updateStatus(active.interactionId, status, message);
+                return {
+                    content: [
+                        { type: 'text', text: `Status updated to "${status}"${message ? `: ${message}` : ''}` },
+                    ],
+                };
+            }
+            case 'send_thought': {
+                const { content } = args;
+                if (!active) {
+                    return {
+                        content: [{ type: 'text', text: 'No active focus.' }],
+                        isError: true,
+                    };
+                }
+                store.sendThought(active.interactionId, content);
+                return {
+                    content: [{ type: 'text', text: 'Thought shared with user.' }],
+                };
+            }
+            case 'report_action': {
+                const { action, target, complete } = args;
+                if (!active) {
+                    return {
+                        content: [{ type: 'text', text: 'No active focus.' }],
+                        isError: true,
+                    };
+                }
+                store.reportAction(active.interactionId, action, target, complete ?? false);
+                return {
+                    content: [{ type: 'text', text: `Action reported: ${action} ${target}` }],
+                };
+            }
+            case 'ask_question': {
+                const { question, options } = args;
+                if (!active) {
+                    return {
+                        content: [{ type: 'text', text: 'No active focus.' }],
+                        isError: true,
+                    };
+                }
+                if (!options || options.length < 2 || options.length > 4) {
+                    return {
+                        content: [{ type: 'text', text: 'Please provide 2-4 options.' }],
+                        isError: true,
+                    };
+                }
+                const questionId = `q-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                const formattedOptions = options.map((label, i) => ({
+                    id: `opt-${i}`,
+                    label,
+                }));
+                const answer = await store.askQuestion(active.interactionId, questionId, question, formattedOptions);
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: `User selected: "${answer.answerLabel}"`,
+                        },
+                    ],
+                };
+            }
+            case 'get_focus_history': {
+                const history = store.getHistory();
+                if (history.length === 0) {
+                    return {
+                        content: [{ type: 'text', text: 'No focus history available.' }],
+                    };
+                }
+                const summary = history
+                    .map((p, i) => {
+                    const { snapshot, userNote } = p;
+                    return `${i + 1}. **${snapshot.framework.componentName || snapshot.tagName}** - "${userNote}"`;
+                })
+                    .join('\n');
+                return {
+                    content: [{ type: 'text', text: `## Focus History\n\n${summary}` }],
+                };
+            }
+            case 'wait_for_request': {
+                const { timeout_ms } = args;
+                try {
+                    await store.waitForFocus(timeout_ms);
+                    // After waiting resolves, return the formatted markdown
+                    const markdown = store.formatAsMarkdown();
+                    return {
+                        content: [{ type: 'text', text: markdown }],
+                    };
+                }
+                catch (err) {
+                    return {
+                        content: [{ type: 'text', text: `Wait cancelled: ${err.message}` }],
+                        isError: true,
+                    };
+                }
+            }
+            default:
+                return {
+                    content: [{ type: 'text', text: `Unknown tool: ${name}` }],
+                    isError: true,
+                };
+        }
+    });
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+}
+</file>
+
+<file path="packages/bridge/dist/store.d.ts">
+import { FocusPayload, InteractionStatus, AnswerPayload } from '@eyeglass/types';
+import { EventEmitter } from 'events';
+export declare class ContextStore extends EventEmitter {
+    private active;
+    private history;
+    private currentStatus;
+    private pendingQuestion;
+    private pendingWait;
+    private commitMap;
+    setFocus(payload: FocusPayload): void;
+    /**
+     * Wait for a new focus request from the browser.
+     * If there's already an active pending request, resolves immediately.
+     * @param timeoutMs - Optional timeout in milliseconds (default: no timeout)
+     */
+    waitForFocus(timeoutMs?: number): Promise<FocusPayload>;
+    /**
+     * Check if an agent is currently waiting for a request
+     */
+    isWaitingForFocus(): boolean;
+    getActive(): FocusPayload | null;
+    getHistory(): FocusPayload[];
+    updateStatus(interactionId: string, status: InteractionStatus, message?: string): void;
+    /**
+     * Commit all staged and unstaged changes with the interaction ID
+     */
+    private commitChanges;
+    /**
+     * Undo changes for a specific interaction by reverting its commit
+     */
+    undoInteraction(interactionId: string): Promise<{
+        success: boolean;
+        message: string;
+    }>;
+    private revertCommit;
+    sendThought(interactionId: string, content: string): void;
+    reportAction(interactionId: string, action: 'reading' | 'writing' | 'searching' | 'thinking', target: string, complete?: boolean): void;
+    askQuestion(interactionId: string, questionId: string, question: string, options: Array<{
+        id: string;
+        label: string;
+    }>): Promise<AnswerPayload>;
+    receiveAnswer(answer: AnswerPayload): boolean;
+    hasPendingQuestion(): boolean;
+    private emitActivity;
+    formatAsMarkdown(): string;
+    private writeContextFile;
+}
+export declare const store: ContextStore;
+</file>
+
+<file path="packages/bridge/dist/store.js">
+import { EventEmitter } from 'events';
+import * as fs from 'fs';
+import * as path from 'path';
+import { execSync } from 'child_process';
+const MAX_HISTORY = 5;
+const CONTEXT_FILE = '.eyeglass_context.md';
+export class ContextStore extends EventEmitter {
+    constructor() {
+        super(...arguments);
+        this.active = null;
+        this.history = [];
+        this.currentStatus = 'idle';
+        this.pendingQuestion = null;
+        this.pendingWait = null;
+        this.commitMap = new Map(); // interactionId -> commitHash
+    }
+    setFocus(payload) {
+        if (this.active) {
+            this.history.unshift(this.active);
+            if (this.history.length > MAX_HISTORY) {
+                this.history.pop();
+            }
+        }
+        this.active = payload;
+        // If an agent is waiting for a request, resolve immediately and set status to "fixing"
+        if (this.pendingWait) {
+            const { resolve, timeoutId } = this.pendingWait;
+            if (timeoutId)
+                clearTimeout(timeoutId);
+            this.pendingWait = null;
+            this.currentStatus = 'fixing';
+            this.emitActivity({
+                type: 'status',
+                interactionId: payload.interactionId,
+                status: 'fixing',
+                message: 'Agent is working...',
+                timestamp: Date.now(),
+            });
+            this.writeContextFile();
+            resolve(payload);
+            return;
+        }
+        // Otherwise, set status to "pending" (waiting for agent to pick it up)
+        this.currentStatus = 'pending';
+        this.emitActivity({
+            type: 'status',
+            interactionId: payload.interactionId,
+            status: 'pending',
+            message: 'Waiting for agent...',
+            timestamp: Date.now(),
+        });
+        this.writeContextFile();
+    }
+    /**
+     * Wait for a new focus request from the browser.
+     * If there's already an active pending request, resolves immediately.
+     * @param timeoutMs - Optional timeout in milliseconds (default: no timeout)
+     */
+    waitForFocus(timeoutMs) {
+        // If there's already a pending request waiting for an agent, return it immediately
+        if (this.active && this.currentStatus === 'pending') {
+            // Update status to fixing since agent is now handling it
+            this.currentStatus = 'fixing';
+            this.emitActivity({
+                type: 'status',
+                interactionId: this.active.interactionId,
+                status: 'fixing',
+                message: 'Agent is working...',
+                timestamp: Date.now(),
+            });
+            return Promise.resolve(this.active);
+        }
+        return new Promise((resolve, reject) => {
+            let timeoutId;
+            if (timeoutMs) {
+                timeoutId = setTimeout(() => {
+                    if (this.pendingWait) {
+                        this.pendingWait = null;
+                        reject(new Error('Timeout waiting for focus request'));
+                    }
+                }, timeoutMs);
+            }
+            this.pendingWait = { resolve, reject, timeoutId };
+        });
+    }
+    /**
+     * Check if an agent is currently waiting for a request
+     */
+    isWaitingForFocus() {
+        return this.pendingWait !== null;
+    }
+    getActive() {
+        return this.active;
+    }
+    getHistory() {
+        return this.history;
+    }
+    // Status update
+    updateStatus(interactionId, status, message) {
+        if (this.active?.interactionId !== interactionId)
+            return;
+        this.currentStatus = status;
+        // Auto-commit changes when marked as success
+        if (status === 'success') {
+            this.commitChanges(interactionId, message);
+        }
+        this.emitActivity({
+            type: 'status',
+            interactionId,
+            status,
+            message,
+            timestamp: Date.now(),
+        });
+    }
+    /**
+     * Commit all staged and unstaged changes with the interaction ID
+     */
+    commitChanges(interactionId, message) {
+        try {
+            const cwd = process.cwd();
+            // Check if we're in a git repo
+            try {
+                execSync('git rev-parse --git-dir', { cwd, stdio: 'pipe' });
+            }
+            catch {
+                // Not a git repo, skip committing
+                return;
+            }
+            // Check if there are any changes to commit
+            const status = execSync('git status --porcelain', { cwd, encoding: 'utf-8' });
+            if (!status.trim()) {
+                // No changes to commit
+                return;
+            }
+            // Stage all changes
+            execSync('git add -A', { cwd, stdio: 'pipe' });
+            // Commit with eyeglass marker
+            const commitMessage = `[eyeglass:${interactionId}] ${message || 'Eyeglass change'}`;
+            execSync(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, { cwd, stdio: 'pipe' });
+            // Get the commit hash
+            const commitHash = execSync('git rev-parse HEAD', { cwd, encoding: 'utf-8' }).trim();
+            this.commitMap.set(interactionId, commitHash);
+        }
+        catch (err) {
+            // Silently fail git operations
+            console.error('[eyeglass] Failed to commit changes:', err);
+        }
+    }
+    /**
+     * Undo changes for a specific interaction by reverting its commit
+     */
+    async undoInteraction(interactionId) {
+        const commitHash = this.commitMap.get(interactionId);
+        if (!commitHash) {
+            // Try to find the commit by searching git log
+            try {
+                const cwd = process.cwd();
+                const log = execSync(`git log --oneline --grep="\\[eyeglass:${interactionId}\\]" -n 1`, { cwd, encoding: 'utf-8' }).trim();
+                if (!log) {
+                    return { success: false, message: 'No commit found for this interaction' };
+                }
+                const foundHash = log.split(' ')[0];
+                if (foundHash) {
+                    this.commitMap.set(interactionId, foundHash);
+                    return this.revertCommit(interactionId, foundHash);
+                }
+            }
+            catch {
+                return { success: false, message: 'Could not find commit for this interaction' };
+            }
+        }
+        return this.revertCommit(interactionId, commitHash);
+    }
+    revertCommit(interactionId, commitHash) {
+        try {
+            const cwd = process.cwd();
+            // Revert the commit (creates a new commit that undoes the changes)
+            execSync(`git revert --no-edit ${commitHash}`, { cwd, stdio: 'pipe' });
+            // Remove from commit map
+            this.commitMap.delete(interactionId);
+            // Emit status update
+            this.emitActivity({
+                type: 'status',
+                interactionId,
+                status: 'idle',
+                message: 'Changes reverted',
+                timestamp: Date.now(),
+            });
+            return { success: true, message: 'Changes reverted successfully' };
+        }
+        catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+            return { success: false, message: `Failed to revert: ${errorMessage}` };
+        }
+    }
+    // Send a thought/reasoning to the user
+    sendThought(interactionId, content) {
+        if (this.active?.interactionId !== interactionId)
+            return;
+        this.emitActivity({
+            type: 'thought',
+            interactionId,
+            content,
+            timestamp: Date.now(),
+        });
+    }
+    // Report an action being taken
+    reportAction(interactionId, action, target, complete = false) {
+        if (this.active?.interactionId !== interactionId)
+            return;
+        this.emitActivity({
+            type: 'action',
+            interactionId,
+            action,
+            target,
+            complete,
+            timestamp: Date.now(),
+        });
+    }
+    // Ask a question and wait for answer
+    async askQuestion(interactionId, questionId, question, options) {
+        if (this.active?.interactionId !== interactionId) {
+            throw new Error('No active interaction');
+        }
+        // Emit the question event
+        this.emitActivity({
+            type: 'question',
+            interactionId,
+            questionId,
+            question,
+            options,
+            timestamp: Date.now(),
+        });
+        // Wait for the answer
+        return new Promise((resolve) => {
+            this.pendingQuestion = { questionId, resolve };
+        });
+    }
+    // Receive answer from the browser
+    receiveAnswer(answer) {
+        if (!this.pendingQuestion || this.pendingQuestion.questionId !== answer.questionId) {
+            return false;
+        }
+        this.pendingQuestion.resolve(answer);
+        this.pendingQuestion = null;
+        return true;
+    }
+    hasPendingQuestion() {
+        return this.pendingQuestion !== null;
+    }
+    emitActivity(event) {
+        this.emit('activity', event);
+    }
+    formatAsMarkdown() {
+        if (!this.active) {
+            return '# No Active Focus\n\nNo element is currently focused.';
+        }
+        const { snapshot, userNote, interactionId } = this.active;
+        const { framework, a11y, geometry, styles } = snapshot;
+        const componentInfo = framework.componentName
+            ? `\`<${framework.componentName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
+            : `\`<${snapshot.tagName}>\` (vanilla element)`;
+        return `## User Focus Request
+**Interaction ID:** ${interactionId}
+**User Note:** "${userNote}"
+**Component:** ${componentInfo}
+
+### Element Info
+- Tag: \`<${snapshot.tagName}>\`
+- Role: ${snapshot.role}
+- Name: "${snapshot.name}"
+
+### Accessibility Tree
+- Label: ${a11y.label ?? 'none'}
+- Description: ${a11y.description ?? 'none'}
+- Disabled: ${a11y.disabled}
+- Hidden: ${a11y.hidden}
+${a11y.expanded !== undefined ? `- Expanded: ${a11y.expanded}` : ''}
+${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}
+
+### Geometry
+- Box: ${geometry.width}x${geometry.height} at (${geometry.x}, ${geometry.y})
+- Visible: ${geometry.visible}
+
+### Computed Styles
+- Display: ${styles.display}
+- Position: ${styles.position}
+${styles.flexDirection ? `- Flex Direction: ${styles.flexDirection}` : ''}
+${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
+- Padding: ${styles.padding}
+- Margin: ${styles.margin}
+- Color: ${styles.color}
+- Background: ${styles.backgroundColor}
+- Font: ${styles.fontFamily}
+- Z-Index: ${styles.zIndex}
+
+### Framework
+- Detected: ${framework.name}
+${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
+
+### Page Context
+- URL: ${snapshot.url}
+- Timestamp: ${new Date(snapshot.timestamp).toISOString()}
+`;
+    }
+    writeContextFile() {
+        try {
+            const content = this.formatAsMarkdown();
+            fs.writeFileSync(path.resolve(process.cwd(), CONTEXT_FILE), content, 'utf-8');
+        }
+        catch (err) {
+            // Silently fail file writes
+        }
+    }
+}
+export const store = new ContextStore();
+</file>
+
+<file path="packages/bridge/src/http.ts">
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import { FocusPayload, ActivityEvent, AnswerPayload } from '@eyeglass/types';
+import { store } from './store.js';
+
+const PORT = 3300;
+const KEEPALIVE_INTERVAL = 30000;
+
+export function startHttpServer(): void {
+  const app = express();
+
+  app.use(cors());
+  app.use(express.json());
+
+  const sseClients: Set<Response> = new Set();
+
+  // Health check
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', active: store.getActive() !== null });
+  });
+
+  // Browser posts focus payload here
+  app.post('/focus', (req: Request, res: Response) => {
+    const payload = req.body as FocusPayload;
+
+    if (!payload.interactionId || !payload.snapshot || !payload.userNote) {
+      res.status(400).json({ error: 'Invalid payload' });
+      return;
+    }
+
+    store.setFocus(payload);
+    res.json({ success: true, interactionId: payload.interactionId });
+  });
+
+  // Browser posts answer to a question
+  app.post('/answer', (req: Request, res: Response) => {
+    const answer = req.body as AnswerPayload;
+
+    if (!answer.interactionId || !answer.questionId || !answer.answerId) {
+      res.status(400).json({ error: 'Invalid answer payload' });
+      return;
+    }
+
+    const success = store.receiveAnswer(answer);
+    if (!success) {
+      res.status(404).json({ error: 'No pending question with that ID' });
+      return;
+    }
+
+    res.json({ success: true });
+  });
+
+  // Undo changes for a specific interaction
+  app.post('/undo', async (req: Request, res: Response) => {
+    const { interactionId } = req.body as { interactionId: string };
+
+    if (!interactionId) {
+      res.status(400).json({ error: 'Missing interactionId' });
+      return;
+    }
+
+    const result = await store.undoInteraction(interactionId);
+    if (!result.success) {
+      res.status(400).json({ error: result.message });
+      return;
+    }
+
+    res.json({ success: true, message: result.message });
+  });
+
+  // SSE endpoint for real-time activity updates
+  app.get('/events', (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    sseClients.add(res);
+
+    // Send current state if there's an active focus
+    const active = store.getActive();
+    if (active) {
+      res.write(`data: ${JSON.stringify({ type: 'focus', payload: active })}\n\n`);
+    }
+
+    const keepAlive = setInterval(() => {
+      res.write(': keepalive\n\n');
+    }, KEEPALIVE_INTERVAL);
+
+    req.on('close', () => {
+      clearInterval(keepAlive);
+      sseClients.delete(res);
+    });
+  });
+
+  // Broadcast activity events to all SSE clients
+  store.on('activity', (event: ActivityEvent) => {
+    const message = `data: ${JSON.stringify({ type: 'activity', payload: event })}\n\n`;
+    for (const client of sseClients) {
+      client.write(message);
+    }
+  });
+
+  app.listen(PORT, () => {
+    // Server started silently
+  });
+}
+</file>
+
+<file path="packages/bridge/src/mcp.ts">
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+import { InteractionStatus } from '@eyeglass/types';
+import { store } from './store.js';
+
+export async function startMcpServer(): Promise<void> {
+  const server = new Server(
+    {
+      name: 'eyeglass-bridge',
+      version: '0.1.0',
+    },
+    {
+      capabilities: {
+        tools: {},
+        resources: {},
+      },
+    }
+  );
+
+  // Track if client supports sampling
+  let clientSupportsSampling = false;
+
+  // Check client capabilities after connection
+  server.oninitialized = () => {
+    const clientCaps = server.getClientCapabilities();
+    clientSupportsSampling = !!clientCaps?.sampling;
+    // Debug: log client capabilities to stderr
+    console.error('[eyeglass] Client capabilities:', JSON.stringify(clientCaps, null, 2));
+    console.error('[eyeglass] Sampling supported:', clientSupportsSampling);
+  };
+
+  // When a new focus comes in, trigger sampling if supported
+  store.on('activity', async (event) => {
+    if (event.type === 'status' && event.status === 'pending' && clientSupportsSampling) {
+      try {
+        // Request the client to handle the new focus
+        await server.request(
+          {
+            method: 'sampling/createMessage',
+            params: {
+              messages: [
+                {
+                  role: 'user',
+                  content: {
+                    type: 'text',
+                    text: `🔔 New Eyeglass request received!
+
+A user has selected a UI element and needs your help. Please:
+1. Call get_focused_element() to see what they selected
+2. Use report_action() to show your progress
+3. Use send_thought() to share your reasoning
+4. Make the requested changes
+5. Call update_status("success", "message") when done
+
+Handle this request now.`,
+                  },
+                },
+              ],
+              maxTokens: 4096,
+              systemPrompt: 'You are an AI assistant helping with UI development. The user has selected an element in their browser using Eyeglass and wants you to make changes. Use the available MCP tools to see the request and fulfill it.',
+              modelPreferences: {
+                intelligencePriority: 0.8,
+                speedPriority: 0.6,
+              },
+            },
+          },
+          { method: 'sampling/createMessage' } as any
+        );
+      } catch (err) {
+        // Sampling failed or was rejected - that's okay
+      }
+    }
+  });
+
+  // List available resources
+  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    return {
+      resources: [
+        {
+          uri: 'eyeglass://focus',
+          name: 'Current Focus',
+          description: 'The currently focused UI element and user request.',
+          mimeType: 'text/markdown',
+        },
+      ],
+    };
+  });
+
+  // Read resource content
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const { uri } = request.params;
+
+    if (uri === 'eyeglass://focus') {
+      const content = store.formatAsMarkdown();
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: 'text/markdown',
+            text: content,
+          },
+        ],
+      };
+    }
+
+    throw new Error(`Unknown resource: ${uri}`);
+  });
+
+  // List tools
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return {
+      tools: [
+        {
+          name: 'get_focused_element',
+          description:
+            "Get the currently focused UI element with its semantic snapshot, accessibility tree, computed styles, and the user's change request.",
+          inputSchema: {
+            type: 'object' as const,
+            properties: {},
+            required: [],
+          },
+        },
+        {
+          name: 'update_status',
+          description:
+            'Update the status shown to the user in the browser overlay. Use this to communicate progress.',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              status: {
+                type: 'string',
+                enum: ['idle', 'pending', 'fixing', 'success', 'failed'],
+                description: 'The new status',
+              },
+              message: {
+                type: 'string',
+                description: 'Optional message to show the user',
+              },
+            },
+            required: ['status'],
+          },
+        },
+        {
+          name: 'send_thought',
+          description:
+            'Share your reasoning or decision-making with the user. Use this to explain what you are considering or why you made a choice.',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              content: {
+                type: 'string',
+                description: 'The thought or reasoning to share',
+              },
+            },
+            required: ['content'],
+          },
+        },
+        {
+          name: 'report_action',
+          description:
+            'Report an action you are taking (reading a file, writing code, searching). This shows progress to the user.',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              action: {
+                type: 'string',
+                enum: ['reading', 'writing', 'searching', 'thinking'],
+                description: 'The type of action',
+              },
+              target: {
+                type: 'string',
+                description: 'What you are acting on (e.g., file path, search query)',
+              },
+              complete: {
+                type: 'boolean',
+                description: 'Whether this action is complete (default: false)',
+              },
+            },
+            required: ['action', 'target'],
+          },
+        },
+        {
+          name: 'ask_question',
+          description:
+            'Ask the user a question and wait for their answer. Use this when you need clarification or want to offer choices. This tool BLOCKS until the user responds.',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              question: {
+                type: 'string',
+                description: 'The question to ask',
+              },
+              options: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'The options for the user to choose from (2-4 options)',
+              },
+            },
+            required: ['question', 'options'],
+          },
+        },
+        {
+          name: 'get_focus_history',
+          description: 'Get the history of previously focused elements (up to 5).',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {},
+            required: [],
+          },
+        },
+        {
+          name: 'wait_for_request',
+          description:
+            'Blocks execution until the user selects a new element in the browser. Use this to enter a listening mode where you automatically react to user actions. Returns the focused element context when a request arrives.',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              timeout_ms: {
+                type: 'number',
+                description: 'Optional timeout in milliseconds. If not provided, waits indefinitely.',
+              },
+            },
+            required: [],
+          },
+        },
+      ],
+    };
+  });
+
+  // Handle tool calls
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    const active = store.getActive();
+
+    switch (name) {
+      case 'get_focused_element': {
+        const markdown = store.formatAsMarkdown();
+        return {
+          content: [{ type: 'text', text: markdown }],
+        };
+      }
+
+      case 'update_status': {
+        const { status, message } = args as { status: InteractionStatus; message?: string };
+
+        if (!active) {
+          return {
+            content: [{ type: 'text', text: 'No active focus to update.' }],
+            isError: true,
+          };
+        }
+
+        store.updateStatus(active.interactionId, status, message);
+        return {
+          content: [
+            { type: 'text', text: `Status updated to "${status}"${message ? `: ${message}` : ''}` },
+          ],
+        };
+      }
+
+      case 'send_thought': {
+        const { content } = args as { content: string };
+
+        if (!active) {
+          return {
+            content: [{ type: 'text', text: 'No active focus.' }],
+            isError: true,
+          };
+        }
+
+        store.sendThought(active.interactionId, content);
+        return {
+          content: [{ type: 'text', text: 'Thought shared with user.' }],
+        };
+      }
+
+      case 'report_action': {
+        const { action, target, complete } = args as {
+          action: 'reading' | 'writing' | 'searching' | 'thinking';
+          target: string;
+          complete?: boolean;
+        };
+
+        if (!active) {
+          return {
+            content: [{ type: 'text', text: 'No active focus.' }],
+            isError: true,
+          };
+        }
+
+        store.reportAction(active.interactionId, action, target, complete ?? false);
+        return {
+          content: [{ type: 'text', text: `Action reported: ${action} ${target}` }],
+        };
+      }
+
+      case 'ask_question': {
+        const { question, options } = args as { question: string; options: string[] };
+
+        if (!active) {
+          return {
+            content: [{ type: 'text', text: 'No active focus.' }],
+            isError: true,
+          };
+        }
+
+        if (!options || options.length < 2 || options.length > 4) {
+          return {
+            content: [{ type: 'text', text: 'Please provide 2-4 options.' }],
+            isError: true,
+          };
+        }
+
+        const questionId = `q-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const formattedOptions = options.map((label, i) => ({
+          id: `opt-${i}`,
+          label,
+        }));
+
+        const answer = await store.askQuestion(
+          active.interactionId,
+          questionId,
+          question,
+          formattedOptions
+        );
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `User selected: "${answer.answerLabel}"`,
+            },
+          ],
+        };
+      }
+
+      case 'get_focus_history': {
+        const history = store.getHistory();
+        if (history.length === 0) {
+          return {
+            content: [{ type: 'text', text: 'No focus history available.' }],
+          };
+        }
+
+        const summary = history
+          .map((p, i) => {
+            const { snapshot, userNote } = p;
+            return `${i + 1}. **${snapshot.framework.componentName || snapshot.tagName}** - "${userNote}"`;
+          })
+          .join('\n');
+
+        return {
+          content: [{ type: 'text', text: `## Focus History\n\n${summary}` }],
+        };
+      }
+
+      case 'wait_for_request': {
+        const { timeout_ms } = args as { timeout_ms?: number };
+
+        try {
+          await store.waitForFocus(timeout_ms);
+          // After waiting resolves, return the formatted markdown
+          const markdown = store.formatAsMarkdown();
+          return {
+            content: [{ type: 'text', text: markdown }],
+          };
+        } catch (err) {
+          return {
+            content: [{ type: 'text', text: `Wait cancelled: ${(err as Error).message}` }],
+            isError: true,
+          };
+        }
+      }
+
+      default:
+        return {
+          content: [{ type: 'text', text: `Unknown tool: ${name}` }],
+          isError: true,
+        };
+    }
+  });
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+</file>
+
+<file path="packages/bridge/src/store.ts">
+import {
+  FocusPayload,
+  InteractionStatus,
+  ActivityEvent,
+  AnswerPayload,
+} from '@eyeglass/types';
+import { EventEmitter } from 'events';
+import * as fs from 'fs';
+import * as path from 'path';
+import { execSync } from 'child_process';
+
+const MAX_HISTORY = 5;
+const CONTEXT_FILE = '.eyeglass_context.md';
+
+interface PendingQuestion {
+  questionId: string;
+  resolve: (answer: AnswerPayload) => void;
+}
+
+interface PendingWait {
+  resolve: (payload: FocusPayload) => void;
+  reject: (error: Error) => void;
+  timeoutId?: NodeJS.Timeout;
+}
+
+export class ContextStore extends EventEmitter {
+  private active: FocusPayload | null = null;
+  private history: FocusPayload[] = [];
+  private currentStatus: InteractionStatus = 'idle';
+  private pendingQuestion: PendingQuestion | null = null;
+  private pendingWait: PendingWait | null = null;
+  private commitMap: Map<string, string> = new Map(); // interactionId -> commitHash
+
+  setFocus(payload: FocusPayload): void {
+    if (this.active) {
+      this.history.unshift(this.active);
+      if (this.history.length > MAX_HISTORY) {
+        this.history.pop();
+      }
+    }
+
+    this.active = payload;
+
+    // If an agent is waiting for a request, resolve immediately and set status to "fixing"
+    if (this.pendingWait) {
+      const { resolve, timeoutId } = this.pendingWait;
+      if (timeoutId) clearTimeout(timeoutId);
+      this.pendingWait = null;
+
+      this.currentStatus = 'fixing';
+      this.emitActivity({
+        type: 'status',
+        interactionId: payload.interactionId,
+        status: 'fixing',
+        message: 'Agent is working...',
+        timestamp: Date.now(),
+      });
+      this.writeContextFile();
+      resolve(payload);
+      return;
+    }
+
+    // Otherwise, set status to "pending" (waiting for agent to pick it up)
+    this.currentStatus = 'pending';
+    this.emitActivity({
+      type: 'status',
+      interactionId: payload.interactionId,
+      status: 'pending',
+      message: 'Waiting for agent...',
+      timestamp: Date.now(),
+    });
+    this.writeContextFile();
+  }
+
+  /**
+   * Wait for a new focus request from the browser.
+   * If there's already an active pending request, resolves immediately.
+   * @param timeoutMs - Optional timeout in milliseconds (default: no timeout)
+   */
+  waitForFocus(timeoutMs?: number): Promise<FocusPayload> {
+    // If there's already a pending request waiting for an agent, return it immediately
+    if (this.active && this.currentStatus === 'pending') {
+      // Update status to fixing since agent is now handling it
+      this.currentStatus = 'fixing';
+      this.emitActivity({
+        type: 'status',
+        interactionId: this.active.interactionId,
+        status: 'fixing',
+        message: 'Agent is working...',
+        timestamp: Date.now(),
+      });
+      return Promise.resolve(this.active);
+    }
+
+    return new Promise((resolve, reject) => {
+      let timeoutId: NodeJS.Timeout | undefined;
+
+      if (timeoutMs) {
+        timeoutId = setTimeout(() => {
+          if (this.pendingWait) {
+            this.pendingWait = null;
+            reject(new Error('Timeout waiting for focus request'));
+          }
+        }, timeoutMs);
+      }
+
+      this.pendingWait = { resolve, reject, timeoutId };
+    });
+  }
+
+  /**
+   * Check if an agent is currently waiting for a request
+   */
+  isWaitingForFocus(): boolean {
+    return this.pendingWait !== null;
+  }
+
+  getActive(): FocusPayload | null {
+    return this.active;
+  }
+
+  getHistory(): FocusPayload[] {
+    return this.history;
+  }
+
+  // Status update
+  updateStatus(interactionId: string, status: InteractionStatus, message?: string): void {
+    if (this.active?.interactionId !== interactionId) return;
+    this.currentStatus = status;
+
+    // Auto-commit changes when marked as success
+    if (status === 'success') {
+      this.commitChanges(interactionId, message);
+    }
+
+    this.emitActivity({
+      type: 'status',
+      interactionId,
+      status,
+      message,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * Commit all staged and unstaged changes with the interaction ID
+   */
+  private commitChanges(interactionId: string, message?: string): void {
+    try {
+      const cwd = process.cwd();
+
+      // Check if we're in a git repo
+      try {
+        execSync('git rev-parse --git-dir', { cwd, stdio: 'pipe' });
+      } catch {
+        // Not a git repo, skip committing
+        return;
+      }
+
+      // Check if there are any changes to commit
+      const status = execSync('git status --porcelain', { cwd, encoding: 'utf-8' });
+      if (!status.trim()) {
+        // No changes to commit
+        return;
+      }
+
+      // Stage all changes
+      execSync('git add -A', { cwd, stdio: 'pipe' });
+
+      // Commit with eyeglass marker
+      const commitMessage = `[eyeglass:${interactionId}] ${message || 'Eyeglass change'}`;
+      execSync(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, { cwd, stdio: 'pipe' });
+
+      // Get the commit hash
+      const commitHash = execSync('git rev-parse HEAD', { cwd, encoding: 'utf-8' }).trim();
+      this.commitMap.set(interactionId, commitHash);
+    } catch (err) {
+      // Silently fail git operations
+      console.error('[eyeglass] Failed to commit changes:', err);
+    }
+  }
+
+  /**
+   * Undo changes for a specific interaction by reverting its commit
+   */
+  async undoInteraction(interactionId: string): Promise<{ success: boolean; message: string }> {
+    const commitHash = this.commitMap.get(interactionId);
+
+    if (!commitHash) {
+      // Try to find the commit by searching git log
+      try {
+        const cwd = process.cwd();
+        const log = execSync(
+          `git log --oneline --grep="\\[eyeglass:${interactionId}\\]" -n 1`,
+          { cwd, encoding: 'utf-8' }
+        ).trim();
+
+        if (!log) {
+          return { success: false, message: 'No commit found for this interaction' };
+        }
+
+        const foundHash = log.split(' ')[0];
+        if (foundHash) {
+          this.commitMap.set(interactionId, foundHash);
+          return this.revertCommit(interactionId, foundHash);
+        }
+      } catch {
+        return { success: false, message: 'Could not find commit for this interaction' };
+      }
+    }
+
+    return this.revertCommit(interactionId, commitHash!);
+  }
+
+  private revertCommit(interactionId: string, commitHash: string): { success: boolean; message: string } {
+    try {
+      const cwd = process.cwd();
+
+      // Revert the commit (creates a new commit that undoes the changes)
+      execSync(`git revert --no-edit ${commitHash}`, { cwd, stdio: 'pipe' });
+
+      // Remove from commit map
+      this.commitMap.delete(interactionId);
+
+      // Emit status update
+      this.emitActivity({
+        type: 'status',
+        interactionId,
+        status: 'idle',
+        message: 'Changes reverted',
+        timestamp: Date.now(),
+      });
+
+      return { success: true, message: 'Changes reverted successfully' };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      return { success: false, message: `Failed to revert: ${errorMessage}` };
+    }
+  }
+
+  // Send a thought/reasoning to the user
+  sendThought(interactionId: string, content: string): void {
+    if (this.active?.interactionId !== interactionId) return;
+    this.emitActivity({
+      type: 'thought',
+      interactionId,
+      content,
+      timestamp: Date.now(),
+    });
+  }
+
+  // Report an action being taken
+  reportAction(
+    interactionId: string,
+    action: 'reading' | 'writing' | 'searching' | 'thinking',
+    target: string,
+    complete = false
+  ): void {
+    if (this.active?.interactionId !== interactionId) return;
+    this.emitActivity({
+      type: 'action',
+      interactionId,
+      action,
+      target,
+      complete,
+      timestamp: Date.now(),
+    });
+  }
+
+  // Ask a question and wait for answer
+  async askQuestion(
+    interactionId: string,
+    questionId: string,
+    question: string,
+    options: Array<{ id: string; label: string }>
+  ): Promise<AnswerPayload> {
+    if (this.active?.interactionId !== interactionId) {
+      throw new Error('No active interaction');
+    }
+
+    // Emit the question event
+    this.emitActivity({
+      type: 'question',
+      interactionId,
+      questionId,
+      question,
+      options,
+      timestamp: Date.now(),
+    });
+
+    // Wait for the answer
+    return new Promise((resolve) => {
+      this.pendingQuestion = { questionId, resolve };
+    });
+  }
+
+  // Receive answer from the browser
+  receiveAnswer(answer: AnswerPayload): boolean {
+    if (!this.pendingQuestion || this.pendingQuestion.questionId !== answer.questionId) {
+      return false;
+    }
+
+    this.pendingQuestion.resolve(answer);
+    this.pendingQuestion = null;
+    return true;
+  }
+
+  hasPendingQuestion(): boolean {
+    return this.pendingQuestion !== null;
+  }
+
+  private emitActivity(event: ActivityEvent): void {
+    this.emit('activity', event);
+  }
+
+  formatAsMarkdown(): string {
+    if (!this.active) {
+      return '# No Active Focus\n\nNo element is currently focused.';
+    }
+
+    const { snapshot, userNote, interactionId } = this.active;
+    const { framework, a11y, geometry, styles } = snapshot;
+
+    const componentInfo = framework.componentName
+      ? `\`<${framework.componentName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
+      : `\`<${snapshot.tagName}>\` (vanilla element)`;
+
+    return `## User Focus Request
+**Interaction ID:** ${interactionId}
+**User Note:** "${userNote}"
+**Component:** ${componentInfo}
+
+### Element Info
+- Tag: \`<${snapshot.tagName}>\`
+- Role: ${snapshot.role}
+- Name: "${snapshot.name}"
+
+### Accessibility Tree
+- Label: ${a11y.label ?? 'none'}
+- Description: ${a11y.description ?? 'none'}
+- Disabled: ${a11y.disabled}
+- Hidden: ${a11y.hidden}
+${a11y.expanded !== undefined ? `- Expanded: ${a11y.expanded}` : ''}
+${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}
+
+### Geometry
+- Box: ${geometry.width}x${geometry.height} at (${geometry.x}, ${geometry.y})
+- Visible: ${geometry.visible}
+
+### Computed Styles
+- Display: ${styles.display}
+- Position: ${styles.position}
+${styles.flexDirection ? `- Flex Direction: ${styles.flexDirection}` : ''}
+${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
+- Padding: ${styles.padding}
+- Margin: ${styles.margin}
+- Color: ${styles.color}
+- Background: ${styles.backgroundColor}
+- Font: ${styles.fontFamily}
+- Z-Index: ${styles.zIndex}
+
+### Framework
+- Detected: ${framework.name}
+${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
+
+### Page Context
+- URL: ${snapshot.url}
+- Timestamp: ${new Date(snapshot.timestamp).toISOString()}
+`;
+  }
+
+  private writeContextFile(): void {
+    try {
+      const content = this.formatAsMarkdown();
+      fs.writeFileSync(path.resolve(process.cwd(), CONTEXT_FILE), content, 'utf-8');
+    } catch (err) {
+      // Silently fail file writes
+    }
+  }
+}
+
+export const store = new ContextStore();
+</file>
+
 <file path="packages/inspector/dist/inspector.js">
 /**
  * Eyeglass Inspector - Glass UI for visual element inspection
@@ -2642,6 +3996,7 @@ const STYLES = `
 .hub-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   padding: 6px 8px;
   cursor: pointer;
@@ -2650,6 +4005,12 @@ const STYLES = `
 
 .hub-header:hover {
   background: rgba(0, 0, 0, 0.03);
+}
+
+.hub-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .hub-logo {
@@ -2712,7 +4073,6 @@ const STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
   transition: all 0.15s;
   flex-shrink: 0;
 }
@@ -2724,6 +4084,11 @@ const STYLES = `
 
 .hub-disable.active {
   color: var(--accent);
+}
+
+.hub-disable svg {
+  width: 14px;
+  height: 14px;
 }
 
 .hub-content {
@@ -2837,6 +4202,9 @@ const STYLES = `
 
 .hub.collapsed .hub-header {
   padding: 5px;
+}
+
+.hub.collapsed .hub-header-left {
   gap: 4px;
 }
 `;
@@ -3017,14 +4385,18 @@ export class EyeglassInspector extends HTMLElement {
         const expandedClass = this.hubExpanded ? 'expanded' : '';
         const activeCount = this.history.filter(h => h.status === 'pending' || h.status === 'fixing').length;
         this.hub.className = `hub ${collapsedClass} ${disabledClass}`.trim();
+        const eyeOpenSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+        const eyeClosedSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
         this.hub.innerHTML = `
       <div class="hub-header">
-        <div class="hub-logo">👁</div>
-        <span class="hub-title">Eyeglass</span>
-        ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ''}
-        <button class="hub-toggle ${expandedClass}" title="Toggle history">▼</button>
+        <div class="hub-header-left">
+          <div class="hub-logo">👁</div>
+          <span class="hub-title">Eyeglass</span>
+          ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ''}
+          <button class="hub-toggle ${expandedClass}" title="Toggle history">▼</button>
+        </div>
         <button class="hub-disable ${this.inspectorEnabled ? 'active' : ''}" title="${this.inspectorEnabled ? 'Disable' : 'Enable'} inspector">
-          ${this.inspectorEnabled ? '●' : '○'}
+          ${this.inspectorEnabled ? eyeOpenSvg : eyeClosedSvg}
         </button>
       </div>
       <div class="hub-content ${expandedClass}">
@@ -3078,9 +4450,13 @@ export class EyeglassInspector extends HTMLElement {
         });
     }
     async requestUndo(interactionId) {
-        const item = this.history.find(h => h.interactionId === interactionId);
-        if (!item)
+        const itemIndex = this.history.findIndex(h => h.interactionId === interactionId);
+        if (itemIndex === -1)
             return;
+        // Mark as pending while undo is in progress
+        this.history[itemIndex].status = 'pending';
+        this.saveHistory();
+        this.renderHub();
         try {
             const response = await fetch(`${BRIDGE_URL}/undo`, {
                 method: 'POST',
@@ -3088,14 +4464,25 @@ export class EyeglassInspector extends HTMLElement {
                 body: JSON.stringify({ interactionId }),
             });
             if (response.ok) {
-                // Mark as pending while undo is in progress
-                item.status = 'pending';
+                // Remove from history on successful undo
+                this.history.splice(itemIndex, 1);
+                this.saveHistory();
+                this.renderHub();
+            }
+            else {
+                // Mark as failed if undo didn't work
+                this.history[itemIndex].status = 'failed';
                 this.saveHistory();
                 this.renderHub();
             }
         }
         catch (err) {
-            // Silently fail, bridge may not support undo yet
+            // Mark as failed on error
+            if (this.history[itemIndex]) {
+                this.history[itemIndex].status = 'failed';
+                this.saveHistory();
+                this.renderHub();
+            }
             console.warn('Undo request failed:', err);
         }
     }
@@ -3373,8 +4760,9 @@ export class EyeglassInspector extends HTMLElement {
         return this.activityEvents.map((event) => {
             switch (event.type) {
                 case 'status':
-                    if (event.status === 'pending')
-                        return ''; // Skip initial pending
+                    // Skip pending/fixing - these are shown in the footer status bar
+                    if (event.status === 'pending' || event.status === 'fixing')
+                        return '';
                     return this.renderStatusItem(event);
                 case 'thought':
                     return this.renderThoughtItem(event);
@@ -3558,385 +4946,6 @@ export class EyeglassInspector extends HTMLElement {
 }
 if (!customElements.get('eyeglass-inspector')) {
     customElements.define('eyeglass-inspector', EyeglassInspector);
-}
-</file>
-
-<file path="packages/inspector/dist/snapshot.d.ts">
-/**
- * Captures a semantic snapshot of a DOM element
- */
-import type { SemanticSnapshot } from '@eyeglass/types';
-/**
- * Capture a complete semantic snapshot of an element
- */
-export declare function captureSnapshot(element: Element): SemanticSnapshot;
-</file>
-
-<file path="packages/inspector/dist/snapshot.js">
-/**
- * Captures a semantic snapshot of a DOM element
- */
-import { extractFrameworkInfo } from './fiber-walker.js';
-/**
- * Get computed accessibility properties
- */
-function getA11yInfo(element) {
-    const ariaLabel = element.getAttribute('aria-label');
-    const ariaDescribedBy = element.getAttribute('aria-describedby');
-    const ariaDisabled = element.getAttribute('aria-disabled');
-    const ariaExpanded = element.getAttribute('aria-expanded');
-    const ariaChecked = element.getAttribute('aria-checked');
-    const ariaHidden = element.getAttribute('aria-hidden');
-    // Get description from aria-describedby if it points to an element
-    let description = null;
-    if (ariaDescribedBy) {
-        const descElement = document.getElementById(ariaDescribedBy);
-        description = descElement?.textContent?.trim() || null;
-    }
-    // Check if element is disabled
-    const disabled = ariaDisabled === 'true' ||
-        element.disabled ||
-        element.hasAttribute('disabled');
-    return {
-        label: ariaLabel || element.getAttribute('title') || null,
-        description,
-        disabled,
-        expanded: ariaExpanded ? ariaExpanded === 'true' : undefined,
-        checked: ariaChecked === 'true'
-            ? true
-            : ariaChecked === 'false'
-                ? false
-                : ariaChecked === 'mixed'
-                    ? 'mixed'
-                    : undefined,
-        hidden: ariaHidden === 'true' || element.hidden || false,
-    };
-}
-/**
- * Get geometry information
- */
-function getGeometry(element) {
-    const rect = element.getBoundingClientRect();
-    return {
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-        visible: rect.width > 0 && rect.height > 0,
-    };
-}
-/**
- * Get targeted computed styles
- */
-function getStyles(element) {
-    const computed = getComputedStyle(element);
-    return {
-        display: computed.display,
-        position: computed.position,
-        flexDirection: computed.flexDirection !== 'row' ? computed.flexDirection : undefined,
-        gridTemplate: computed.display === 'grid'
-            ? `${computed.gridTemplateColumns} / ${computed.gridTemplateRows}`
-            : undefined,
-        padding: computed.padding,
-        margin: computed.margin,
-        color: computed.color,
-        backgroundColor: computed.backgroundColor,
-        fontFamily: computed.fontFamily,
-        zIndex: computed.zIndex,
-    };
-}
-/**
- * Get the accessible role of an element
- */
-function getRole(element) {
-    // Explicit role takes precedence
-    const explicitRole = element.getAttribute('role');
-    if (explicitRole)
-        return explicitRole;
-    // Implicit roles based on tag
-    const tag = element.tagName.toLowerCase();
-    const roleMap = {
-        a: 'link',
-        button: 'button',
-        input: element.type || 'textbox',
-        select: 'combobox',
-        textarea: 'textbox',
-        img: 'img',
-        nav: 'navigation',
-        main: 'main',
-        header: 'banner',
-        footer: 'contentinfo',
-        aside: 'complementary',
-        article: 'article',
-        section: 'region',
-        form: 'form',
-        ul: 'list',
-        ol: 'list',
-        li: 'listitem',
-        table: 'table',
-        tr: 'row',
-        td: 'cell',
-        th: 'columnheader',
-        dialog: 'dialog',
-        h1: 'heading',
-        h2: 'heading',
-        h3: 'heading',
-        h4: 'heading',
-        h5: 'heading',
-        h6: 'heading',
-    };
-    return roleMap[tag] || 'generic';
-}
-/**
- * Get the accessible name of an element
- */
-function getAccessibleName(element) {
-    // aria-label
-    const ariaLabel = element.getAttribute('aria-label');
-    if (ariaLabel)
-        return ariaLabel;
-    // aria-labelledby
-    const labelledBy = element.getAttribute('aria-labelledby');
-    if (labelledBy) {
-        const labelElement = document.getElementById(labelledBy);
-        if (labelElement)
-            return labelElement.textContent?.trim() || '';
-    }
-    // For inputs, check associated label
-    if (element.tagName === 'INPUT' || element.tagName === 'SELECT' || element.tagName === 'TEXTAREA') {
-        const id = element.getAttribute('id');
-        if (id) {
-            const label = document.querySelector(`label[for="${id}"]`);
-            if (label)
-                return label.textContent?.trim() || '';
-        }
-    }
-    // For images, use alt
-    if (element.tagName === 'IMG') {
-        return element.alt || '';
-    }
-    // Text content (truncated)
-    const text = element.textContent?.trim() || '';
-    return text.length > 50 ? text.slice(0, 50) + '...' : text;
-}
-/**
- * Capture a complete semantic snapshot of an element
- */
-export function captureSnapshot(element) {
-    return {
-        role: getRole(element),
-        name: getAccessibleName(element),
-        tagName: element.tagName.toLowerCase(),
-        framework: extractFrameworkInfo(element),
-        a11y: getA11yInfo(element),
-        geometry: getGeometry(element),
-        styles: getStyles(element),
-        timestamp: Date.now(),
-        url: window.location.href,
-    };
-}
-</file>
-
-<file path="packages/inspector/src/fiber-walker.ts">
-/**
- * React Fiber Walker - extracts component info from React DevTools internals
- */
-
-interface ReactFiber {
-  tag: number;
-  type: any;
-  return: ReactFiber | null;
-  _debugSource?: {
-    fileName: string;
-    lineNumber: number;
-    columnNumber?: number;
-  };
-  memoizedProps?: Record<string, unknown>;
-}
-
-export interface FrameworkInfo {
-  name: 'react' | 'vue' | 'svelte' | 'vanilla';
-  componentName?: string;
-  filePath?: string;
-  lineNumber?: number;
-  props?: Record<string, unknown>;
-}
-
-// Fiber tag constants
-const FunctionComponent = 0;
-const ClassComponent = 1;
-const ForwardRef = 11;
-const MemoComponent = 14;
-const SimpleMemoComponent = 15;
-
-const COMPONENT_TAGS = new Set([
-  FunctionComponent,
-  ClassComponent,
-  ForwardRef,
-  MemoComponent,
-  SimpleMemoComponent,
-]);
-
-/**
- * Find the React Fiber attached to a DOM element
- */
-function getFiberFromElement(element: Element): ReactFiber | null {
-  const keys = Object.keys(element);
-  const fiberKey = keys.find(
-    (k) => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$')
-  );
-  if (!fiberKey) return null;
-  return (element as any)[fiberKey] as ReactFiber;
-}
-
-/**
- * Walk up the fiber tree to find the nearest user-defined component
- */
-function findComponentFiber(fiber: ReactFiber | null): ReactFiber | null {
-  let current = fiber;
-  while (current) {
-    if (COMPONENT_TAGS.has(current.tag) && typeof current.type === 'function') {
-      // Skip built-in React components (Context.Provider, etc.)
-      const name = current.type.displayName || current.type.name || '';
-      if (name && !name.startsWith('Context') && !name.endsWith('Provider')) {
-        return current;
-      }
-    }
-    current = current.return;
-  }
-  return null;
-}
-
-/**
- * Get safe props (primitives only, no functions/objects)
- */
-function getSafeProps(props: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
-  if (!props) return undefined;
-  const safe: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(props)) {
-    if (key === 'children') continue;
-    const type = typeof value;
-    if (type === 'string' || type === 'number' || type === 'boolean' || value === null) {
-      safe[key] = value;
-    }
-  }
-  return Object.keys(safe).length > 0 ? safe : undefined;
-}
-
-/**
- * Detect Vue component
- */
-function detectVue(element: Element): FrameworkInfo | null {
-  const vueInstance = (element as any).__vue__;
-  if (vueInstance) {
-    const componentName = vueInstance.$options?.name || vueInstance.$options?._componentTag;
-    return {
-      name: 'vue',
-      componentName,
-    };
-  }
-
-  // Vue 3
-  const vueKey = Object.keys(element).find((k) => k.startsWith('__vueParentComponent'));
-  if (vueKey) {
-    const instance = (element as any)[vueKey];
-    return {
-      name: 'vue',
-      componentName: instance?.type?.name,
-    };
-  }
-
-  return null;
-}
-
-/**
- * Detect Svelte component
- */
-function detectSvelte(element: Element): FrameworkInfo | null {
-  const svelteKey = Object.keys(element).find((k) => k.startsWith('__svelte'));
-  if (svelteKey) {
-    return {
-      name: 'svelte',
-    };
-  }
-  return null;
-}
-
-/**
- * Extract framework information from a DOM element
- */
-export function extractFrameworkInfo(element: Element): FrameworkInfo {
-  // Try React first
-  const fiber = getFiberFromElement(element);
-  if (fiber) {
-    const componentFiber = findComponentFiber(fiber);
-    if (componentFiber) {
-      const componentName =
-        componentFiber.type.displayName || componentFiber.type.name || undefined;
-      const debugSource = componentFiber._debugSource;
-
-      return {
-        name: 'react',
-        componentName,
-        filePath: debugSource?.fileName,
-        lineNumber: debugSource?.lineNumber,
-        props: getSafeProps(componentFiber.memoizedProps),
-      };
-    }
-    // React element but no user component found (just DOM nodes)
-    return { name: 'react' };
-  }
-
-  // Try Vue
-  const vueInfo = detectVue(element);
-  if (vueInfo) return vueInfo;
-
-  // Try Svelte
-  const svelteInfo = detectSvelte(element);
-  if (svelteInfo) return svelteInfo;
-
-  // Vanilla fallback
-  return { name: 'vanilla' };
-}
-</file>
-
-<file path="packages/inspector/src/index.ts">
-/**
- * @eyeglass/inspector - Browser-side inspection web component
- *
- * Usage:
- *   import '@eyeglass/inspector';
- *   // Or inject via script tag
- *
- * This automatically registers the <eyeglass-inspector> custom element.
- */
-
-export { EyeglassInspector } from './inspector.js';
-export { captureSnapshot } from './snapshot.js';
-export { extractFrameworkInfo } from './fiber-walker.js';
-export type { FrameworkInfo } from './fiber-walker.js';
-
-/**
- * Initialize the inspector by appending it to the document
- */
-export function initInspector(): void {
-  if (document.querySelector('eyeglass-inspector')) {
-    console.warn('[eyeglass] Inspector already initialized');
-    return;
-  }
-
-  const inspector = document.createElement('eyeglass-inspector');
-  document.body.appendChild(inspector);
-  console.log('[eyeglass] Inspector initialized. Hover over elements and click to annotate.');
-}
-
-// Auto-initialize when imported in a browser context
-if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initInspector);
-  } else {
-    initInspector();
-  }
 }
 </file>
 
@@ -4476,6 +5485,7 @@ const STYLES = `
 .hub-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   padding: 6px 8px;
   cursor: pointer;
@@ -4484,6 +5494,12 @@ const STYLES = `
 
 .hub-header:hover {
   background: rgba(0, 0, 0, 0.03);
+}
+
+.hub-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .hub-logo {
@@ -4546,7 +5562,6 @@ const STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
   transition: all 0.15s;
   flex-shrink: 0;
 }
@@ -4558,6 +5573,11 @@ const STYLES = `
 
 .hub-disable.active {
   color: var(--accent);
+}
+
+.hub-disable svg {
+  width: 14px;
+  height: 14px;
 }
 
 .hub-content {
@@ -4671,6 +5691,9 @@ const STYLES = `
 
 .hub.collapsed .hub-header {
   padding: 5px;
+}
+
+.hub.collapsed .hub-header-left {
   gap: 4px;
 }
 `;
@@ -4880,14 +5903,19 @@ export class EyeglassInspector extends HTMLElement {
 
     this.hub.className = `hub ${collapsedClass} ${disabledClass}`.trim();
 
+    const eyeOpenSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    const eyeClosedSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
     this.hub.innerHTML = `
       <div class="hub-header">
-        <div class="hub-logo">👁</div>
-        <span class="hub-title">Eyeglass</span>
-        ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ''}
-        <button class="hub-toggle ${expandedClass}" title="Toggle history">▼</button>
+        <div class="hub-header-left">
+          <div class="hub-logo">👁</div>
+          <span class="hub-title">Eyeglass</span>
+          ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ''}
+          <button class="hub-toggle ${expandedClass}" title="Toggle history">▼</button>
+        </div>
         <button class="hub-disable ${this.inspectorEnabled ? 'active' : ''}" title="${this.inspectorEnabled ? 'Disable' : 'Enable'} inspector">
-          ${this.inspectorEnabled ? '●' : '○'}
+          ${this.inspectorEnabled ? eyeOpenSvg : eyeClosedSvg}
         </button>
       </div>
       <div class="hub-content ${expandedClass}">
@@ -4945,8 +5973,13 @@ export class EyeglassInspector extends HTMLElement {
   }
 
   private async requestUndo(interactionId: string): Promise<void> {
-    const item = this.history.find(h => h.interactionId === interactionId);
-    if (!item) return;
+    const itemIndex = this.history.findIndex(h => h.interactionId === interactionId);
+    if (itemIndex === -1) return;
+
+    // Mark as pending while undo is in progress
+    this.history[itemIndex].status = 'pending';
+    this.saveHistory();
+    this.renderHub();
 
     try {
       const response = await fetch(`${BRIDGE_URL}/undo`, {
@@ -4956,13 +5989,23 @@ export class EyeglassInspector extends HTMLElement {
       });
 
       if (response.ok) {
-        // Mark as pending while undo is in progress
-        item.status = 'pending';
+        // Remove from history on successful undo
+        this.history.splice(itemIndex, 1);
+        this.saveHistory();
+        this.renderHub();
+      } else {
+        // Mark as failed if undo didn't work
+        this.history[itemIndex].status = 'failed';
         this.saveHistory();
         this.renderHub();
       }
     } catch (err) {
-      // Silently fail, bridge may not support undo yet
+      // Mark as failed on error
+      if (this.history[itemIndex]) {
+        this.history[itemIndex].status = 'failed';
+        this.saveHistory();
+        this.renderHub();
+      }
       console.warn('Undo request failed:', err);
     }
   }
@@ -5294,7 +6337,8 @@ export class EyeglassInspector extends HTMLElement {
     return this.activityEvents.map((event) => {
       switch (event.type) {
         case 'status':
-          if (event.status === 'pending') return ''; // Skip initial pending
+          // Skip pending/fixing - these are shown in the footer status bar
+          if (event.status === 'pending' || event.status === 'fixing') return '';
           return this.renderStatusItem(event);
         case 'thought':
           return this.renderThoughtItem(event);
@@ -5500,459 +6544,48 @@ if (!customElements.get('eyeglass-inspector')) {
 }
 </file>
 
-<file path="packages/inspector/src/snapshot.ts">
-/**
- * Captures a semantic snapshot of a DOM element
- */
+<file path=".eyeglass_context.md">
+## User Focus Request
+**Interaction ID:** eyeglass-1770485176553-gwv6ig4
+**User Note:** "test"
+**Component:** `<p>` (vanilla element)
 
-import type { SemanticSnapshot } from '@eyeglass/types';
-import { extractFrameworkInfo } from './fiber-walker.js';
+### Element Info
+- Tag: `<p>`
+- Role: generic
+- Name: "This is a sample card component with some content."
 
-/**
- * Get computed accessibility properties
- */
-function getA11yInfo(element: Element): SemanticSnapshot['a11y'] {
-  const ariaLabel = element.getAttribute('aria-label');
-  const ariaDescribedBy = element.getAttribute('aria-describedby');
-  const ariaDisabled = element.getAttribute('aria-disabled');
-  const ariaExpanded = element.getAttribute('aria-expanded');
-  const ariaChecked = element.getAttribute('aria-checked');
-  const ariaHidden = element.getAttribute('aria-hidden');
+### Accessibility Tree
+- Label: none
+- Description: none
+- Disabled: false
+- Hidden: false
 
-  // Get description from aria-describedby if it points to an element
-  let description: string | null = null;
-  if (ariaDescribedBy) {
-    const descElement = document.getElementById(ariaDescribedBy);
-    description = descElement?.textContent?.trim() || null;
-  }
 
-  // Check if element is disabled
-  const disabled =
-    ariaDisabled === 'true' ||
-    (element as HTMLButtonElement).disabled ||
-    element.hasAttribute('disabled');
 
-  return {
-    label: ariaLabel || element.getAttribute('title') || null,
-    description,
-    disabled,
-    expanded: ariaExpanded ? ariaExpanded === 'true' : undefined,
-    checked:
-      ariaChecked === 'true'
-        ? true
-        : ariaChecked === 'false'
-          ? false
-          : ariaChecked === 'mixed'
-            ? 'mixed'
-            : undefined,
-    hidden: ariaHidden === 'true' || (element as HTMLElement).hidden || false,
-  };
-}
+### Geometry
+- Box: 710x26 at (401, 351)
+- Visible: true
 
-/**
- * Get geometry information
- */
-function getGeometry(element: Element): SemanticSnapshot['geometry'] {
-  const rect = element.getBoundingClientRect();
-  return {
-    x: Math.round(rect.x),
-    y: Math.round(rect.y),
-    width: Math.round(rect.width),
-    height: Math.round(rect.height),
-    visible: rect.width > 0 && rect.height > 0,
-  };
-}
+### Computed Styles
+- Display: block
+- Position: static
 
-/**
- * Get targeted computed styles
- */
-function getStyles(element: Element): SemanticSnapshot['styles'] {
-  const computed = getComputedStyle(element);
-  return {
-    display: computed.display,
-    position: computed.position,
-    flexDirection: computed.flexDirection !== 'row' ? computed.flexDirection : undefined,
-    gridTemplate:
-      computed.display === 'grid'
-        ? `${computed.gridTemplateColumns} / ${computed.gridTemplateRows}`
-        : undefined,
-    padding: computed.padding,
-    margin: computed.margin,
-    color: computed.color,
-    backgroundColor: computed.backgroundColor,
-    fontFamily: computed.fontFamily,
-    zIndex: computed.zIndex,
-  };
-}
 
-/**
- * Get the accessible role of an element
- */
-function getRole(element: Element): string {
-  // Explicit role takes precedence
-  const explicitRole = element.getAttribute('role');
-  if (explicitRole) return explicitRole;
+- Padding: 0px
+- Margin: 0px 0px 16px
+- Color: rgb(100, 116, 139)
+- Background: rgba(0, 0, 0, 0)
+- Font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+- Z-Index: auto
 
-  // Implicit roles based on tag
-  const tag = element.tagName.toLowerCase();
-  const roleMap: Record<string, string> = {
-    a: 'link',
-    button: 'button',
-    input: (element as HTMLInputElement).type || 'textbox',
-    select: 'combobox',
-    textarea: 'textbox',
-    img: 'img',
-    nav: 'navigation',
-    main: 'main',
-    header: 'banner',
-    footer: 'contentinfo',
-    aside: 'complementary',
-    article: 'article',
-    section: 'region',
-    form: 'form',
-    ul: 'list',
-    ol: 'list',
-    li: 'listitem',
-    table: 'table',
-    tr: 'row',
-    td: 'cell',
-    th: 'columnheader',
-    dialog: 'dialog',
-    h1: 'heading',
-    h2: 'heading',
-    h3: 'heading',
-    h4: 'heading',
-    h5: 'heading',
-    h6: 'heading',
-  };
+### Framework
+- Detected: vanilla
 
-  return roleMap[tag] || 'generic';
-}
 
-/**
- * Get the accessible name of an element
- */
-function getAccessibleName(element: Element): string {
-  // aria-label
-  const ariaLabel = element.getAttribute('aria-label');
-  if (ariaLabel) return ariaLabel;
-
-  // aria-labelledby
-  const labelledBy = element.getAttribute('aria-labelledby');
-  if (labelledBy) {
-    const labelElement = document.getElementById(labelledBy);
-    if (labelElement) return labelElement.textContent?.trim() || '';
-  }
-
-  // For inputs, check associated label
-  if (element.tagName === 'INPUT' || element.tagName === 'SELECT' || element.tagName === 'TEXTAREA') {
-    const id = element.getAttribute('id');
-    if (id) {
-      const label = document.querySelector(`label[for="${id}"]`);
-      if (label) return label.textContent?.trim() || '';
-    }
-  }
-
-  // For images, use alt
-  if (element.tagName === 'IMG') {
-    return (element as HTMLImageElement).alt || '';
-  }
-
-  // Text content (truncated)
-  const text = element.textContent?.trim() || '';
-  return text.length > 50 ? text.slice(0, 50) + '...' : text;
-}
-
-/**
- * Capture a complete semantic snapshot of an element
- */
-export function captureSnapshot(element: Element): SemanticSnapshot {
-  return {
-    role: getRole(element),
-    name: getAccessibleName(element),
-    tagName: element.tagName.toLowerCase(),
-    framework: extractFrameworkInfo(element),
-    a11y: getA11yInfo(element),
-    geometry: getGeometry(element),
-    styles: getStyles(element),
-    timestamp: Date.now(),
-    url: window.location.href,
-  };
-}
-</file>
-
-<file path="packages/inspector/package.json">
-{
-  "name": "@eyeglass/inspector",
-  "version": "0.1.0",
-  "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch"
-  },
-  "dependencies": {
-    "@eyeglass/types": "^0.1.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.3.0"
-  }
-}
-</file>
-
-<file path="packages/inspector/tsconfig.json">
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "ES2020",
-    "moduleResolution": "bundler",
-    "lib": ["ES2020", "DOM"],
-    "declaration": true,
-    "strict": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": ["src"]
-}
-</file>
-
-<file path="packages/types/dist/index.d.ts">
-export type InteractionStatus = 'idle' | 'pending' | 'fixing' | 'success' | 'failed';
-export interface SemanticSnapshot {
-    role: string;
-    name: string;
-    tagName: string;
-    framework: {
-        name: 'react' | 'vue' | 'svelte' | 'vanilla';
-        componentName?: string;
-        filePath?: string;
-        lineNumber?: number;
-        props?: Record<string, unknown>;
-    };
-    a11y: {
-        label: string | null;
-        description: string | null;
-        disabled: boolean;
-        expanded?: boolean;
-        checked?: boolean | 'mixed';
-        hidden: boolean;
-    };
-    geometry: {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-        visible: boolean;
-    };
-    styles: {
-        display: string;
-        position: string;
-        flexDirection?: string;
-        gridTemplate?: string;
-        padding: string;
-        margin: string;
-        color: string;
-        backgroundColor: string;
-        fontFamily: string;
-        zIndex: string;
-    };
-    timestamp: number;
-    url: string;
-}
-export interface FocusPayload {
-    interactionId: string;
-    snapshot: SemanticSnapshot;
-    userNote: string;
-}
-export type ActivityEventType = 'status' | 'thought' | 'question' | 'action';
-export interface BaseActivityEvent {
-    interactionId: string;
-    timestamp: number;
-}
-export interface StatusEvent extends BaseActivityEvent {
-    type: 'status';
-    status: InteractionStatus;
-    message?: string;
-}
-export interface ThoughtEvent extends BaseActivityEvent {
-    type: 'thought';
-    content: string;
-}
-export interface QuestionEvent extends BaseActivityEvent {
-    type: 'question';
-    questionId: string;
-    question: string;
-    options: Array<{
-        id: string;
-        label: string;
-    }>;
-}
-export interface AnswerPayload {
-    interactionId: string;
-    questionId: string;
-    answerId: string;
-    answerLabel: string;
-}
-export interface ActionEvent extends BaseActivityEvent {
-    type: 'action';
-    action: 'reading' | 'writing' | 'searching' | 'thinking';
-    target: string;
-    complete?: boolean;
-}
-export type ActivityEvent = StatusEvent | ThoughtEvent | QuestionEvent | ActionEvent;
-export interface StatusUpdate {
-    interactionId: string;
-    status: InteractionStatus;
-    agentMessage?: string;
-}
-</file>
-
-<file path="packages/types/dist/index.js">
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-</file>
-
-<file path="packages/types/src/index.ts">
-export type InteractionStatus = 'idle' | 'pending' | 'fixing' | 'success' | 'failed';
-
-export interface SemanticSnapshot {
-  role: string;
-  name: string;
-  tagName: string;
-
-  framework: {
-    name: 'react' | 'vue' | 'svelte' | 'vanilla';
-    componentName?: string;
-    filePath?: string;
-    lineNumber?: number;
-    props?: Record<string, unknown>;
-  };
-
-  a11y: {
-    label: string | null;
-    description: string | null;
-    disabled: boolean;
-    expanded?: boolean;
-    checked?: boolean | 'mixed';
-    hidden: boolean;
-  };
-
-  geometry: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    visible: boolean;
-  };
-
-  styles: {
-    display: string;
-    position: string;
-    flexDirection?: string;
-    gridTemplate?: string;
-    padding: string;
-    margin: string;
-    color: string;
-    backgroundColor: string;
-    fontFamily: string;
-    zIndex: string;
-  };
-
-  timestamp: number;
-  url: string;
-}
-
-export interface FocusPayload {
-  interactionId: string;
-  snapshot: SemanticSnapshot;
-  userNote: string;
-}
-
-// Activity feed event types
-export type ActivityEventType = 'status' | 'thought' | 'question' | 'action';
-
-export interface BaseActivityEvent {
-  interactionId: string;
-  timestamp: number;
-}
-
-export interface StatusEvent extends BaseActivityEvent {
-  type: 'status';
-  status: InteractionStatus;
-  message?: string;
-}
-
-export interface ThoughtEvent extends BaseActivityEvent {
-  type: 'thought';
-  content: string;
-}
-
-export interface QuestionEvent extends BaseActivityEvent {
-  type: 'question';
-  questionId: string;
-  question: string;
-  options: Array<{ id: string; label: string }>;
-}
-
-export interface AnswerPayload {
-  interactionId: string;
-  questionId: string;
-  answerId: string;
-  answerLabel: string;
-}
-
-export interface ActionEvent extends BaseActivityEvent {
-  type: 'action';
-  action: 'reading' | 'writing' | 'searching' | 'thinking';
-  target: string;
-  complete?: boolean;
-}
-
-export type ActivityEvent = StatusEvent | ThoughtEvent | QuestionEvent | ActionEvent;
-
-// Legacy compat
-export interface StatusUpdate {
-  interactionId: string;
-  status: InteractionStatus;
-  agentMessage?: string;
-}
-</file>
-
-<file path="packages/types/package.json">
-{
-  "name": "@eyeglass/types",
-  "version": "0.1.0",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "scripts": {
-    "build": "tsc"
-  },
-  "devDependencies": {
-    "typescript": "^5.3.0"
-  }
-}
-</file>
-
-<file path="packages/types/tsconfig.json">
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "commonjs",
-    "lib": ["ES2020"],
-    "declaration": true,
-    "strict": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": ["src"]
-}
+### Page Context
+- URL: http://127.0.0.1:5500/test/index.html
+- Timestamp: 2026-02-07T17:26:13.494Z
 </file>
 
 <file path="test/index.html">
@@ -5971,7 +6604,11 @@ export interface StatusUpdate {
       padding: 40px 20px;
       line-height: 1.6;
     }
-    h1 { color: #16a34a; }
+    h1 {
+      color: #000;
+      font-size: 4rem;
+      font-family: Georgia, 'Times New Roman', serif;
+    }
     h2 {
       font-size: 1.5rem;
       font-weight: 600;
@@ -6077,6 +6714,14 @@ export interface StatusUpdate {
       <input type="text" placeholder="Enter something..." aria-label="Sample input">
       <button type="button">Submit</button>
     </div>
+    <div class="flex" style="margin-top: 12px;">
+      <input type="email" placeholder="Enter your email..." aria-label="Email input">
+      <button type="button">Subscribe</button>
+    </div>
+    <div class="flex" style="margin-top: 12px;">
+      <input type="text" placeholder="Enter your first name..." aria-label="First name input">
+      <button type="button">Save</button>
+    </div>
   </div>
 
   <div class="card">
@@ -6092,6 +6737,16 @@ export interface StatusUpdate {
     </ul>
   </div>
 
+  <div class="card">
+    <h2>About Me</h2>
+    <p>Welcome! I'm a developer passionate about building great user experiences.</p>
+    <ul>
+      <li>Building intuitive interfaces</li>
+      <li>Open source enthusiast</li>
+      <li>Always learning new things</li>
+    </ul>
+  </div>
+
   <!-- Load the inspector -->
   <script type="module">
     // In a real project, you'd do: import '@eyeglass/inspector';
@@ -6100,130 +6755,6 @@ export interface StatusUpdate {
   </script>
 </body>
 </html>
-</file>
-
-<file path=".eyeglass_context.md">
-## User Focus Request
-**Interaction ID:** eyeglass-1770450929178-3ik7xhx
-**User Note:** "can you make this more modern ui?"
-**Component:** `<div>` (vanilla element)
-
-### Element Info
-- Tag: `<div>`
-- Role: generic
-- Name: "Sample Card
-    This is a sample card component wi..."
-
-### Accessibility Tree
-- Label: none
-- Description: none
-- Disabled: false
-- Hidden: false
-
-
-
-### Geometry
-- Box: 760x181 at (376, 182)
-- Visible: true
-
-### Computed Styles
-- Display: block
-- Position: static
-
-
-- Padding: 24px
-- Margin: 24px 0px
-- Color: rgb(0, 0, 0)
-- Background: rgba(255, 255, 255, 0.95)
-- Font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
-- Z-Index: auto
-
-### Framework
-- Detected: vanilla
-
-
-### Page Context
-- URL: http://127.0.0.1:5500/test/index.html
-- Timestamp: 2026-02-07T07:55:12.891Z
-</file>
-
-<file path=".gitignore">
-node_modules/
-.claude/
-</file>
-
-<file path="BOOKMARKLET.md">
-# Eyeglass Bookmarklet
-
-For quick testing, you can use this bookmarklet to inject the inspector into any page.
-
-## Setup
-
-1. Start the bridge server: `npm run dev:bridge`
-2. Create a new bookmark with this URL:
-
-```
-javascript:(function(){const s=document.createElement('script');s.src='http://localhost:3300/inspector.js';document.head.appendChild(s);})();
-```
-
-## Alternative: CDN (once published)
-
-```
-javascript:(function(){const s=document.createElement('script');s.type='module';s.textContent='import "https://unpkg.com/@eyeglass/inspector"';document.head.appendChild(s);})();
-```
-
-## Usage
-
-1. Navigate to any React/Vue/Svelte app in dev mode
-2. Click the bookmarklet
-3. Hover over elements and click to annotate
-4. Your AI agent can call `get_focused_element()` to get the context
-</file>
-
-<file path="package.json">
-{
-  "name": "eyeglass",
-  "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
-  "scripts": {
-    "build": "npm run build --workspaces",
-    "dev:bridge": "npm run dev --workspace=@eyeglass/bridge"
-  }
-}
-</file>
-
-<file path="watch-eyeglass.sh">
-#!/bin/bash
-# Eyeglass Watcher - watches for new requests and notifies Claude
-# Usage: ./watch-eyeglass.sh (run in a separate terminal)
-
-CONTEXT_FILE=".eyeglass_context.md"
-
-echo "👓 Eyeglass watcher started. Watching for new requests..."
-
-# Use fswatch on macOS, inotifywait on Linux
-if command -v fswatch &> /dev/null; then
-  fswatch -o "$CONTEXT_FILE" | while read; do
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "🔔 New Eyeglass request detected!"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    head -10 "$CONTEXT_FILE"
-    echo "..."
-    echo ""
-    echo "💡 Prompt Claude: 'check eyeglass'"
-  done
-elif command -v inotifywait &> /dev/null; then
-  while inotifywait -q -e modify "$CONTEXT_FILE"; do
-    echo ""
-    echo "🔔 New Eyeglass request! Prompt Claude: 'check eyeglass'"
-  done
-else
-  echo "Please install fswatch (macOS) or inotify-tools (Linux)"
-  exit 1
-fi
 </file>
 
 </files>
