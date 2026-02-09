@@ -919,6 +919,10 @@ const STYLES = `
   margin-top: 2px;
 }
 
+.hub-button-group {
+  display: flex;
+}
+
 /* Collapsed hub (minimal) */
 .hub.collapsed .hub-title,
 .hub.collapsed .hub-toggle,
@@ -1503,10 +1507,12 @@ export class EyeglassInspector extends HTMLElement {
           ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ''}
           <button class="hub-toggle ${expandedClass}" title="Toggle history">▼</button>
         </div>
+        <div class="hub-button-group">
         <button class="hub-settings-btn" title="Settings">${gearSvg}</button>
         <button class="hub-disable ${this.inspectorEnabled ? 'active' : ''}" title="${this.inspectorEnabled ? 'Disable' : 'Enable'} inspector">
           ${this.inspectorEnabled ? eyeOpenSvg : eyeClosedSvg}
         </button>
+        </div>
       </div>
       <div class="hub-content ${expandedClass}">
         ${this.history.length > 0 ? `
