@@ -1031,8 +1031,8 @@ const STYLES = `
 }
 
 .followup-send {
-  padding: 8px 14px;
-  border: none;
+  padding: 9px 16px;
+  border: 1px solid transparent;
   border-radius: var(--border-radius-sm);
   background: var(--accent);
   color: white;
@@ -1053,7 +1053,7 @@ const STYLES = `
 }
 
 .followup-done {
-  padding: 8px 14px;
+  padding: 9px 16px;
   border: 1px solid var(--divider);
   border-radius: var(--border-radius-sm);
   background: transparent;
