@@ -8,38 +8,38 @@ import type {
   ActivityEvent,
   AnswerPayload,
   InteractionStatus,
-} from '@eyeglass/types';
-import { captureSnapshot } from './snapshot.js';
+} from "@eyeglass/types";
+import { captureSnapshot } from "./snapshot.js";
 
-const BRIDGE_URL = 'http://localhost:3300';
-const STORAGE_KEY = 'eyeglass_session';
-const HISTORY_KEY = 'eyeglass_history';
-const ENABLED_KEY = 'eyeglass_enabled';
-const AUTOCOMMIT_KEY = 'eyeglass_autocommit';
+const BRIDGE_URL = "http://localhost:3300";
+const STORAGE_KEY = "eyeglass_session";
+const HISTORY_KEY = "eyeglass_history";
+const ENABLED_KEY = "eyeglass_enabled";
+const AUTOCOMMIT_KEY = "eyeglass_autocommit";
 const SESSION_TTL = 10000; // 10 seconds
 
 // Fun rotating phrases for the "fixing" status
 const WORKING_PHRASES = [
-  'Ruminating...',
-  'Percolating...',
-  'Divining...',
-  'Grokking...',
-  'Communing...',
-  'Concocting...',
-  'Synthesizing...',
-  'Distilling...',
-  'Incubating...',
-  'Forging...',
-  'Scrutinizing...',
-  'Triangulating...',
-  'Unraveling...',
-  'Traversing...',
-  'Sifting...',
-  'Marshaling...',
-  'Hydrating...',
-  'Harmonizing...',
-  'Indexing...',
-  'Entangling...',
+  "Ruminating...",
+  "Percolating...",
+  "Divining...",
+  "Grokking...",
+  "Communing...",
+  "Concocting...",
+  "Synthesizing...",
+  "Distilling...",
+  "Incubating...",
+  "Forging...",
+  "Scrutinizing...",
+  "Triangulating...",
+  "Unraveling...",
+  "Traversing...",
+  "Sifting...",
+  "Marshaling...",
+  "Hydrating...",
+  "Harmonizing...",
+  "Indexing...",
+  "Entangling...",
 ];
 
 // Eye cursor as base64-encoded SVG (16x16 eye icon, indigo color)
@@ -644,7 +644,6 @@ const STYLES = `
 .hub-logo {
   width: 20px;
   height: 20px;
-  background: var(--accent);
   border-radius: 5px;
   display: flex;
   align-items: center;
@@ -1222,7 +1221,7 @@ const STYLES = `
 }
 `;
 
-type PanelMode = 'input' | 'activity';
+type PanelMode = "input" | "activity";
 
 interface PersistedSession {
   interactionId: string;
@@ -1254,11 +1253,11 @@ export class EyeglassInspector extends HTMLElement {
   private frozen = false;
   private eventSource: EventSource | null = null;
   private throttleTimeout: number | null = null;
-  private mode: PanelMode = 'input';
+  private mode: PanelMode = "input";
   private activityEvents: ActivityEvent[] = [];
-  private currentStatus: InteractionStatus = 'idle';
+  private currentStatus: InteractionStatus = "idle";
   private hubExpanded = false;
-  private hubPage: 'main' | 'settings' = 'main';
+  private hubPage: "main" | "settings" = "main";
   private inspectorEnabled = true;
   private autoCommitEnabled = true;
   private history: HistoryItem[] = [];
@@ -1286,17 +1285,17 @@ export class EyeglassInspector extends HTMLElement {
 
   constructor() {
     super();
-    this.shadow = this.attachShadow({ mode: 'closed' });
+    this.shadow = this.attachShadow({ mode: "closed" });
   }
 
   connectedCallback(): void {
-    const style = document.createElement('style');
+    const style = document.createElement("style");
     style.textContent = STYLES;
     this.shadow.appendChild(style);
 
-    this.highlight = document.createElement('div');
-    this.highlight.className = 'highlight';
-    this.highlight.style.display = 'none';
+    this.highlight = document.createElement("div");
+    this.highlight.className = "highlight";
+    this.highlight.style.display = "none";
     this.shadow.appendChild(this.highlight);
 
     this.handleMouseMove = this.handleMouseMove.bind(this);
@@ -1305,10 +1304,10 @@ export class EyeglassInspector extends HTMLElement {
     this.handlePanelDragStart = this.handlePanelDragStart.bind(this);
     this.handleScroll = this.handleScroll.bind(this);
 
-    document.addEventListener('mousemove', this.handleMouseMove, true);
-    document.addEventListener('click', this.handleClick, true);
-    document.addEventListener('keydown', this.handleKeyDown, true);
-    window.addEventListener('scroll', this.handleScroll, true);
+    document.addEventListener("mousemove", this.handleMouseMove, true);
+    document.addEventListener("click", this.handleClick, true);
+    document.addEventListener("keydown", this.handleKeyDown, true);
+    window.addEventListener("scroll", this.handleScroll, true);
 
     this.loadEnabledState();
     this.loadAutoCommitState();
@@ -1324,8 +1323,11 @@ export class EyeglassInspector extends HTMLElement {
 
     const session: PersistedSession = {
       interactionId: this.interactionId,
-      userNote: (this as any)._userNote || '',
-      componentName: this.currentSnapshot?.framework.componentName || this.currentSnapshot?.tagName || 'element',
+      userNote: (this as any)._userNote || "",
+      componentName:
+        this.currentSnapshot?.framework.componentName ||
+        this.currentSnapshot?.tagName ||
+        "element",
       status: this.currentStatus,
       message,
       timestamp: Date.now(),
@@ -1352,7 +1354,7 @@ export class EyeglassInspector extends HTMLElement {
       }
 
       // Only show toast for completed sessions
-      if (session.status === 'success' || session.status === 'failed') {
+      if (session.status === "success" || session.status === "failed") {
         this.showResultToast(session);
         sessionStorage.removeItem(STORAGE_KEY);
       }
@@ -1362,12 +1364,12 @@ export class EyeglassInspector extends HTMLElement {
   }
 
   private showResultToast(session: PersistedSession): void {
-    this.toast = document.createElement('div');
-    this.toast.className = 'result-toast';
+    this.toast = document.createElement("div");
+    this.toast.className = "result-toast";
 
-    const isSuccess = session.status === 'success';
-    const icon = isSuccess ? '✓' : '✕';
-    const title = isSuccess ? 'Done!' : 'Failed';
+    const isSuccess = session.status === "success";
+    const icon = isSuccess ? "✓" : "✕";
+    const title = isSuccess ? "Done!" : "Failed";
 
     this.toast.innerHTML = `
       <div class="toast-icon ${session.status}">${icon}</div>
@@ -1378,8 +1380,10 @@ export class EyeglassInspector extends HTMLElement {
       <button class="toast-close">&times;</button>
     `;
 
-    const closeBtn = this.toast.querySelector('.toast-close') as HTMLButtonElement;
-    closeBtn.addEventListener('click', () => this.hideToast());
+    const closeBtn = this.toast.querySelector(
+      ".toast-close",
+    ) as HTMLButtonElement;
+    closeBtn.addEventListener("click", () => this.hideToast());
 
     this.shadow.appendChild(this.toast);
 
@@ -1398,7 +1402,7 @@ export class EyeglassInspector extends HTMLElement {
     try {
       const stored = localStorage.getItem(ENABLED_KEY);
       if (stored !== null) {
-        this.inspectorEnabled = stored === 'true';
+        this.inspectorEnabled = stored === "true";
       }
     } catch (e) {
       // Ignore storage errors
@@ -1417,7 +1421,7 @@ export class EyeglassInspector extends HTMLElement {
     try {
       const stored = localStorage.getItem(AUTOCOMMIT_KEY);
       if (stored !== null) {
-        this.autoCommitEnabled = stored === 'true';
+        this.autoCommitEnabled = stored === "true";
       }
     } catch (e) {
       // Ignore storage errors
@@ -1453,7 +1457,9 @@ export class EyeglassInspector extends HTMLElement {
 
   private addToHistory(item: HistoryItem): void {
     // Check if this interaction already exists
-    const existingIndex = this.history.findIndex(h => h.interactionId === item.interactionId);
+    const existingIndex = this.history.findIndex(
+      (h) => h.interactionId === item.interactionId,
+    );
     if (existingIndex >= 0) {
       this.history[existingIndex] = item;
     } else {
@@ -1467,8 +1473,11 @@ export class EyeglassInspector extends HTMLElement {
     this.renderHub();
   }
 
-  private updateHistoryStatus(interactionId: string, status: InteractionStatus): void {
-    const item = this.history.find(h => h.interactionId === interactionId);
+  private updateHistoryStatus(
+    interactionId: string,
+    status: InteractionStatus,
+  ): void {
+    const item = this.history.find((h) => h.interactionId === interactionId);
     if (item) {
       item.status = status;
       this.saveHistory();
@@ -1478,12 +1487,12 @@ export class EyeglassInspector extends HTMLElement {
 
   private renderHub(): void {
     if (!this.hub) {
-      this.hub = document.createElement('div');
-      this.hub.className = 'hub';
+      this.hub = document.createElement("div");
+      this.hub.className = "hub";
       this.shadow.appendChild(this.hub);
     }
 
-    if (this.hubPage === 'settings') {
+    if (this.hubPage === "settings") {
       this.renderHubSettingsPage();
     } else {
       this.renderHubMainPage();
@@ -1493,76 +1502,115 @@ export class EyeglassInspector extends HTMLElement {
   private renderHubMainPage(): void {
     if (!this.hub) return;
 
-    const collapsedClass = this.hubExpanded ? '' : 'collapsed';
-    const disabledClass = this.inspectorEnabled ? '' : 'disabled';
-    const expandedClass = this.hubExpanded ? 'expanded' : '';
-    const activeCount = this.history.filter(h => h.status === 'pending' || h.status === 'fixing').length;
+    const collapsedClass = this.hubExpanded ? "" : "collapsed";
+    const disabledClass = this.inspectorEnabled ? "" : "disabled";
+    const expandedClass = this.hubExpanded ? "expanded" : "";
+    const activeCount = this.history.filter(
+      (h) => h.status === "pending" || h.status === "fixing",
+    ).length;
 
     this.hub.className = `hub ${collapsedClass} ${disabledClass}`.trim();
 
     const eyeOpenSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
     const eyeClosedSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
     const gearSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+    const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <defs>
+      <linearGradient id="lensGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:0.3"/>
+        <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.1"/>
+      </linearGradient>
+    </defs>
+    <circle cx="30" cy="50" r="20" fill="url(#lensGrad)" stroke="#3b82f6" stroke-width="3"/>
+    <circle cx="70" cy="50" r="20" fill="url(#lensGrad)" stroke="#3b82f6" stroke-width="3"/>
+    <path d="M 50 50 Q 50 42 50 50" stroke="#3b82f6" stroke-width="3" fill="none"/>
+    <line x1="50" y1="47" x2="50" y2="53" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+    <line x1="10" y1="50" x2="10" y2="50" stroke="#3b82f6" stroke-width="3"/>
+    <path d="M 10 50 L 5 45" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 90 50 L 95 45" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 65 45 L 65 60 L 69 56 L 74 63 L 76 61 L 71 54 L 76 54 Z" fill="#3b82f6"/>
+  </svg>`;
 
     this.hub.innerHTML = `
       <div class="hub-header">
         <div class="hub-header-left">
-          <div class="hub-logo">👁</div>
+          <div class="hub-logo">${logoSvg}</div>
           <span class="hub-title">Eyeglass</span>
-          ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ''}
+          ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ""}
           <button class="hub-toggle ${expandedClass}" title="Toggle history">▼</button>
         </div>
         <div class="hub-button-group">
         <button class="hub-settings-btn" title="Settings">${gearSvg}</button>
-        <button class="hub-disable ${this.inspectorEnabled ? 'active' : ''}" title="${this.inspectorEnabled ? 'Disable' : 'Enable'} inspector">
+        <button class="hub-disable ${this.inspectorEnabled ? "active" : ""}" title="${this.inspectorEnabled ? "Disable" : "Enable"} inspector">
           ${this.inspectorEnabled ? eyeOpenSvg : eyeClosedSvg}
         </button>
         </div>
       </div>
       <div class="hub-content ${expandedClass}">
-        ${this.history.length > 0 ? `
+        ${
+          this.history.length > 0
+            ? `
           <div class="hub-list">
-            ${this.history.map(item => `
+            ${this.history
+              .map(
+                (item) => `
               <div class="hub-item" data-id="${item.interactionId}">
                 <div class="hub-item-status ${item.status}"></div>
                 <div class="hub-item-content">
                   <div class="hub-item-component">${this.escapeHtml(item.componentName)}</div>
                   <div class="hub-item-note">${this.escapeHtml(item.userNote)}</div>
                 </div>
-                ${item.status === 'success' ? `
+                ${
+                  item.status === "success"
+                    ? `
                   <button class="hub-item-undo" data-id="${item.interactionId}" title="Undo">↩</button>
-                ` : ''}
+                `
+                    : ""
+                }
               </div>
-            `).join('')}
+            `,
+              )
+              .join("")}
           </div>
-        ` : `
+        `
+            : `
           <div class="hub-empty">No requests yet</div>
-        `}
+        `
+        }
       </div>
     `;
 
     // Wire up event handlers
-    const header = this.hub.querySelector('.hub-header') as HTMLDivElement;
-    const disableBtn = this.hub.querySelector('.hub-disable') as HTMLButtonElement;
-    const settingsBtn = this.hub.querySelector('.hub-settings-btn') as HTMLButtonElement;
+    const header = this.hub.querySelector(".hub-header") as HTMLDivElement;
+    const disableBtn = this.hub.querySelector(
+      ".hub-disable",
+    ) as HTMLButtonElement;
+    const settingsBtn = this.hub.querySelector(
+      ".hub-settings-btn",
+    ) as HTMLButtonElement;
 
     // Toggle expand/collapse on header click (except buttons)
-    header.addEventListener('click', (e) => {
-      if (e.target === disableBtn || e.target === settingsBtn || (e.target as Element).closest('.hub-settings-btn')) return;
+    header.addEventListener("click", (e) => {
+      if (
+        e.target === disableBtn ||
+        e.target === settingsBtn ||
+        (e.target as Element).closest(".hub-settings-btn")
+      )
+        return;
       this.hubExpanded = !this.hubExpanded;
       this.renderHub();
     });
 
     // Open settings page
-    settingsBtn.addEventListener('click', (e) => {
+    settingsBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      this.hubPage = 'settings';
+      this.hubPage = "settings";
       this.hubExpanded = true; // Ensure expanded when viewing settings
       this.renderHub();
     });
 
     // Toggle inspector enabled state
-    disableBtn.addEventListener('click', (e) => {
+    disableBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       this.inspectorEnabled = !this.inspectorEnabled;
       this.saveEnabledState();
@@ -1574,8 +1622,8 @@ export class EyeglassInspector extends HTMLElement {
     });
 
     // Wire up undo buttons
-    this.hub.querySelectorAll('.hub-item-undo').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+    this.hub.querySelectorAll(".hub-item-undo").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const id = (e.currentTarget as HTMLButtonElement).dataset.id!;
         this.requestUndo(id);
@@ -1586,12 +1634,29 @@ export class EyeglassInspector extends HTMLElement {
   private renderHubSettingsPage(): void {
     if (!this.hub) return;
 
-    this.hub.className = 'hub';
+    const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <defs>
+      <linearGradient id="lensGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:0.3"/>
+        <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.1"/>
+      </linearGradient>
+    </defs>
+    <circle cx="30" cy="50" r="20" fill="url(#lensGrad)" stroke="#3b82f6" stroke-width="3"/>
+    <circle cx="70" cy="50" r="20" fill="url(#lensGrad)" stroke="#3b82f6" stroke-width="3"/>
+    <path d="M 50 50 Q 50 42 50 50" stroke="#3b82f6" stroke-width="3" fill="none"/>
+    <line x1="50" y1="47" x2="50" y2="53" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+    <line x1="10" y1="50" x2="10" y2="50" stroke="#3b82f6" stroke-width="3"/>
+    <path d="M 10 50 L 5 45" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 90 50 L 95 45" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 65 45 L 65 60 L 69 56 L 74 63 L 76 61 L 71 54 L 76 54 Z" fill="#3b82f6"/>
+  </svg>`;
+
+    this.hub.className = "hub";
 
     this.hub.innerHTML = `
       <div class="hub-header">
         <div class="hub-header-left">
-          <div class="hub-logo">👁</div>
+          <div class="hub-logo">${logoSvg}</div>
           <span class="hub-title">Eyeglass</span>
         </div>
       </div>
@@ -1607,7 +1672,7 @@ export class EyeglassInspector extends HTMLElement {
                 <div class="hub-setting-label">Auto-commit</div>
                 <div class="hub-setting-desc">Automatically commit changes on success</div>
               </div>
-              <button class="toggle-switch ${this.autoCommitEnabled ? 'active' : ''}" data-setting="autoCommit"></button>
+              <button class="toggle-switch ${this.autoCommitEnabled ? "active" : ""}" data-setting="autoCommit"></button>
             </div>
           </div>
         </div>
@@ -1615,17 +1680,19 @@ export class EyeglassInspector extends HTMLElement {
     `;
 
     // Wire up back button
-    const backBtn = this.hub.querySelector('.hub-back-btn') as HTMLButtonElement;
-    backBtn.addEventListener('click', () => {
-      this.hubPage = 'main';
+    const backBtn = this.hub.querySelector(
+      ".hub-back-btn",
+    ) as HTMLButtonElement;
+    backBtn.addEventListener("click", () => {
+      this.hubPage = "main";
       this.renderHub();
     });
 
     // Wire up toggle switches
-    this.hub.querySelectorAll('.toggle-switch').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+    this.hub.querySelectorAll(".toggle-switch").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
         const setting = (e.currentTarget as HTMLButtonElement).dataset.setting;
-        if (setting === 'autoCommit') {
+        if (setting === "autoCommit") {
           this.autoCommitEnabled = !this.autoCommitEnabled;
           this.saveAutoCommitState();
           this.renderHub();
@@ -1635,18 +1702,20 @@ export class EyeglassInspector extends HTMLElement {
   }
 
   private async requestUndo(interactionId: string): Promise<void> {
-    const itemIndex = this.history.findIndex(h => h.interactionId === interactionId);
+    const itemIndex = this.history.findIndex(
+      (h) => h.interactionId === interactionId,
+    );
     if (itemIndex === -1) return;
 
     // Mark as pending while undo is in progress
-    this.history[itemIndex].status = 'pending';
+    this.history[itemIndex].status = "pending";
     this.saveHistory();
     this.renderHub();
 
     try {
       const response = await fetch(`${BRIDGE_URL}/undo`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ interactionId }),
       });
 
@@ -1657,53 +1726,55 @@ export class EyeglassInspector extends HTMLElement {
         this.renderHub();
       } else {
         // Mark as failed if undo didn't work
-        this.history[itemIndex].status = 'failed';
+        this.history[itemIndex].status = "failed";
         this.saveHistory();
         this.renderHub();
       }
     } catch (err) {
       // Mark as failed on error
       if (this.history[itemIndex]) {
-        this.history[itemIndex].status = 'failed';
+        this.history[itemIndex].status = "failed";
         this.saveHistory();
         this.renderHub();
       }
-      console.warn('Undo request failed:', err);
+      console.warn("Undo request failed:", err);
     }
   }
 
   private async requestCommit(interactionId: string): Promise<void> {
-    const itemIndex = this.history.findIndex(h => h.interactionId === interactionId);
+    const itemIndex = this.history.findIndex(
+      (h) => h.interactionId === interactionId,
+    );
 
     try {
       const response = await fetch(`${BRIDGE_URL}/commit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ interactionId }),
       });
 
       if (response.ok) {
         // Update status to show it's committed
         if (itemIndex >= 0) {
-          this.history[itemIndex].status = 'success';
+          this.history[itemIndex].status = "success";
           this.saveHistory();
           this.renderHub();
         }
         // Close the panel after commit
         this.unfreeze();
       } else {
-        console.warn('Commit request failed');
+        console.warn("Commit request failed");
       }
     } catch (err) {
-      console.warn('Commit request failed:', err);
+      console.warn("Commit request failed:", err);
     }
   }
 
   disconnectedCallback(): void {
-    document.removeEventListener('mousemove', this.handleMouseMove, true);
-    document.removeEventListener('click', this.handleClick, true);
-    document.removeEventListener('keydown', this.handleKeyDown, true);
-    window.removeEventListener('scroll', this.handleScroll, true);
+    document.removeEventListener("mousemove", this.handleMouseMove, true);
+    document.removeEventListener("click", this.handleClick, true);
+    document.removeEventListener("keydown", this.handleKeyDown, true);
+    window.removeEventListener("scroll", this.handleScroll, true);
     this.eventSource?.close();
     // Clean up cursor style
     if (this.cursorStyleElement) {
@@ -1718,7 +1789,7 @@ export class EyeglassInspector extends HTMLElement {
     this.eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'activity') {
+        if (data.type === "activity") {
           this.handleActivityEvent(data.payload as ActivityEvent);
         }
       } catch (e) {
@@ -1734,7 +1805,7 @@ export class EyeglassInspector extends HTMLElement {
 
   private handleActivityEvent(event: ActivityEvent): void {
     // Update history for any matching interaction, even if not current
-    if (event.type === 'status') {
+    if (event.type === "status") {
       this.updateHistoryStatus(event.interactionId, event.status);
     }
 
@@ -1742,19 +1813,19 @@ export class EyeglassInspector extends HTMLElement {
 
     this.activityEvents.push(event);
 
-    if (event.type === 'status') {
+    if (event.type === "status") {
       this.currentStatus = event.status;
       // Persist session so we can show result after page reload
       this.saveSession(event.message);
 
       // Manage phrase rotation based on status
-      if (event.status === 'fixing') {
+      if (event.status === "fixing") {
         this.startPhraseRotation();
       } else {
         this.stopPhraseRotation();
       }
 
-      if (event.status === 'failed') {
+      if (event.status === "failed") {
         // Auto-close on failure after delay
         setTimeout(() => this.unfreeze(), 4000);
       }
@@ -1785,11 +1856,15 @@ export class EyeglassInspector extends HTMLElement {
       this.throttleTimeout = null;
     }, 16);
 
-    this.style.pointerEvents = 'none';
+    this.style.pointerEvents = "none";
     const target = document.elementFromPoint(e.clientX, e.clientY);
-    this.style.pointerEvents = '';
+    this.style.pointerEvents = "";
 
-    if (!target || target === document.documentElement || target === document.body) {
+    if (
+      !target ||
+      target === document.documentElement ||
+      target === document.body
+    ) {
       if (!this.multiSelectMode) {
         this.hideHighlight();
       }
@@ -1824,7 +1899,7 @@ export class EyeglassInspector extends HTMLElement {
   }
 
   private handleKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       this.unfreeze();
     }
   }
@@ -1857,16 +1932,18 @@ export class EyeglassInspector extends HTMLElement {
 
   private disableHighlightTransitions(): void {
     if (this.highlight) {
-      this.highlight.classList.add('no-transition');
+      this.highlight.classList.add("no-transition");
     }
-    this.multiSelectHighlights.forEach(h => h.classList.add('no-transition'));
+    this.multiSelectHighlights.forEach((h) => h.classList.add("no-transition"));
   }
 
   private enableHighlightTransitions(): void {
     if (this.highlight) {
-      this.highlight.classList.remove('no-transition');
+      this.highlight.classList.remove("no-transition");
     }
-    this.multiSelectHighlights.forEach(h => h.classList.remove('no-transition'));
+    this.multiSelectHighlights.forEach((h) =>
+      h.classList.remove("no-transition"),
+    );
   }
 
   private updateMultiSelectHighlightPositions(): void {
@@ -1885,7 +1962,7 @@ export class EyeglassInspector extends HTMLElement {
 
   private handlePanelDragStart(e: MouseEvent): void {
     // Don't drag if clicking on buttons
-    if ((e.target as HTMLElement).closest('button')) return;
+    if ((e.target as HTMLElement).closest("button")) return;
 
     this.isDragging = true;
     const panelRect = this.panel!.getBoundingClientRect();
@@ -1894,15 +1971,21 @@ export class EyeglassInspector extends HTMLElement {
       y: e.clientY - panelRect.top,
     };
 
-    document.addEventListener('mousemove', this.handlePanelDrag);
-    document.addEventListener('mouseup', this.handlePanelDragEnd);
+    document.addEventListener("mousemove", this.handlePanelDrag);
+    document.addEventListener("mouseup", this.handlePanelDragEnd);
   }
 
   private handlePanelDrag = (e: MouseEvent): void => {
     if (!this.isDragging || !this.panel) return;
 
-    const x = Math.max(0, Math.min(e.clientX - this.dragOffset.x, window.innerWidth - 340));
-    const y = Math.max(0, Math.min(e.clientY - this.dragOffset.y, window.innerHeight - 100));
+    const x = Math.max(
+      0,
+      Math.min(e.clientX - this.dragOffset.x, window.innerWidth - 340),
+    );
+    const y = Math.max(
+      0,
+      Math.min(e.clientY - this.dragOffset.y, window.innerHeight - 100),
+    );
 
     this.customPanelPosition = { x, y };
     this.panel.style.left = `${x}px`;
@@ -1911,8 +1994,8 @@ export class EyeglassInspector extends HTMLElement {
 
   private handlePanelDragEnd = (): void => {
     this.isDragging = false;
-    document.removeEventListener('mousemove', this.handlePanelDrag);
-    document.removeEventListener('mouseup', this.handlePanelDragEnd);
+    document.removeEventListener("mousemove", this.handlePanelDrag);
+    document.removeEventListener("mouseup", this.handlePanelDragEnd);
   };
 
   private showHighlight(element: Element): void {
@@ -1920,7 +2003,7 @@ export class EyeglassInspector extends HTMLElement {
 
     const rect = element.getBoundingClientRect();
     const padding = 3;
-    this.highlight.style.display = 'block';
+    this.highlight.style.display = "block";
     this.highlight.style.left = `${rect.left - padding}px`;
     this.highlight.style.top = `${rect.top - padding}px`;
     this.highlight.style.width = `${rect.width + padding * 2}px`;
@@ -1929,7 +2012,7 @@ export class EyeglassInspector extends HTMLElement {
 
   private hideHighlight(): void {
     if (this.highlight) {
-      this.highlight.style.display = 'none';
+      this.highlight.style.display = "none";
     }
     this.currentElement = null;
   }
@@ -1942,9 +2025,9 @@ export class EyeglassInspector extends HTMLElement {
     // Initialize selectedElements with the first element
     this.selectedElements = [this.currentElement];
     this.selectedSnapshots = [this.currentSnapshot];
-    this.mode = 'input';
+    this.mode = "input";
     this.activityEvents = [];
-    this.currentStatus = 'idle';
+    this.currentStatus = "idle";
     this.updateCursor();
     this.renderPanel();
   }
@@ -2027,17 +2110,17 @@ export class EyeglassInspector extends HTMLElement {
     const padding = 3;
     this.selectedElements.forEach((element, index) => {
       const rect = element.getBoundingClientRect();
-      const highlight = document.createElement('div');
-      highlight.className = 'highlight multi';
-      highlight.style.display = 'block';
+      const highlight = document.createElement("div");
+      highlight.className = "highlight multi";
+      highlight.style.display = "block";
       highlight.style.left = `${rect.left - padding}px`;
       highlight.style.top = `${rect.top - padding}px`;
       highlight.style.width = `${rect.width + padding * 2}px`;
       highlight.style.height = `${rect.height + padding * 2}px`;
 
       // Add numbered badge
-      const badge = document.createElement('div');
-      badge.className = 'highlight-badge';
+      const badge = document.createElement("div");
+      badge.className = "highlight-badge";
       badge.textContent = String(index + 1);
       highlight.appendChild(badge);
 
@@ -2047,7 +2130,7 @@ export class EyeglassInspector extends HTMLElement {
 
     // Hide the main single highlight when in multi-select mode
     if (this.highlight) {
-      this.highlight.style.display = 'none';
+      this.highlight.style.display = "none";
     }
   }
 
@@ -2060,7 +2143,7 @@ export class EyeglassInspector extends HTMLElement {
     this.frozen = false;
     this.currentSnapshot = null;
     this.interactionId = null;
-    this.mode = 'input';
+    this.mode = "input";
     this.activityEvents = [];
     this.customPanelPosition = null;
 
@@ -2093,8 +2176,8 @@ export class EyeglassInspector extends HTMLElement {
     const { framework } = this.currentSnapshot;
 
     if (!this.panel) {
-      this.panel = document.createElement('div');
-      this.panel.className = 'glass-panel';
+      this.panel = document.createElement("div");
+      this.panel.className = "glass-panel";
       this.shadow.appendChild(this.panel);
     }
 
@@ -2104,7 +2187,7 @@ export class EyeglassInspector extends HTMLElement {
       this.panel.style.top = `${this.customPanelPosition.y}px`;
     } else {
       const spaceBelow = window.innerHeight - rect.bottom;
-      const panelHeight = this.mode === 'activity' ? 400 : 200;
+      const panelHeight = this.mode === "activity" ? 400 : 200;
       let top = rect.bottom + 12;
       if (spaceBelow < panelHeight && rect.top > panelHeight) {
         top = rect.top - panelHeight - 12;
@@ -2120,54 +2203,66 @@ export class EyeglassInspector extends HTMLElement {
       this.panel.style.top = `${top}px`;
     }
 
-    const componentName = framework.componentName || this.currentSnapshot.tagName;
+    const componentName =
+      framework.componentName || this.currentSnapshot.tagName;
     const filePath = framework.filePath
-      ? framework.filePath.split('/').slice(-2).join('/')
+      ? framework.filePath.split("/").slice(-2).join("/")
       : null;
 
-    if (this.mode === 'input') {
+    if (this.mode === "input") {
       this.renderInputMode(componentName, filePath);
     } else {
       this.renderActivityMode(componentName, filePath);
     }
   }
 
-  private renderInputMode(componentName: string, filePath: string | null): void {
+  private renderInputMode(
+    componentName: string,
+    filePath: string | null,
+  ): void {
     if (!this.panel) return;
 
     const isMultiSelect = this.multiSelectMode;
-    const multiSelectIconClass = isMultiSelect ? 'multi-select-icon active' : 'multi-select-icon';
+    const multiSelectIconClass = isMultiSelect
+      ? "multi-select-icon active"
+      : "multi-select-icon";
 
     // Build selected list HTML for multi-select mode
-    const selectedListHtml = isMultiSelect ? `
+    const selectedListHtml = isMultiSelect
+      ? `
       <div class="selected-list">
         <div class="selected-list-header">
-          <span class="selected-count">${this.selectedElements.length} element${this.selectedElements.length !== 1 ? 's' : ''} selected</span>
+          <span class="selected-count">${this.selectedElements.length} element${this.selectedElements.length !== 1 ? "s" : ""} selected</span>
         </div>
         <div class="selected-chips">
-          ${this.selectedSnapshots.map((snapshot, index) => {
-            const name = snapshot.framework.componentName || snapshot.tagName;
-            return `
+          ${this.selectedSnapshots
+            .map((snapshot, index) => {
+              const name = snapshot.framework.componentName || snapshot.tagName;
+              return `
               <div class="selected-chip" data-index="${index}">
                 <span class="selected-chip-number">${index + 1}</span>
                 <span>${this.escapeHtml(name)}</span>
                 <button class="selected-chip-remove" data-index="${index}" title="Remove">&times;</button>
               </div>
             `;
-          }).join('')}
+            })
+            .join("")}
         </div>
       </div>
-    ` : '';
+    `
+      : "";
 
-    const multiModeHint = isMultiSelect ? `
+    const multiModeHint = isMultiSelect
+      ? `
       <div class="multi-mode-hint">Click elements to add/remove from selection (max ${EyeglassInspector.MAX_SELECTION})</div>
-    ` : '';
+    `
+      : "";
 
     this.panel.innerHTML = `
       <div class="panel-header">
         <span class="component-tag">&lt;${this.escapeHtml(componentName)} /&gt;</span>
-        ${filePath ? `<span class="file-path">${this.escapeHtml(filePath)}</span>` : ''}
-        <button class="${multiSelectIconClass}" title="${isMultiSelect ? 'Exit multi-select' : 'Select multiple elements'}">+</button>
+        ${filePath ? `<span class="file-path">${this.escapeHtml(filePath)}</span>` : ""}
+        <button class="${multiSelectIconClass}" title="${isMultiSelect ? "Exit multi-select" : "Select multiple elements"}">+</button>
         <button class="close-btn" title="Cancel (Esc)">&times;</button>
       </div>
       ${multiModeHint}
@@ -2176,7 +2271,7 @@ export class EyeglassInspector extends HTMLElement {
         <input
           type="text"
           class="input-field"
-          placeholder="${isMultiSelect ? 'Describe what to change for these elements...' : 'What do you want to change?'}"
+          placeholder="${isMultiSelect ? "Describe what to change for these elements..." : "What do you want to change?"}"
           autofocus
         />
         <div class="btn-row">
@@ -2186,23 +2281,31 @@ export class EyeglassInspector extends HTMLElement {
       </div>
     `;
 
-    const input = this.panel.querySelector('.input-field') as HTMLInputElement;
-    const closeBtn = this.panel.querySelector('.close-btn') as HTMLButtonElement;
-    const cancelBtn = this.panel.querySelector('.btn-secondary') as HTMLButtonElement;
-    const sendBtn = this.panel.querySelector('.btn-primary') as HTMLButtonElement;
-    const multiSelectBtn = this.panel.querySelector('.multi-select-icon') as HTMLButtonElement;
+    const input = this.panel.querySelector(".input-field") as HTMLInputElement;
+    const closeBtn = this.panel.querySelector(
+      ".close-btn",
+    ) as HTMLButtonElement;
+    const cancelBtn = this.panel.querySelector(
+      ".btn-secondary",
+    ) as HTMLButtonElement;
+    const sendBtn = this.panel.querySelector(
+      ".btn-primary",
+    ) as HTMLButtonElement;
+    const multiSelectBtn = this.panel.querySelector(
+      ".multi-select-icon",
+    ) as HTMLButtonElement;
 
-    closeBtn.addEventListener('click', () => this.unfreeze());
-    cancelBtn.addEventListener('click', () => this.unfreeze());
-    sendBtn.addEventListener('click', () => this.submit(input.value));
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && input.value.trim()) {
+    closeBtn.addEventListener("click", () => this.unfreeze());
+    cancelBtn.addEventListener("click", () => this.unfreeze());
+    sendBtn.addEventListener("click", () => this.submit(input.value));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && input.value.trim()) {
         this.submit(input.value);
       }
     });
 
     // Multi-select toggle button
-    multiSelectBtn.addEventListener('click', () => {
+    multiSelectBtn.addEventListener("click", () => {
       if (this.multiSelectMode) {
         this.exitMultiSelectMode();
       } else {
@@ -2211,42 +2314,52 @@ export class EyeglassInspector extends HTMLElement {
     });
 
     // Wire up chip remove buttons
-    this.panel.querySelectorAll('.selected-chip-remove').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
+    this.panel.querySelectorAll(".selected-chip-remove").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const index = parseInt((e.currentTarget as HTMLButtonElement).dataset.index!, 10);
+        const index = parseInt(
+          (e.currentTarget as HTMLButtonElement).dataset.index!,
+          10,
+        );
         this.removeFromSelection(index);
       });
     });
 
     // Make panel draggable via header
-    const header = this.panel.querySelector('.panel-header') as HTMLDivElement;
-    header.addEventListener('mousedown', this.handlePanelDragStart);
+    const header = this.panel.querySelector(".panel-header") as HTMLDivElement;
+    header.addEventListener("mousedown", this.handlePanelDragStart);
 
     requestAnimationFrame(() => input.focus());
   }
 
-  private renderActivityMode(componentName: string, filePath: string | null): void {
+  private renderActivityMode(
+    componentName: string,
+    filePath: string | null,
+  ): void {
     if (!this.panel) return;
 
-    const userNote = this.activityEvents.length > 0
-      ? (this.panel.querySelector('.user-request-text')?.textContent || '')
-      : '';
+    const userNote =
+      this.activityEvents.length > 0
+        ? this.panel.querySelector(".user-request-text")?.textContent || ""
+        : "";
 
-    const isDone = this.currentStatus === 'success' || this.currentStatus === 'failed';
-    const showActionButtons = this.currentStatus === 'success' && !this.autoCommitEnabled;
-    const showFollowUp = this.currentStatus === 'success';
+    const isDone =
+      this.currentStatus === "success" || this.currentStatus === "failed";
+    const showActionButtons =
+      this.currentStatus === "success" && !this.autoCommitEnabled;
+    const showFollowUp = this.currentStatus === "success";
 
     // Build header display based on submitted snapshots
     const snapshotCount = this.submittedSnapshots.length;
-    const headerDisplay = snapshotCount > 1
-      ? `${snapshotCount} elements`
-      : `&lt;${this.escapeHtml(componentName)} /&gt;`;
+    const headerDisplay =
+      snapshotCount > 1
+        ? `${snapshotCount} elements`
+        : `&lt;${this.escapeHtml(componentName)} /&gt;`;
 
     this.panel.innerHTML = `
       <div class="panel-header">
         <span class="component-tag">${headerDisplay}</span>
-        ${snapshotCount <= 1 && filePath ? `<span class="file-path">${this.escapeHtml(filePath)}</span>` : ''}
+        ${snapshotCount <= 1 && filePath ? `<span class="file-path">${this.escapeHtml(filePath)}</span>` : ""}
         <button class="close-btn" title="Close">&times;</button>
       </div>
       <div class="user-request">
@@ -2256,17 +2369,23 @@ export class EyeglassInspector extends HTMLElement {
       <div class="activity-feed">
         ${this.renderActivityFeed()}
       </div>
-      <div class="panel-footer ${isDone ? 'done' : ''}">
+      <div class="panel-footer ${isDone ? "done" : ""}">
         <div class="status-indicator ${this.currentStatus}"></div>
         <span class="status-text">${this.getStatusText()}</span>
-        ${showActionButtons ? `
+        ${
+          showActionButtons
+            ? `
           <div class="success-actions">
             <button class="action-btn action-btn-undo" title="Discard changes">Undo</button>
             <button class="action-btn action-btn-commit" title="Commit changes">Commit</button>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
       </div>
-      ${showFollowUp ? `
+      ${
+        showFollowUp
+          ? `
         <div class="followup-area">
           <div class="followup-row">
             <input type="text" class="followup-input" placeholder="Anything else?" />
@@ -2274,19 +2393,23 @@ export class EyeglassInspector extends HTMLElement {
             <button class="followup-done">✕</button>
           </div>
         </div>
-      ` : ''}
+      `
+          : ""
+      }
     `;
 
-    const closeBtn = this.panel.querySelector('.close-btn') as HTMLButtonElement;
-    closeBtn.addEventListener('click', () => this.unfreeze());
+    const closeBtn = this.panel.querySelector(
+      ".close-btn",
+    ) as HTMLButtonElement;
+    closeBtn.addEventListener("click", () => this.unfreeze());
 
     // Make panel draggable via header
-    const header = this.panel.querySelector('.panel-header') as HTMLDivElement;
-    header.addEventListener('mousedown', this.handlePanelDragStart);
+    const header = this.panel.querySelector(".panel-header") as HTMLDivElement;
+    header.addEventListener("mousedown", this.handlePanelDragStart);
 
     // Wire up question buttons if present
-    this.panel.querySelectorAll('.question-option').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
+    this.panel.querySelectorAll(".question-option").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
         const target = e.target as HTMLButtonElement;
         const questionId = target.dataset.questionId!;
         const answerId = target.dataset.answerId!;
@@ -2296,27 +2419,37 @@ export class EyeglassInspector extends HTMLElement {
     });
 
     // Wire up action buttons (commit/undo) if present
-    const commitBtn = this.panel.querySelector('.action-btn-commit');
-    const undoBtn = this.panel.querySelector('.action-btn-undo');
+    const commitBtn = this.panel.querySelector(".action-btn-commit");
+    const undoBtn = this.panel.querySelector(".action-btn-undo");
     if (commitBtn && this.interactionId) {
-      commitBtn.addEventListener('click', () => this.requestCommit(this.interactionId!));
+      commitBtn.addEventListener("click", () =>
+        this.requestCommit(this.interactionId!),
+      );
     }
     if (undoBtn && this.interactionId) {
-      undoBtn.addEventListener('click', () => this.requestUndo(this.interactionId!));
+      undoBtn.addEventListener("click", () =>
+        this.requestUndo(this.interactionId!),
+      );
     }
 
     // Wire up follow-up input if present
-    const followupInput = this.panel.querySelector('.followup-input') as HTMLInputElement;
-    const followupSend = this.panel.querySelector('.followup-send') as HTMLButtonElement;
-    const followupDone = this.panel.querySelector('.followup-done') as HTMLButtonElement;
+    const followupInput = this.panel.querySelector(
+      ".followup-input",
+    ) as HTMLInputElement;
+    const followupSend = this.panel.querySelector(
+      ".followup-send",
+    ) as HTMLButtonElement;
+    const followupDone = this.panel.querySelector(
+      ".followup-done",
+    ) as HTMLButtonElement;
     if (followupInput && followupSend) {
-      followupSend.addEventListener('click', () => {
+      followupSend.addEventListener("click", () => {
         if (followupInput.value.trim()) {
           this.submitFollowUp(followupInput.value);
         }
       });
-      followupInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && followupInput.value.trim()) {
+      followupInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && followupInput.value.trim()) {
           this.submitFollowUp(followupInput.value);
         }
       });
@@ -2324,40 +2457,46 @@ export class EyeglassInspector extends HTMLElement {
       requestAnimationFrame(() => followupInput.focus());
     }
     if (followupDone) {
-      followupDone.addEventListener('click', () => this.unfreeze());
+      followupDone.addEventListener("click", () => this.unfreeze());
     }
 
     // Scroll to bottom of activity feed
-    const feed = this.panel.querySelector('.activity-feed');
+    const feed = this.panel.querySelector(".activity-feed");
     if (feed) {
       feed.scrollTop = feed.scrollHeight;
     }
   }
 
   private renderActivityFeed(): string {
-    const items = this.activityEvents.map((event) => {
-      switch (event.type) {
-        case 'status':
-          // Skip pending - shown in footer. Show fixing only if it has a meaningful message
-          if (event.status === 'pending') return '';
-          if (event.status === 'fixing') {
-            // Skip generic/missing messages - we have rotating phrases in the footer
-            if (!event.message || event.message === 'Agent is working...') return '';
-          }
-          return this.renderStatusItem(event);
-        case 'thought':
-          return this.renderThoughtItem(event);
-        case 'action':
-          return this.renderActionItem(event);
-        case 'question':
-          return this.renderQuestionItem(event);
-        default:
-          return '';
-      }
-    }).filter(Boolean);
+    const items = this.activityEvents
+      .map((event) => {
+        switch (event.type) {
+          case "status":
+            // Skip pending - shown in footer. Show fixing only if it has a meaningful message
+            if (event.status === "pending") return "";
+            if (event.status === "fixing") {
+              // Skip generic/missing messages - we have rotating phrases in the footer
+              if (!event.message || event.message === "Agent is working...")
+                return "";
+            }
+            return this.renderStatusItem(event);
+          case "thought":
+            return this.renderThoughtItem(event);
+          case "action":
+            return this.renderActionItem(event);
+          case "question":
+            return this.renderQuestionItem(event);
+          default:
+            return "";
+        }
+      })
+      .filter(Boolean);
 
     // Show skeleton while waiting for first meaningful activity
-    if (items.length === 0 && (this.currentStatus === 'pending' || this.currentStatus === 'fixing')) {
+    if (
+      items.length === 0 &&
+      (this.currentStatus === "pending" || this.currentStatus === "fixing")
+    ) {
       return `
         <div class="skeleton-item">
           <div class="skeleton-icon"></div>
@@ -2366,14 +2505,21 @@ export class EyeglassInspector extends HTMLElement {
       `;
     }
 
-    return items.join('');
+    return items.join("");
   }
 
-  private renderStatusItem(event: { status: InteractionStatus; message?: string }): string {
-    const iconClass = event.status === 'success' ? 'success' :
-                      event.status === 'failed' ? 'error' : 'status';
-    const icon = event.status === 'success' ? '✓' :
-                 event.status === 'failed' ? '✕' : '●';
+  private renderStatusItem(event: {
+    status: InteractionStatus;
+    message?: string;
+  }): string {
+    const iconClass =
+      event.status === "success"
+        ? "success"
+        : event.status === "failed"
+          ? "error"
+          : "status";
+    const icon =
+      event.status === "success" ? "✓" : event.status === "failed" ? "✕" : "●";
     return `
       <div class="activity-item">
         <div class="activity-icon ${iconClass}">${icon}</div>
@@ -2395,34 +2541,43 @@ export class EyeglassInspector extends HTMLElement {
     `;
   }
 
-  private renderActionItem(event: { action: string; target: string; complete?: boolean }): string {
+  private renderActionItem(event: {
+    action: string;
+    target: string;
+    complete?: boolean;
+  }): string {
     const icons: Record<string, string> = {
-      reading: '📖',
-      writing: '✏️',
-      searching: '🔍',
-      thinking: '🧠',
+      reading: "📖",
+      writing: "✏️",
+      searching: "🔍",
+      thinking: "🧠",
     };
     const verbs: Record<string, string> = {
-      reading: 'Reading',
-      writing: 'Writing',
-      searching: 'Searching',
-      thinking: 'Thinking about',
+      reading: "Reading",
+      writing: "Writing",
+      searching: "Searching",
+      thinking: "Thinking about",
     };
     return `
       <div class="activity-item">
-        <div class="activity-icon action">${icons[event.action] || '●'}</div>
+        <div class="activity-icon action">${icons[event.action] || "●"}</div>
         <div class="activity-content">
-          <div class="activity-text">${verbs[event.action] || event.action}${event.complete ? ' ✓' : '...'}</div>
+          <div class="activity-text">${verbs[event.action] || event.action}${event.complete ? " ✓" : "..."}</div>
           <div class="activity-target">${this.escapeHtml(event.target)}</div>
         </div>
       </div>
     `;
   }
 
-  private renderQuestionItem(event: { questionId: string; question: string; options: Array<{ id: string; label: string }>; timestamp: number }): string {
+  private renderQuestionItem(event: {
+    questionId: string;
+    question: string;
+    options: Array<{ id: string; label: string }>;
+    timestamp: number;
+  }): string {
     // Check if this question was already answered
     const wasAnswered = this.activityEvents.some(
-      (e) => e.type === 'status' && e.timestamp > event.timestamp
+      (e) => e.type === "status" && e.timestamp > event.timestamp,
     );
 
     if (wasAnswered) {
@@ -2440,13 +2595,17 @@ export class EyeglassInspector extends HTMLElement {
       <div class="question-box">
         <div class="question-text">${this.escapeHtml(event.question)}</div>
         <div class="question-options">
-          ${event.options.map((opt) => `
+          ${event.options
+            .map(
+              (opt) => `
             <button
               class="question-option"
               data-question-id="${event.questionId}"
               data-answer-id="${opt.id}"
             >${this.escapeHtml(opt.label)}</button>
-          `).join('')}
+          `,
+            )
+            .join("")}
         </div>
       </div>
     `;
@@ -2454,19 +2613,25 @@ export class EyeglassInspector extends HTMLElement {
 
   private getUserNote(): string {
     // Find the original focus payload from the first status event or stored value
-    const active = this.activityEvents.find((e) => e.type === 'status');
+    const active = this.activityEvents.find((e) => e.type === "status");
     // We need to store this separately
-    return (this as any)._userNote || '';
+    return (this as any)._userNote || "";
   }
 
   private getStatusText(): string {
     switch (this.currentStatus) {
-      case 'idle': return 'Ready';
-      case 'pending': return 'Waiting for agent...';
-      case 'fixing': return WORKING_PHRASES[this.phraseIndex % WORKING_PHRASES.length];
-      case 'success': return 'Done!';
-      case 'failed': return 'Failed';
-      default: return this.currentStatus;
+      case "idle":
+        return "Ready";
+      case "pending":
+        return "Waiting for agent...";
+      case "fixing":
+        return WORKING_PHRASES[this.phraseIndex % WORKING_PHRASES.length];
+      case "success":
+        return "Done!";
+      case "failed":
+        return "Failed";
+      default:
+        return this.currentStatus;
     }
   }
 
@@ -2488,7 +2653,7 @@ export class EyeglassInspector extends HTMLElement {
 
   private updateFooterText(): void {
     if (!this.panel) return;
-    const statusText = this.panel.querySelector('.status-text');
+    const statusText = this.panel.querySelector(".status-text");
     if (statusText) {
       statusText.textContent = this.getStatusText();
     }
@@ -2509,23 +2674,29 @@ export class EyeglassInspector extends HTMLElement {
     (this as any)._userNote = userNote.trim();
 
     // Build payload - use snapshots array if multiple, otherwise single snapshot for backwards compat
-    const snapshots = this.selectedSnapshots.length > 0 ? this.selectedSnapshots : (this.currentSnapshot ? [this.currentSnapshot] : []);
+    const snapshots =
+      this.selectedSnapshots.length > 0
+        ? this.selectedSnapshots
+        : this.currentSnapshot
+          ? [this.currentSnapshot]
+          : [];
     // Store for activity mode display
     this.submittedSnapshots = [...snapshots];
     const payload: FocusPayload = {
       interactionId: this.interactionId,
       userNote: userNote.trim(),
       autoCommit: this.autoCommitEnabled,
-      ...(snapshots.length === 1
-        ? { snapshot: snapshots[0] }
-        : { snapshots }),
+      ...(snapshots.length === 1 ? { snapshot: snapshots[0] } : { snapshots }),
     };
 
     // Build component name for history (combine if multiple)
-    const componentNames = snapshots.map(s => s.framework.componentName || s.tagName);
-    const historyComponentName = snapshots.length === 1
-      ? componentNames[0]
-      : `${componentNames.length} elements`;
+    const componentNames = snapshots.map(
+      (s) => s.framework.componentName || s.tagName,
+    );
+    const historyComponentName =
+      snapshots.length === 1
+        ? componentNames[0]
+        : `${componentNames.length} elements`;
 
     // Add to history
     this.addToHistory({
@@ -2533,7 +2704,7 @@ export class EyeglassInspector extends HTMLElement {
       userNote: userNote.trim(),
       componentName: historyComponentName,
       filePath: snapshots[0]?.framework.filePath,
-      status: 'pending',
+      status: "pending",
       timestamp: Date.now(),
     });
 
@@ -2546,15 +2717,15 @@ export class EyeglassInspector extends HTMLElement {
     this.clearMultiSelectHighlights();
     this.multiSelectMode = false;
 
-    this.mode = 'activity';
+    this.mode = "activity";
     this.activityEvents = [];
-    this.currentStatus = 'pending';
+    this.currentStatus = "pending";
     this.renderPanel();
 
     try {
       const response = await fetch(`${BRIDGE_URL}/focus`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
@@ -2562,13 +2733,13 @@ export class EyeglassInspector extends HTMLElement {
         throw new Error(`HTTP ${response.status}`);
       }
     } catch (err) {
-      this.currentStatus = 'failed';
-      this.updateHistoryStatus(this.interactionId, 'failed');
+      this.currentStatus = "failed";
+      this.updateHistoryStatus(this.interactionId, "failed");
       this.activityEvents.push({
-        type: 'status',
+        type: "status",
         interactionId: this.interactionId,
-        status: 'failed',
-        message: 'Failed to connect to bridge',
+        status: "failed",
+        message: "Failed to connect to bridge",
         timestamp: Date.now(),
       });
 
@@ -2577,7 +2748,7 @@ export class EyeglassInspector extends HTMLElement {
         this.multiSelectMode = true;
         this.selectedElements = savedElements;
         this.selectedSnapshots = savedSnapshots;
-        this.mode = 'input';
+        this.mode = "input";
         this.renderMultiSelectHighlights();
       }
 
@@ -2599,16 +2770,17 @@ export class EyeglassInspector extends HTMLElement {
       interactionId: this.interactionId,
       userNote: userNote.trim(),
       autoCommit: this.autoCommitEnabled,
-      ...(snapshots.length === 1
-        ? { snapshot: snapshots[0] }
-        : { snapshots }),
+      ...(snapshots.length === 1 ? { snapshot: snapshots[0] } : { snapshots }),
     };
 
     // Build component name for history
-    const componentNames = snapshots.map(s => s.framework.componentName || s.tagName);
-    const historyComponentName = snapshots.length === 1
-      ? componentNames[0]
-      : `${componentNames.length} elements`;
+    const componentNames = snapshots.map(
+      (s) => s.framework.componentName || s.tagName,
+    );
+    const historyComponentName =
+      snapshots.length === 1
+        ? componentNames[0]
+        : `${componentNames.length} elements`;
 
     // Add to history
     this.addToHistory({
@@ -2616,19 +2788,19 @@ export class EyeglassInspector extends HTMLElement {
       userNote: userNote.trim(),
       componentName: historyComponentName,
       filePath: snapshots[0]?.framework.filePath,
-      status: 'pending',
+      status: "pending",
       timestamp: Date.now(),
     });
 
     // Reset activity state for new request
     this.activityEvents = [];
-    this.currentStatus = 'pending';
+    this.currentStatus = "pending";
     this.renderPanel();
 
     try {
       const response = await fetch(`${BRIDGE_URL}/focus`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
@@ -2636,20 +2808,24 @@ export class EyeglassInspector extends HTMLElement {
         throw new Error(`HTTP ${response.status}`);
       }
     } catch (err) {
-      this.currentStatus = 'failed';
-      this.updateHistoryStatus(this.interactionId, 'failed');
+      this.currentStatus = "failed";
+      this.updateHistoryStatus(this.interactionId, "failed");
       this.activityEvents.push({
-        type: 'status',
+        type: "status",
         interactionId: this.interactionId,
-        status: 'failed',
-        message: 'Failed to connect to bridge',
+        status: "failed",
+        message: "Failed to connect to bridge",
         timestamp: Date.now(),
       });
       this.renderPanel();
     }
   }
 
-  private async submitAnswer(questionId: string, answerId: string, answerLabel: string): Promise<void> {
+  private async submitAnswer(
+    questionId: string,
+    answerId: string,
+    answerLabel: string,
+  ): Promise<void> {
     if (!this.interactionId) return;
 
     const answer: AnswerPayload = {
@@ -2661,8 +2837,8 @@ export class EyeglassInspector extends HTMLElement {
 
     try {
       await fetch(`${BRIDGE_URL}/answer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(answer),
       });
     } catch (err) {
@@ -2671,20 +2847,21 @@ export class EyeglassInspector extends HTMLElement {
   }
 
   private escapeHtml(text: string): string {
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
   }
 
   private updateCursor(): void {
     // Show eye cursor when: enabled AND (not frozen OR in multi-select mode)
-    const showEyeCursor = this.inspectorEnabled && (!this.frozen || this.multiSelectMode);
+    const showEyeCursor =
+      this.inspectorEnabled && (!this.frozen || this.multiSelectMode);
 
     if (showEyeCursor) {
       // Add eye cursor to document
       if (!this.cursorStyleElement) {
-        this.cursorStyleElement = document.createElement('style');
-        this.cursorStyleElement.id = 'eyeglass-cursor-style';
+        this.cursorStyleElement = document.createElement("style");
+        this.cursorStyleElement.id = "eyeglass-cursor-style";
         document.head.appendChild(this.cursorStyleElement);
       }
       this.cursorStyleElement.textContent = `
@@ -2695,12 +2872,12 @@ export class EyeglassInspector extends HTMLElement {
     } else {
       // Remove custom cursor
       if (this.cursorStyleElement) {
-        this.cursorStyleElement.textContent = '';
+        this.cursorStyleElement.textContent = "";
       }
     }
   }
 }
 
-if (!customElements.get('eyeglass-inspector')) {
-  customElements.define('eyeglass-inspector', EyeglassInspector);
+if (!customElements.get("eyeglass-inspector")) {
+  customElements.define("eyeglass-inspector", EyeglassInspector);
 }
