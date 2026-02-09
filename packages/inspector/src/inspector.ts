@@ -925,8 +925,7 @@ const STYLES = `
 
 /* Collapsed hub (minimal) */
 .hub.collapsed .hub-title,
-.hub.collapsed .hub-toggle,
-.hub.collapsed .hub-settings-btn {
+.hub.collapsed .hub-toggle {
   display: none;
 }
 
