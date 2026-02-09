@@ -395,6 +395,37 @@ const STYLES = `
   color: var(--accent);
 }
 
+/* Skeleton loader */
+.skeleton-item {
+  padding: 8px 16px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.skeleton-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-line {
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  width: 60%;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* Status Footer */
 .panel-footer {
   padding: 10px 16px;
@@ -1745,7 +1776,7 @@ export class EyeglassInspector extends HTMLElement {
         }
     }
     renderActivityFeed() {
-        return this.activityEvents.map((event) => {
+        const items = this.activityEvents.map((event) => {
             switch (event.type) {
                 case 'status':
                     // Skip pending - shown in footer. Show fixing only if it has a meaningful message
@@ -1766,7 +1797,17 @@ export class EyeglassInspector extends HTMLElement {
                 default:
                     return '';
             }
-        }).join('');
+        }).filter(Boolean);
+        // Show skeleton while waiting for first meaningful activity
+        if (items.length === 0 && (this.currentStatus === 'pending' || this.currentStatus === 'fixing')) {
+            return `
+        <div class="skeleton-item">
+          <div class="skeleton-icon"></div>
+          <div class="skeleton-line"></div>
+        </div>
+      `;
+        }
+        return items.join('');
     }
     renderStatusItem(event) {
         const iconClass = event.status === 'success' ? 'success' :
@@ -1866,7 +1907,7 @@ export class EyeglassInspector extends HTMLElement {
         this.phraseInterval = window.setInterval(() => {
             this.phraseIndex = (this.phraseIndex + 1) % WORKING_PHRASES.length;
             this.updateFooterText();
-        }, 7000);
+        }, 10000);
     }
     stopPhraseRotation() {
         if (this.phraseInterval) {
