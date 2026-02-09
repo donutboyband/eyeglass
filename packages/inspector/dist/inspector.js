@@ -1055,16 +1055,20 @@ const STYLES = `
 
 .followup-done {
   flex-shrink: 0;
-  padding: 9px 16px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   border: 1px solid var(--divider);
   border-radius: var(--border-radius-sm);
   background: transparent;
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 14px;
   font-family: inherit;
   cursor: pointer;
   transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .followup-done:hover {
@@ -2132,7 +2136,7 @@ export class EyeglassInspector extends HTMLElement {
           <div class="followup-row">
             <input type="text" class="followup-input" placeholder="Anything else?" />
             <button class="followup-send">Send</button>
-            <button class="followup-done">Done</button>
+            <button class="followup-done">✕</button>
           </div>
         </div>
       ` : ''}
