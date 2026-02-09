@@ -1,6 +1,6 @@
 {
   "name": "@eyeglass/cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Visual debugging for AI coding agents - CLI",
   "type": "module",
   "bin": {
