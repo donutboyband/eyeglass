@@ -30,6 +30,8 @@ export declare class EyeglassInspector extends HTMLElement {
     private static readonly MAX_SELECTION;
     private cursorStyleElement;
     private scrollTimeout;
+    private phraseIndex;
+    private phraseInterval;
     constructor();
     connectedCallback(): void;
     private saveSession;
@@ -77,6 +79,9 @@ export declare class EyeglassInspector extends HTMLElement {
     private renderQuestionItem;
     private getUserNote;
     private getStatusText;
+    private startPhraseRotation;
+    private stopPhraseRotation;
+    private updateFooterText;
     private hidePanel;
     private submit;
     private submitAnswer;

@@ -17,6 +17,20 @@ const HISTORY_KEY = 'eyeglass_history';
 const ENABLED_KEY = 'eyeglass_enabled';
 const SESSION_TTL = 10000; // 10 seconds
 
+// Fun rotating phrases for the "fixing" status
+const WORKING_PHRASES = [
+  'Pondering...',
+  'Thinking deeply...',
+  'Crafting code...',
+  'Making magic...',
+  'Connecting dots...',
+  'On it...',
+  'Working away...',
+  'Almost there...',
+  'Doing the thing...',
+  'Brewing changes...',
+];
+
 // Eye cursor as base64-encoded SVG (16x16 eye icon, indigo color)
 const EYE_CURSOR = `url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2MzY2ZjEiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xIDEyczQtOCAxMS04IDExIDggMTEgOC00IDgtMTEgOC0xMS04LTExLTh6Ii8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMyIgZmlsbD0iIzYzNjZmMSIvPjwvc3ZnPg==") 8 8, crosshair`;
 
@@ -971,6 +985,10 @@ export class EyeglassInspector extends HTMLElement {
   // Scroll handling
   private scrollTimeout: number | null = null;
 
+  // Rotating status phrases
+  private phraseIndex = 0;
+  private phraseInterval: number | null = null;
+
   constructor() {
     super();
     this.shadow = this.attachShadow({ mode: 'closed' });
@@ -1314,6 +1332,13 @@ export class EyeglassInspector extends HTMLElement {
       // Persist session so we can show result after page reload
       this.saveSession(event.message);
 
+      // Manage phrase rotation based on status
+      if (event.status === 'fixing') {
+        this.startPhraseRotation();
+      } else {
+        this.stopPhraseRotation();
+      }
+
       if (event.status === 'success' || event.status === 'failed') {
         setTimeout(() => this.unfreeze(), 4000);
       }
@@ -1629,6 +1654,9 @@ export class EyeglassInspector extends HTMLElement {
     this.submittedSnapshots = [];
     this.clearMultiSelectHighlights();
 
+    // Stop phrase rotation
+    this.stopPhraseRotation();
+
     this.hidePanel();
     this.hideHighlight();
     this.updateCursor();
@@ -1844,9 +1872,12 @@ export class EyeglassInspector extends HTMLElement {
     return this.activityEvents.map((event) => {
       switch (event.type) {
         case 'status':
-          // Skip pending - shown in footer. Show fixing if it has a message for immediate feedback
+          // Skip pending - shown in footer. Show fixing only if it has a meaningful message
           if (event.status === 'pending') return '';
-          if (event.status === 'fixing' && !event.message) return '';
+          if (event.status === 'fixing') {
+            // Skip generic/missing messages - we have rotating phrases in the footer
+            if (!event.message || event.message === 'Agent is working...') return '';
+          }
           return this.renderStatusItem(event);
         case 'thought':
           return this.renderThoughtItem(event);
@@ -1954,10 +1985,34 @@ export class EyeglassInspector extends HTMLElement {
     switch (this.currentStatus) {
       case 'idle': return 'Ready';
       case 'pending': return 'Waiting for agent...';
-      case 'fixing': return 'Agent is working...';
+      case 'fixing': return WORKING_PHRASES[this.phraseIndex % WORKING_PHRASES.length];
       case 'success': return 'Done!';
       case 'failed': return 'Failed';
       default: return this.currentStatus;
+    }
+  }
+
+  private startPhraseRotation(): void {
+    if (this.phraseInterval) return;
+    this.phraseIndex = Math.floor(Math.random() * WORKING_PHRASES.length);
+    this.phraseInterval = window.setInterval(() => {
+      this.phraseIndex = (this.phraseIndex + 1) % WORKING_PHRASES.length;
+      this.updateFooterText();
+    }, 2000);
+  }
+
+  private stopPhraseRotation(): void {
+    if (this.phraseInterval) {
+      window.clearInterval(this.phraseInterval);
+      this.phraseInterval = null;
+    }
+  }
+
+  private updateFooterText(): void {
+    if (!this.panel) return;
+    const statusText = this.panel.querySelector('.status-text');
+    if (statusText) {
+      statusText.textContent = this.getStatusText();
     }
   }
 
