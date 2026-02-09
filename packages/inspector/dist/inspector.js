@@ -9,16 +9,26 @@ const ENABLED_KEY = 'eyeglass_enabled';
 const SESSION_TTL = 10000; // 10 seconds
 // Fun rotating phrases for the "fixing" status
 const WORKING_PHRASES = [
-    'Pondering...',
-    'Thinking deeply...',
-    'Crafting code...',
-    'Making magic...',
-    'Connecting dots...',
-    'On it...',
-    'Working away...',
-    'Almost there...',
-    'Doing the thing...',
-    'Brewing changes...',
+    'Ruminating...',
+    'Percolating...',
+    'Divining...',
+    'Grokking...',
+    'Communing...',
+    'Concocting...',
+    'Synthesizing...',
+    'Distilling...',
+    'Incubating...',
+    'Forging...',
+    'Scrutinizing...',
+    'Triangulating...',
+    'Unraveling...',
+    'Traversing...',
+    'Sifting...',
+    'Marshaling...',
+    'Hydrating...',
+    'Harmonizing...',
+    'Indexing...',
+    'Entangling...',
 ];
 // Eye cursor as base64-encoded SVG (16x16 eye icon, indigo color)
 const EYE_CURSOR = `url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2MzY2ZjEiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xIDEyczQtOCAxMS04IDExIDggMTEgOC00IDgtMTEgOC0xMS04LTExLTh6Ii8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMyIgZmlsbD0iIzYzNjZmMSIvPjwvc3ZnPg==") 8 8, crosshair`;
@@ -1856,7 +1866,7 @@ export class EyeglassInspector extends HTMLElement {
         this.phraseInterval = window.setInterval(() => {
             this.phraseIndex = (this.phraseIndex + 1) % WORKING_PHRASES.length;
             this.updateFooterText();
-        }, 2000);
+        }, 7000);
     }
     stopPhraseRotation() {
         if (this.phraseInterval) {
