@@ -85,6 +85,97 @@ export function startHttpServer() {
         }
         res.json({ success: true, message: result.message });
     });
+    // ============================================================================
+    // REST API for non-MCP agents (Codex CLI, Aider, etc.)
+    // These mirror the MCP tools but over HTTP
+    // ============================================================================
+    // Get current focus as markdown (mirrors get_focused_element)
+    app.get('/api/focus', (_req, res) => {
+        res.type('text/markdown').send(store.formatAsMarkdown());
+    });
+    // Wait for a new focus request (mirrors wait_for_request)
+    // This is a blocking/long-polling endpoint
+    app.get('/api/wait', async (req, res) => {
+        const timeout = parseInt(req.query.timeout) || 300000; // 5 min default
+        try {
+            await store.waitForFocus(timeout);
+            res.type('text/markdown').send(store.formatAsMarkdown());
+        }
+        catch (err) {
+            res.status(408).json({ error: 'Timeout waiting for focus request' });
+        }
+    });
+    // Update status (mirrors update_status)
+    app.post('/api/status', (req, res) => {
+        const { status, message } = req.body;
+        if (!status || !['idle', 'pending', 'fixing', 'success', 'failed'].includes(status)) {
+            res.status(400).json({ error: 'Invalid status. Must be: idle, pending, fixing, success, or failed' });
+            return;
+        }
+        const active = store.getActive();
+        if (!active) {
+            res.status(404).json({ error: 'No active focus' });
+            return;
+        }
+        store.updateStatus(active.interactionId, status, message);
+        res.json({ success: true, status, message });
+    });
+    // Send a thought (mirrors send_thought)
+    app.post('/api/thought', (req, res) => {
+        const { content } = req.body;
+        if (!content || typeof content !== 'string') {
+            res.status(400).json({ error: 'Missing or invalid content' });
+            return;
+        }
+        const active = store.getActive();
+        if (!active) {
+            res.status(404).json({ error: 'No active focus' });
+            return;
+        }
+        store.sendThought(active.interactionId, content);
+        res.json({ success: true });
+    });
+    // Report an action (mirrors report_action)
+    app.post('/api/action', (req, res) => {
+        const { action, target, complete } = req.body;
+        if (!action || !['reading', 'writing', 'searching', 'thinking'].includes(action)) {
+            res.status(400).json({ error: 'Invalid action. Must be: reading, writing, searching, or thinking' });
+            return;
+        }
+        if (!target || typeof target !== 'string') {
+            res.status(400).json({ error: 'Missing or invalid target' });
+            return;
+        }
+        const active = store.getActive();
+        if (!active) {
+            res.status(404).json({ error: 'No active focus' });
+            return;
+        }
+        store.reportAction(active.interactionId, action, target, complete ?? false);
+        res.json({ success: true });
+    });
+    // Get focus history (mirrors get_focus_history)
+    app.get('/api/history', (_req, res) => {
+        const history = store.getHistory();
+        if (history.length === 0) {
+            res.type('text/markdown').send('# No Focus History\n\nNo previous focus requests.');
+            return;
+        }
+        const summary = history
+            .map((p, i) => {
+            const { snapshot, snapshots, userNote } = p;
+            const firstSnapshot = snapshot || (snapshots && snapshots[0]);
+            if (!firstSnapshot)
+                return `${i + 1}. **unknown** - "${userNote}"`;
+            const elementCount = snapshots ? ` (${snapshots.length} elements)` : '';
+            return `${i + 1}. **${firstSnapshot.framework.componentName || firstSnapshot.tagName}**${elementCount} - "${userNote}"`;
+        })
+            .join('\n');
+        res.type('text/markdown').send(`## Focus History\n\n${summary}`);
+    });
+    // ============================================================================
+    // SSE and Browser endpoints
+    // ============================================================================
     // SSE endpoint for real-time activity updates
     app.get('/events', (req, res) => {
         res.setHeader('Content-Type', 'text/event-stream');
