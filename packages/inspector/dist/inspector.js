@@ -605,7 +605,7 @@ const STYLES = `
   }
 }
 
-.hub.disabled {
+.hub.disabled.collapsed {
   opacity: 0.5;
 }
 
