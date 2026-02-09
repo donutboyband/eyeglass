@@ -810,9 +810,107 @@ const STYLES = `
   color: var(--text-muted);
 }
 
+.hub-settings-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.hub-settings-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-secondary);
+}
+
+.hub-settings-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Settings Page */
+.hub-settings-page {
+  padding: 8px 0;
+}
+
+.hub-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.hub-back-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.hub-back-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+.hub-settings-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.hub-settings-list {
+  padding: 8px;
+}
+
+.hub-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.hub-setting-row:not(:last-child) {
+  border-bottom: 1px solid var(--divider);
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+}
+
+.hub-setting-info {
+  flex: 1;
+}
+
+.hub-setting-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.hub-setting-desc {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
 /* Collapsed hub (minimal) */
 .hub.collapsed .hub-title,
-.hub.collapsed .hub-toggle {
+.hub.collapsed .hub-toggle,
+.hub.collapsed .hub-settings-btn {
   display: none;
 }
 
@@ -822,21 +920,6 @@ const STYLES = `
 
 .hub.collapsed .hub-header-left {
   gap: 4px;
-}
-
-/* Hub settings */
-.hub-settings {
-  padding: 8px;
-  border-top: 1px solid var(--divider);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.hub-setting-label {
-  font-size: 10px;
-  color: var(--text-secondary);
 }
 
 .toggle-switch {
@@ -1134,6 +1217,7 @@ export class EyeglassInspector extends HTMLElement {
         this.activityEvents = [];
         this.currentStatus = 'idle';
         this.hubExpanded = false;
+        this.hubPage = 'main';
         this.inspectorEnabled = true;
         this.autoCommitEnabled = true;
         this.history = [];
@@ -1346,6 +1430,16 @@ export class EyeglassInspector extends HTMLElement {
             this.hub.className = 'hub';
             this.shadow.appendChild(this.hub);
         }
+        if (this.hubPage === 'settings') {
+            this.renderHubSettingsPage();
+        }
+        else {
+            this.renderHubMainPage();
+        }
+    }
+    renderHubMainPage() {
+        if (!this.hub)
+            return;
         const collapsedClass = this.hubExpanded ? '' : 'collapsed';
         const disabledClass = this.inspectorEnabled ? '' : 'disabled';
         const expandedClass = this.hubExpanded ? 'expanded' : '';
@@ -1353,6 +1447,7 @@ export class EyeglassInspector extends HTMLElement {
         this.hub.className = `hub ${collapsedClass} ${disabledClass}`.trim();
         const eyeOpenSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
         const eyeClosedSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+        const gearSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
         this.hub.innerHTML = `
       <div class="hub-header">
         <div class="hub-header-left">
@@ -1361,6 +1456,7 @@ export class EyeglassInspector extends HTMLElement {
           ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ''}
           <button class="hub-toggle ${expandedClass}" title="Toggle history">▼</button>
         </div>
+        <button class="hub-settings-btn" title="Settings">${gearSvg}</button>
         <button class="hub-disable ${this.inspectorEnabled ? 'active' : ''}" title="${this.inspectorEnabled ? 'Disable' : 'Enable'} inspector">
           ${this.inspectorEnabled ? eyeOpenSvg : eyeClosedSvg}
         </button>
@@ -1384,21 +1480,24 @@ export class EyeglassInspector extends HTMLElement {
         ` : `
           <div class="hub-empty">No requests yet</div>
         `}
-        <div class="hub-settings">
-          <span class="hub-setting-label">Auto-commit</span>
-          <button class="toggle-switch ${this.autoCommitEnabled ? 'active' : ''}" title="Toggle auto-commit"></button>
-        </div>
       </div>
     `;
         // Wire up event handlers
         const header = this.hub.querySelector('.hub-header');
-        const toggleBtn = this.hub.querySelector('.hub-toggle');
         const disableBtn = this.hub.querySelector('.hub-disable');
-        // Toggle expand/collapse on header click (except disable button)
+        const settingsBtn = this.hub.querySelector('.hub-settings-btn');
+        // Toggle expand/collapse on header click (except buttons)
         header.addEventListener('click', (e) => {
-            if (e.target === disableBtn)
+            if (e.target === disableBtn || e.target === settingsBtn || e.target.closest('.hub-settings-btn'))
                 return;
             this.hubExpanded = !this.hubExpanded;
+            this.renderHub();
+        });
+        // Open settings page
+        settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.hubPage = 'settings';
+            this.hubExpanded = true; // Ensure expanded when viewing settings
             this.renderHub();
         });
         // Toggle inspector enabled state
@@ -1420,16 +1519,53 @@ export class EyeglassInspector extends HTMLElement {
                 this.requestUndo(id);
             });
         });
-        // Wire up auto-commit toggle
-        const autoCommitToggle = this.hub.querySelector('.toggle-switch');
-        if (autoCommitToggle) {
-            autoCommitToggle.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.autoCommitEnabled = !this.autoCommitEnabled;
-                this.saveAutoCommitState();
-                this.renderHub();
+    }
+    renderHubSettingsPage() {
+        if (!this.hub)
+            return;
+        this.hub.className = 'hub';
+        this.hub.innerHTML = `
+      <div class="hub-header">
+        <div class="hub-header-left">
+          <div class="hub-logo">👁</div>
+          <span class="hub-title">Eyeglass</span>
+        </div>
+      </div>
+      <div class="hub-content expanded">
+        <div class="hub-settings-page">
+          <div class="hub-settings-header">
+            <button class="hub-back-btn" title="Back">←</button>
+            <span class="hub-settings-title">Settings</span>
+          </div>
+          <div class="hub-settings-list">
+            <div class="hub-setting-row">
+              <div class="hub-setting-info">
+                <div class="hub-setting-label">Auto-commit</div>
+                <div class="hub-setting-desc">Automatically commit changes on success</div>
+              </div>
+              <button class="toggle-switch ${this.autoCommitEnabled ? 'active' : ''}" data-setting="autoCommit"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+        // Wire up back button
+        const backBtn = this.hub.querySelector('.hub-back-btn');
+        backBtn.addEventListener('click', () => {
+            this.hubPage = 'main';
+            this.renderHub();
+        });
+        // Wire up toggle switches
+        this.hub.querySelectorAll('.toggle-switch').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const setting = e.currentTarget.dataset.setting;
+                if (setting === 'autoCommit') {
+                    this.autoCommitEnabled = !this.autoCommitEnabled;
+                    this.saveAutoCommitState();
+                    this.renderHub();
+                }
             });
-        }
+        });
     }
     async requestUndo(interactionId) {
         const itemIndex = this.history.findIndex(h => h.interactionId === interactionId);

@@ -17,6 +17,7 @@ export declare class EyeglassInspector extends HTMLElement {
     private activityEvents;
     private currentStatus;
     private hubExpanded;
+    private hubPage;
     private inspectorEnabled;
     private autoCommitEnabled;
     private history;
@@ -48,6 +49,8 @@ export declare class EyeglassInspector extends HTMLElement {
     private addToHistory;
     private updateHistoryStatus;
     private renderHub;
+    private renderHubMainPage;
+    private renderHubSettingsPage;
     private requestUndo;
     private requestCommit;
     disconnectedCallback(): void;
