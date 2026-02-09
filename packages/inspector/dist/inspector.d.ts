@@ -18,6 +18,7 @@ export declare class EyeglassInspector extends HTMLElement {
     private currentStatus;
     private hubExpanded;
     private inspectorEnabled;
+    private autoCommitEnabled;
     private history;
     private isDragging;
     private dragOffset;
@@ -40,12 +41,15 @@ export declare class EyeglassInspector extends HTMLElement {
     private hideToast;
     private loadEnabledState;
     private saveEnabledState;
+    private loadAutoCommitState;
+    private saveAutoCommitState;
     private loadHistory;
     private saveHistory;
     private addToHistory;
     private updateHistoryStatus;
     private renderHub;
     private requestUndo;
+    private requestCommit;
     disconnectedCallback(): void;
     private connectSSE;
     private handleActivityEvent;
@@ -84,6 +88,7 @@ export declare class EyeglassInspector extends HTMLElement {
     private updateFooterText;
     private hidePanel;
     private submit;
+    private submitFollowUp;
     private submitAnswer;
     private escapeHtml;
     private updateCursor;

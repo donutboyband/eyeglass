@@ -257,9 +257,15 @@ Handle this request now.`,
         }
 
         store.updateStatus(active.interactionId, status, message);
+
+        // On success/failed, hint to continue listening for more requests
+        const continueHint = (status === 'success' || status === 'failed')
+          ? '\n\n**Ready for next request.** Call `wait_for_request()` to continue listening for user requests.'
+          : '';
+
         return {
           content: [
-            { type: 'text', text: `Status updated to "${status}"${message ? `: ${message}` : ''}` },
+            { type: 'text', text: `Status updated to "${status}"${message ? `: ${message}` : ''}${continueHint}` },
           ],
         };
       }

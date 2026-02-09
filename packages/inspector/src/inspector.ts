@@ -15,6 +15,7 @@ const BRIDGE_URL = 'http://localhost:3300';
 const STORAGE_KEY = 'eyeglass_session';
 const HISTORY_KEY = 'eyeglass_history';
 const ENABLED_KEY = 'eyeglass_enabled';
+const AUTOCOMMIT_KEY = 'eyeglass_autocommit';
 const SESSION_TTL = 10000; // 10 seconds
 
 // Fun rotating phrases for the "fixing" status
@@ -835,6 +836,165 @@ const STYLES = `
   gap: 4px;
 }
 
+/* Hub settings */
+.hub-settings {
+  padding: 8px;
+  border-top: 1px solid var(--divider);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hub-setting-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.toggle-switch {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  background: #cbd5e1;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border: none;
+  padding: 0;
+}
+
+.toggle-switch.active {
+  background: var(--accent);
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch.active::after {
+  transform: translateX(14px);
+}
+
+/* Success action buttons */
+.success-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.action-btn {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.action-btn-commit {
+  background: var(--success);
+  color: white;
+}
+
+.action-btn-commit:hover {
+  background: #059669;
+}
+
+.action-btn-undo {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+}
+
+.action-btn-undo:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Follow-up input */
+.followup-area {
+  padding: 12px 16px;
+  border-top: 1px solid var(--divider);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.followup-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.followup-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  font-family: inherit;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--text-primary);
+  outline: none;
+  transition: all 0.15s;
+}
+
+.followup-input::placeholder {
+  color: var(--text-muted);
+}
+
+.followup-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  background: white;
+}
+
+.followup-send {
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  background: var(--accent);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.followup-send:hover {
+  background: #4f46e5;
+}
+
+.followup-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.followup-done {
+  padding: 8px 14px;
+  border: 1px solid var(--divider);
+  border-radius: var(--border-radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.followup-done:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 /* Multi-select styles */
 .highlight.multi {
   border-style: dashed;
@@ -1007,6 +1167,7 @@ export class EyeglassInspector extends HTMLElement {
   private currentStatus: InteractionStatus = 'idle';
   private hubExpanded = false;
   private inspectorEnabled = true;
+  private autoCommitEnabled = true;
   private history: HistoryItem[] = [];
   private isDragging = false;
   private dragOffset = { x: 0, y: 0 };
@@ -1057,6 +1218,7 @@ export class EyeglassInspector extends HTMLElement {
     window.addEventListener('scroll', this.handleScroll, true);
 
     this.loadEnabledState();
+    this.loadAutoCommitState();
     this.loadHistory();
     this.renderHub();
     this.connectSSE();
@@ -1158,6 +1320,25 @@ export class EyeglassInspector extends HTMLElement {
     }
   }
 
+  private loadAutoCommitState(): void {
+    try {
+      const stored = localStorage.getItem(AUTOCOMMIT_KEY);
+      if (stored !== null) {
+        this.autoCommitEnabled = stored === 'true';
+      }
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }
+
+  private saveAutoCommitState(): void {
+    try {
+      localStorage.setItem(AUTOCOMMIT_KEY, String(this.autoCommitEnabled));
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }
+
   private loadHistory(): void {
     try {
       const stored = sessionStorage.getItem(HISTORY_KEY);
@@ -1250,6 +1431,10 @@ export class EyeglassInspector extends HTMLElement {
         ` : `
           <div class="hub-empty">No requests yet</div>
         `}
+        <div class="hub-settings">
+          <span class="hub-setting-label">Auto-commit</span>
+          <button class="toggle-switch ${this.autoCommitEnabled ? 'active' : ''}" title="Toggle auto-commit"></button>
+        </div>
       </div>
     `;
 
@@ -1285,6 +1470,17 @@ export class EyeglassInspector extends HTMLElement {
         this.requestUndo(id);
       });
     });
+
+    // Wire up auto-commit toggle
+    const autoCommitToggle = this.hub.querySelector('.toggle-switch') as HTMLButtonElement;
+    if (autoCommitToggle) {
+      autoCommitToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.autoCommitEnabled = !this.autoCommitEnabled;
+        this.saveAutoCommitState();
+        this.renderHub();
+      });
+    }
   }
 
   private async requestUndo(interactionId: string): Promise<void> {
@@ -1322,6 +1518,33 @@ export class EyeglassInspector extends HTMLElement {
         this.renderHub();
       }
       console.warn('Undo request failed:', err);
+    }
+  }
+
+  private async requestCommit(interactionId: string): Promise<void> {
+    const itemIndex = this.history.findIndex(h => h.interactionId === interactionId);
+
+    try {
+      const response = await fetch(`${BRIDGE_URL}/commit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interactionId }),
+      });
+
+      if (response.ok) {
+        // Update status to show it's committed
+        if (itemIndex >= 0) {
+          this.history[itemIndex].status = 'success';
+          this.saveHistory();
+          this.renderHub();
+        }
+        // Close the panel after commit
+        this.unfreeze();
+      } else {
+        console.warn('Commit request failed');
+      }
+    } catch (err) {
+      console.warn('Commit request failed:', err);
     }
   }
 
@@ -1380,9 +1603,11 @@ export class EyeglassInspector extends HTMLElement {
         this.stopPhraseRotation();
       }
 
-      if (event.status === 'success' || event.status === 'failed') {
+      if (event.status === 'failed') {
+        // Auto-close on failure after delay
         setTimeout(() => this.unfreeze(), 4000);
       }
+      // Don't auto-close on success - show follow-up UI instead
     }
 
     this.renderPanel();
@@ -1858,6 +2083,8 @@ export class EyeglassInspector extends HTMLElement {
       : '';
 
     const isDone = this.currentStatus === 'success' || this.currentStatus === 'failed';
+    const showActionButtons = this.currentStatus === 'success' && !this.autoCommitEnabled;
+    const showFollowUp = this.currentStatus === 'success';
 
     // Build header display based on submitted snapshots
     const snapshotCount = this.submittedSnapshots.length;
@@ -1881,7 +2108,22 @@ export class EyeglassInspector extends HTMLElement {
       <div class="panel-footer ${isDone ? 'done' : ''}">
         <div class="status-indicator ${this.currentStatus}"></div>
         <span class="status-text">${this.getStatusText()}</span>
+        ${showActionButtons ? `
+          <div class="success-actions">
+            <button class="action-btn action-btn-undo" title="Discard changes">Undo</button>
+            <button class="action-btn action-btn-commit" title="Commit changes">Commit</button>
+          </div>
+        ` : ''}
       </div>
+      ${showFollowUp ? `
+        <div class="followup-area">
+          <div class="followup-row">
+            <input type="text" class="followup-input" placeholder="Anything else?" />
+            <button class="followup-send">Send</button>
+            <button class="followup-done">Done</button>
+          </div>
+        </div>
+      ` : ''}
     `;
 
     const closeBtn = this.panel.querySelector('.close-btn') as HTMLButtonElement;
@@ -1901,6 +2143,38 @@ export class EyeglassInspector extends HTMLElement {
         this.submitAnswer(questionId, answerId, answerLabel);
       });
     });
+
+    // Wire up action buttons (commit/undo) if present
+    const commitBtn = this.panel.querySelector('.action-btn-commit');
+    const undoBtn = this.panel.querySelector('.action-btn-undo');
+    if (commitBtn && this.interactionId) {
+      commitBtn.addEventListener('click', () => this.requestCommit(this.interactionId!));
+    }
+    if (undoBtn && this.interactionId) {
+      undoBtn.addEventListener('click', () => this.requestUndo(this.interactionId!));
+    }
+
+    // Wire up follow-up input if present
+    const followupInput = this.panel.querySelector('.followup-input') as HTMLInputElement;
+    const followupSend = this.panel.querySelector('.followup-send') as HTMLButtonElement;
+    const followupDone = this.panel.querySelector('.followup-done') as HTMLButtonElement;
+    if (followupInput && followupSend) {
+      followupSend.addEventListener('click', () => {
+        if (followupInput.value.trim()) {
+          this.submitFollowUp(followupInput.value);
+        }
+      });
+      followupInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && followupInput.value.trim()) {
+          this.submitFollowUp(followupInput.value);
+        }
+      });
+      // Focus the follow-up input
+      requestAnimationFrame(() => followupInput.focus());
+    }
+    if (followupDone) {
+      followupDone.addEventListener('click', () => this.unfreeze());
+    }
 
     // Scroll to bottom of activity feed
     const feed = this.panel.querySelector('.activity-feed');
@@ -2090,6 +2364,7 @@ export class EyeglassInspector extends HTMLElement {
     const payload: FocusPayload = {
       interactionId: this.interactionId,
       userNote: userNote.trim(),
+      autoCommit: this.autoCommitEnabled,
       ...(snapshots.length === 1
         ? { snapshot: snapshots[0] }
         : { snapshots }),
@@ -2155,6 +2430,70 @@ export class EyeglassInspector extends HTMLElement {
         this.renderMultiSelectHighlights();
       }
 
+      this.renderPanel();
+    }
+  }
+
+  private async submitFollowUp(userNote: string): Promise<void> {
+    if (!userNote.trim()) return;
+    if (this.submittedSnapshots.length === 0) return;
+
+    // Create new interaction ID for the follow-up
+    this.interactionId = `eyeglass-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    (this as any)._userNote = userNote.trim();
+
+    // Reuse the same snapshots from the previous request
+    const snapshots = this.submittedSnapshots;
+    const payload: FocusPayload = {
+      interactionId: this.interactionId,
+      userNote: userNote.trim(),
+      autoCommit: this.autoCommitEnabled,
+      ...(snapshots.length === 1
+        ? { snapshot: snapshots[0] }
+        : { snapshots }),
+    };
+
+    // Build component name for history
+    const componentNames = snapshots.map(s => s.framework.componentName || s.tagName);
+    const historyComponentName = snapshots.length === 1
+      ? componentNames[0]
+      : `${componentNames.length} elements`;
+
+    // Add to history
+    this.addToHistory({
+      interactionId: this.interactionId,
+      userNote: userNote.trim(),
+      componentName: historyComponentName,
+      filePath: snapshots[0]?.framework.filePath,
+      status: 'pending',
+      timestamp: Date.now(),
+    });
+
+    // Reset activity state for new request
+    this.activityEvents = [];
+    this.currentStatus = 'pending';
+    this.renderPanel();
+
+    try {
+      const response = await fetch(`${BRIDGE_URL}/focus`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (err) {
+      this.currentStatus = 'failed';
+      this.updateHistoryStatus(this.interactionId, 'failed');
+      this.activityEvents.push({
+        type: 'status',
+        interactionId: this.interactionId,
+        status: 'failed',
+        message: 'Failed to connect to bridge',
+        timestamp: Date.now(),
+      });
       this.renderPanel();
     }
   }

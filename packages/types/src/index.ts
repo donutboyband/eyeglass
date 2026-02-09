@@ -58,6 +58,7 @@ export interface FocusPayload {
   snapshot?: SemanticSnapshot;      // Single (backwards compat)
   snapshots?: SemanticSnapshot[];   // Multiple (new - for multi-select)
   userNote: string;
+  autoCommit?: boolean;             // Whether to auto-commit changes on success
 }
 
 // Activity feed event types

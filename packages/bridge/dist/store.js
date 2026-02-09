@@ -13,6 +13,7 @@ export class ContextStore extends EventEmitter {
         this.pendingQuestion = null;
         this.pendingWait = null;
         this.commitMap = new Map(); // interactionId -> commitHash
+        this.pendingCommitMessage = new Map(); // interactionId -> message (for manual commits)
     }
     setFocus(payload) {
         if (this.active) {
@@ -100,9 +101,16 @@ export class ContextStore extends EventEmitter {
         if (this.active?.interactionId !== interactionId)
             return;
         this.currentStatus = status;
-        // Auto-commit changes when marked as success
+        // Auto-commit changes when marked as success (if autoCommit is enabled)
         if (status === 'success') {
-            this.commitChanges(interactionId, message);
+            const shouldAutoCommit = this.active.autoCommit !== false; // Default to true
+            if (shouldAutoCommit) {
+                this.commitChanges(interactionId, message);
+            }
+            else {
+                // Store message for potential manual commit later
+                this.pendingCommitMessage.set(interactionId, message || 'Eyeglass change');
+            }
         }
         this.emitActivity({
             type: 'status',
@@ -191,6 +199,60 @@ export class ContextStore extends EventEmitter {
         catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Unknown error';
             return { success: false, message: `Failed to revert: ${errorMessage}` };
+        }
+    }
+    /**
+     * Manually commit changes for an interaction (when autoCommit is disabled)
+     */
+    manualCommit(interactionId) {
+        // Check if already committed
+        if (this.commitMap.has(interactionId)) {
+            return { success: false, message: 'Changes already committed' };
+        }
+        const commitMessage = this.pendingCommitMessage.get(interactionId) || 'Eyeglass change';
+        this.pendingCommitMessage.delete(interactionId);
+        try {
+            this.commitChanges(interactionId, commitMessage);
+            // Check if commit was successful
+            if (this.commitMap.has(interactionId)) {
+                return { success: true, message: 'Changes committed successfully' };
+            }
+            else {
+                return { success: false, message: 'No changes to commit' };
+            }
+        }
+        catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+            return { success: false, message: `Failed to commit: ${errorMessage}` };
+        }
+    }
+    /**
+     * Discard uncommitted changes for an interaction (when autoCommit is disabled)
+     */
+    async discardChanges(interactionId) {
+        // If already committed, use revert
+        if (this.commitMap.has(interactionId)) {
+            return this.undoInteraction(interactionId);
+        }
+        try {
+            const cwd = process.cwd();
+            // Check if we're in a git repo
+            try {
+                execFileSync('git', ['rev-parse', '--git-dir'], { cwd, stdio: 'pipe' });
+            }
+            catch {
+                return { success: false, message: 'Not a git repository' };
+            }
+            // Discard all uncommitted changes
+            execFileSync('git', ['checkout', '.'], { cwd, stdio: 'pipe' });
+            execFileSync('git', ['clean', '-fd'], { cwd, stdio: 'pipe' });
+            // Clean up pending commit message
+            this.pendingCommitMessage.delete(interactionId);
+            return { success: true, message: 'Changes discarded' };
+        }
+        catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+            return { success: false, message: `Failed to discard: ${errorMessage}` };
         }
     }
     // Send a thought/reasoning to the user

@@ -7,6 +7,7 @@ export declare class ContextStore extends EventEmitter {
     private pendingQuestion;
     private pendingWait;
     private commitMap;
+    private pendingCommitMessage;
     setFocus(payload: FocusPayload): void;
     /**
      * Wait for a new focus request from the browser.
@@ -33,6 +34,20 @@ export declare class ContextStore extends EventEmitter {
         message: string;
     }>;
     private revertCommit;
+    /**
+     * Manually commit changes for an interaction (when autoCommit is disabled)
+     */
+    manualCommit(interactionId: string): {
+        success: boolean;
+        message: string;
+    };
+    /**
+     * Discard uncommitted changes for an interaction (when autoCommit is disabled)
+     */
+    discardChanges(interactionId: string): Promise<{
+        success: boolean;
+        message: string;
+    }>;
     sendThought(interactionId: string, content: string): void;
     reportAction(interactionId: string, action: 'reading' | 'writing' | 'searching' | 'thinking', target: string, complete?: boolean): void;
     askQuestion(interactionId: string, questionId: string, question: string, options: Array<{

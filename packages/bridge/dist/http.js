@@ -50,7 +50,7 @@ export function startHttpServer() {
         }
         res.json({ success: true });
     });
-    // Undo changes for a specific interaction
+    // Undo/discard changes for a specific interaction
     app.post('/undo', async (req, res) => {
         const { interactionId } = req.body;
         // Type validation
@@ -58,7 +58,27 @@ export function startHttpServer() {
             res.status(400).json({ error: 'Missing or invalid interactionId' });
             return;
         }
-        const result = await store.undoInteraction(interactionId);
+        // Try discard first (for uncommitted changes), then undo (for committed changes)
+        let result = await store.discardChanges(interactionId);
+        if (!result.success && result.message !== 'Not a git repository') {
+            // If discard didn't work, try undo (revert commit)
+            result = await store.undoInteraction(interactionId);
+        }
+        if (!result.success) {
+            res.status(400).json({ error: result.message });
+            return;
+        }
+        res.json({ success: true, message: result.message });
+    });
+    // Commit changes for a specific interaction (when autoCommit is disabled)
+    app.post('/commit', (req, res) => {
+        const { interactionId } = req.body;
+        // Type validation
+        if (typeof interactionId !== 'string' || !interactionId) {
+            res.status(400).json({ error: 'Missing or invalid interactionId' });
+            return;
+        }
+        const result = store.manualCommit(interactionId);
         if (!result.success) {
             res.status(400).json({ error: result.message });
             return;
