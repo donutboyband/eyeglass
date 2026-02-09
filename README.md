@@ -73,12 +73,12 @@ Then in your browser:
 
 ## Packages
 
-| Package | Description | npm |
-|---------|-------------|-----|
-| `@eyeglass/cli` | CLI for project initialization | [![npm](https://img.shields.io/npm/v/@eyeglass/cli?style=flat-square)](https://www.npmjs.com/package/@eyeglass/cli) |
-| `@eyeglass/inspector` | Browser-side Web Component | [![npm](https://img.shields.io/npm/v/@eyeglass/inspector?style=flat-square)](https://www.npmjs.com/package/@eyeglass/inspector) |
-| `@eyeglass/bridge` | MCP server connecting browser to Claude | [![npm](https://img.shields.io/npm/v/@eyeglass/bridge?style=flat-square)](https://www.npmjs.com/package/@eyeglass/bridge) |
-| `@eyeglass/types` | Shared TypeScript definitions | [![npm](https://img.shields.io/npm/v/@eyeglass/types?style=flat-square)](https://www.npmjs.com/package/@eyeglass/types) |
+| Package | Description | Size | npm |
+|---------|-------------|------|-----|
+| `@eyeglass/cli` | CLI for project initialization | — | [![npm](https://img.shields.io/npm/v/@eyeglass/cli?style=flat-square)](https://www.npmjs.com/package/@eyeglass/cli) |
+| `@eyeglass/inspector` | Browser-side Web Component | ~57kb | [![npm](https://img.shields.io/npm/v/@eyeglass/inspector?style=flat-square)](https://www.npmjs.com/package/@eyeglass/inspector) |
+| `@eyeglass/bridge` | MCP server connecting browser to Claude | — | [![npm](https://img.shields.io/npm/v/@eyeglass/bridge?style=flat-square)](https://www.npmjs.com/package/@eyeglass/bridge) |
+| `@eyeglass/types` | Shared TypeScript definitions | — | [![npm](https://img.shields.io/npm/v/@eyeglass/types?style=flat-square)](https://www.npmjs.com/package/@eyeglass/types) |
 
 ---
 
@@ -126,6 +126,9 @@ Eyeglass automatically tracks changes using Git, making it easy to review and un
    - Runs `git revert --no-edit <commit>` to cleanly undo the changes
    - Creates a new revert commit (preserving history)
 
+3. **Settings** — Click the gear icon (⚙) in the hub to access settings:
+   - **Auto-commit toggle** — Enable/disable automatic commits (persisted in localStorage)
+
 ### Example Git History
 
 ```
@@ -143,6 +146,7 @@ Eyeglass automatically tracks changes using Git, making it easy to review and un
 
 ### Notes
 
+- Auto-commit is **enabled by default** but can be toggled off in settings
 - If you're not in a Git repo, Eyeglass silently skips committing (no errors)
 - Empty changes (no files modified) are not committed
 - Undo only works for changes that were committed by Eyeglass
