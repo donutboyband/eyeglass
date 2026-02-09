@@ -36,6 +36,8 @@ export declare class EyeglassInspector extends HTMLElement {
     private restoreSession;
     private showResultToast;
     private hideToast;
+    private loadEnabledState;
+    private saveEnabledState;
     private loadHistory;
     private saveHistory;
     private addToHistory;

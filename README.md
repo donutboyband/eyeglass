@@ -170,12 +170,8 @@ Eyeglass automatically creates `.claude/settings.json`:
 ### Vite
 
 ```typescript
-// vite.config.ts
-import { eyeglassPlugin } from './eyeglass.plugin';
-
-export default defineConfig({
-  plugins: [eyeglassPlugin(), react()],
-});
+// src/main.tsx (or main.ts)
+import '@eyeglass/inspector';
 ```
 
 ### Next.js

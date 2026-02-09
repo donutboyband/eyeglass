@@ -14,6 +14,7 @@ import { captureSnapshot } from './snapshot.js';
 const BRIDGE_URL = 'http://localhost:3300';
 const STORAGE_KEY = 'eyeglass_session';
 const HISTORY_KEY = 'eyeglass_history';
+const ENABLED_KEY = 'eyeglass_enabled';
 const SESSION_TTL = 10000; // 10 seconds
 
 // Eye cursor as base64-encoded SVG (16x16 eye icon, indigo color)
@@ -33,7 +34,7 @@ const STYLES = `
   font-size: 13px;
   line-height: 1.5;
   box-sizing: border-box;
-  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg: rgba(255, 255, 255, 0.88);
   --glass-border: rgba(0, 0, 0, 0.25);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
   --divider: rgba(0, 0, 0, 0.18);
@@ -996,6 +997,7 @@ export class EyeglassInspector extends HTMLElement {
     document.addEventListener('keydown', this.handleKeyDown, true);
     window.addEventListener('scroll', this.handleScroll, true);
 
+    this.loadEnabledState();
     this.loadHistory();
     this.renderHub();
     this.connectSSE();
@@ -1075,6 +1077,25 @@ export class EyeglassInspector extends HTMLElement {
     if (this.toast) {
       this.toast.remove();
       this.toast = null;
+    }
+  }
+
+  private loadEnabledState(): void {
+    try {
+      const stored = localStorage.getItem(ENABLED_KEY);
+      if (stored !== null) {
+        this.inspectorEnabled = stored === 'true';
+      }
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }
+
+  private saveEnabledState(): void {
+    try {
+      localStorage.setItem(ENABLED_KEY, String(this.inspectorEnabled));
+    } catch (e) {
+      // Ignore storage errors
     }
   }
 
@@ -1189,6 +1210,7 @@ export class EyeglassInspector extends HTMLElement {
     disableBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this.inspectorEnabled = !this.inspectorEnabled;
+      this.saveEnabledState();
       if (!this.inspectorEnabled) {
         this.unfreeze();
       }

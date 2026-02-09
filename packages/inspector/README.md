@@ -15,19 +15,11 @@ npm install -D @eyeglass/inspector
 Import in your app's entry file:
 
 ```typescript
+// src/main.tsx (Vite) or app/layout.tsx (Next.js)
 import '@eyeglass/inspector';
 ```
 
-Or with Vite, use the plugin (created by `npx @eyeglass/cli init`):
-
-```typescript
-// vite.config.ts
-import { eyeglassPlugin } from './eyeglass.plugin';
-
-export default defineConfig({
-  plugins: [eyeglassPlugin(), react()],
-});
-```
+The inspector auto-initializes when imported and only runs in development mode.
 
 ## Features
 

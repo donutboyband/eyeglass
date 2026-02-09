@@ -5,6 +5,7 @@ import { captureSnapshot } from './snapshot.js';
 const BRIDGE_URL = 'http://localhost:3300';
 const STORAGE_KEY = 'eyeglass_session';
 const HISTORY_KEY = 'eyeglass_history';
+const ENABLED_KEY = 'eyeglass_enabled';
 const SESSION_TTL = 10000; // 10 seconds
 // Eye cursor as base64-encoded SVG (16x16 eye icon, indigo color)
 const EYE_CURSOR = `url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2MzY2ZjEiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xIDEyczQtOCAxMS04IDExIDggMTEgOC00IDgtMTEgOC0xMS04LTExLTh6Ii8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMyIgZmlsbD0iIzYzNjZmMSIvPjwvc3ZnPg==") 8 8, crosshair`;
@@ -22,7 +23,7 @@ const STYLES = `
   font-size: 13px;
   line-height: 1.5;
   box-sizing: border-box;
-  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg: rgba(255, 255, 255, 0.88);
   --glass-border: rgba(0, 0, 0, 0.25);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
   --divider: rgba(0, 0, 0, 0.18);
@@ -967,6 +968,7 @@ export class EyeglassInspector extends HTMLElement {
         document.addEventListener('click', this.handleClick, true);
         document.addEventListener('keydown', this.handleKeyDown, true);
         window.addEventListener('scroll', this.handleScroll, true);
+        this.loadEnabledState();
         this.loadHistory();
         this.renderHub();
         this.connectSSE();
@@ -1036,6 +1038,25 @@ export class EyeglassInspector extends HTMLElement {
         if (this.toast) {
             this.toast.remove();
             this.toast = null;
+        }
+    }
+    loadEnabledState() {
+        try {
+            const stored = localStorage.getItem(ENABLED_KEY);
+            if (stored !== null) {
+                this.inspectorEnabled = stored === 'true';
+            }
+        }
+        catch (e) {
+            // Ignore storage errors
+        }
+    }
+    saveEnabledState() {
+        try {
+            localStorage.setItem(ENABLED_KEY, String(this.inspectorEnabled));
+        }
+        catch (e) {
+            // Ignore storage errors
         }
     }
     loadHistory() {
@@ -1142,6 +1163,7 @@ export class EyeglassInspector extends HTMLElement {
         disableBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.inspectorEnabled = !this.inspectorEnabled;
+            this.saveEnabledState();
             if (!this.inspectorEnabled) {
                 this.unfreeze();
             }
