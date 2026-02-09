@@ -996,7 +996,7 @@ const STYLES = `
 
 /* Follow-up input */
 .followup-area {
-  padding: 12px 16px;
+  padding: 12px;
   border-top: 1px solid var(--divider);
   background: rgba(16, 185, 129, 0.04);
 }
@@ -1031,6 +1031,7 @@ const STYLES = `
 }
 
 .followup-send {
+  flex-shrink: 0;
   padding: 9px 16px;
   border: 1px solid transparent;
   border-radius: var(--border-radius-sm);
@@ -1053,6 +1054,7 @@ const STYLES = `
 }
 
 .followup-done {
+  flex-shrink: 0;
   padding: 9px 16px;
   border: 1px solid var(--divider);
   border-radius: var(--border-radius-sm);
