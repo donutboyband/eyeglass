@@ -540,8 +540,8 @@ function setupVite(configFile, dryRun) {
         log('Inspector already imported', 'success');
         return true;
     }
-    // Add import at the top
-    const importStatement = `import '@eyeglass/inspector';\n`;
+    // Add dynamic import at the top (tree-shakeable in production)
+    const importStatement = `if (process.env.NODE_ENV !== 'production') {\n  import('@eyeglass/inspector');\n}\n`;
     const newContent = importStatement + content;
     if (dryRun) {
         log(`Would add inspector import to ${path.relative(cwd, entryFile)}`);
@@ -675,8 +675,8 @@ function setupNextPagesRouter(cwd, dryRun) {
         log('Inspector already imported in ' + path.basename(targetFile), 'success');
         return true;
     }
-    // Add import at the top
-    const importStatement = `import '@eyeglass/inspector';\n`;
+    // Add dynamic import at the top (tree-shakeable in production)
+    const importStatement = `if (process.env.NODE_ENV !== 'production') {\n  import('@eyeglass/inspector');\n}\n`;
     const newContent = importStatement + fileContent;
     if (dryRun) {
         log(`Would add inspector import to ${path.relative(cwd, targetFile)}`);
@@ -718,8 +718,8 @@ function setupCRA(entryFile, dryRun) {
         log('Inspector already imported', 'success');
         return true;
     }
-    // Add import at the top
-    const importStatement = `import '@eyeglass/inspector';\n`;
+    // Add dynamic import at the top (tree-shakeable in production)
+    const importStatement = `if (process.env.NODE_ENV !== 'production') {\n  import('@eyeglass/inspector');\n}\n`;
     const newContent = importStatement + content;
     if (dryRun) {
         log(`Would add inspector import to ${path.relative(cwd, entryFile)}`);
@@ -810,7 +810,7 @@ async function init(options) {
                     log('Inspector already imported', 'success');
                 }
                 else {
-                    const importStatement = `import '@eyeglass/inspector';\n`;
+                    const importStatement = `if (process.env.NODE_ENV !== 'production') {\n  import('@eyeglass/inspector');\n}\n`;
                     const newContent = importStatement + content;
                     if (dryRun) {
                         log(`Would add inspector import to ${path.relative(process.cwd(), entryFromHtml)}`);
