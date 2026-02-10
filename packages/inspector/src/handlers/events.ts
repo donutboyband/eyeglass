@@ -68,7 +68,11 @@ export function createMouseMoveHandler(
     if (shadow.contains(target as Node)) return;
 
     callbacks.setCurrentElement(target);
-    callbacks.showHighlight(target);
+
+    // In multi-select mode, don't show the single highlight (we have numbered highlights)
+    if (!state.multiSelectMode) {
+      callbacks.showHighlight(target);
+    }
   };
 }
 
