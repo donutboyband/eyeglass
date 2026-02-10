@@ -1,6 +1,6 @@
 {
   "name": "@eyeglass/inspector",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Browser inspector component for Eyeglass",
   "type": "module",
   "main": "dist/index.js",
