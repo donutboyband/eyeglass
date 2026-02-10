@@ -32,6 +32,11 @@ export function calculatePanelPosition(
     top = elementRect.top - panelHeight - 12;
   }
 
+  // Clamp top to stay within viewport bounds
+  const minTop = 20;
+  const maxTop = window.innerHeight - panelHeight - 20;
+  top = Math.max(minTop, Math.min(top, maxTop));
+
   let left = elementRect.left;
   if (left + 340 > window.innerWidth - 20) {
     left = window.innerWidth - 360;

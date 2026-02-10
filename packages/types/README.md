@@ -16,7 +16,7 @@ import type { SemanticSnapshot, FocusPayload, InteractionStatus } from '@eyeglas
 
 ## Types
 
-- **`SemanticSnapshot`** - Complete context for a selected UI element (framework info, accessibility, geometry, styles)
+- **`SemanticSnapshot`** - Complete context for a selected UI element (framework info, accessibility, geometry, styles, DOM neighborhood)
 - **`FocusPayload`** - Request payload sent from browser to bridge
 - **`InteractionStatus`** - Status of an interaction (`idle` | `pending` | `fixing` | `success` | `failed`)
 - **`ActivityEvent`** - Real-time events sent to the browser (status updates, thoughts, actions, questions)

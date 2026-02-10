@@ -41,6 +41,26 @@ export interface SemanticSnapshot {
         fontFamily: string;
         zIndex: string;
     };
+    neighborhood?: {
+        parents: Array<{
+            tagName: string;
+            className?: string;
+            styles: {
+                display: string;
+                position: string;
+                flexDirection?: string;
+                alignItems?: string;
+                justifyContent?: string;
+                gap?: string;
+                gridTemplate?: string;
+            };
+        }>;
+        children: Array<{
+            tagName: string;
+            className?: string;
+            count?: number;
+        }>;
+    };
     timestamp: number;
     url: string;
 }

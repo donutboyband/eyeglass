@@ -164,9 +164,15 @@ export class EyeglassInspector extends HTMLElement {
       }
     );
 
-    this.handleKeyDown = createKeyDownHandler({
-      unfreeze: () => this.unfreeze(),
-    });
+    this.handleKeyDown = createKeyDownHandler(
+      () => ({
+        frozen: this.frozen,
+      }),
+      {
+        unfreeze: () => this.unfreeze(),
+        toggleInspectorEnabled: () => this.toggleInspectorEnabled(),
+      }
+    );
 
     this.handleScroll = createScrollHandler(
       () => ({
@@ -342,6 +348,16 @@ export class EyeglassInspector extends HTMLElement {
 
   private applyTheme(): void {
     this.setAttribute("data-theme", this.themePreference);
+  }
+
+  private toggleInspectorEnabled(): void {
+    this.inspectorEnabled = !this.inspectorEnabled;
+    saveEnabledState(this.inspectorEnabled);
+    if (!this.inspectorEnabled) {
+      this.unfreeze();
+    }
+    this.updateCursor();
+    this.renderHub();
   }
 
   private updateCursor(): void {
@@ -569,15 +585,7 @@ export class EyeglassInspector extends HTMLElement {
           this.hubExpanded = !this.hubExpanded;
           this.renderHub();
         },
-        onToggleEnabled: () => {
-          this.inspectorEnabled = !this.inspectorEnabled;
-          saveEnabledState(this.inspectorEnabled);
-          if (!this.inspectorEnabled) {
-            this.unfreeze();
-          }
-          this.updateCursor();
-          this.renderHub();
-        },
+        onToggleEnabled: () => this.toggleInspectorEnabled(),
         onOpenSettings: () => {
           this.hubPage = "settings";
           this.hubExpanded = true;

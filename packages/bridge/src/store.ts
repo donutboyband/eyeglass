@@ -452,7 +452,28 @@ ${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
 - Detected: ${framework.name}
 ${framework.ancestry ? `- Component Tree: ${framework.ancestry.join(' > ')}` : ''}
 ${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
+${snapshot.neighborhood ? `
+### DOM Neighborhood
+**Parents (layout context):**
+${snapshot.neighborhood.parents.length > 0 ? snapshot.neighborhood.parents.map((p, i) => {
+  const styleInfo = [
+    p.styles.display,
+    p.styles.position !== 'static' ? p.styles.position : null,
+    p.styles.flexDirection,
+    p.styles.alignItems ? `align: ${p.styles.alignItems}` : null,
+    p.styles.justifyContent ? `justify: ${p.styles.justifyContent}` : null,
+    p.styles.gap ? `gap: ${p.styles.gap}` : null,
+    p.styles.gridTemplate ? `grid: ${p.styles.gridTemplate}` : null,
+  ].filter(Boolean).join(', ');
+  return `${i + 1}. \`<${p.tagName}>\`${p.className ? ` .${p.className.split(' ')[0]}` : ''} — ${styleInfo}`;
+}).join('\n') : '(none)'}
 
+**Children:**
+${snapshot.neighborhood.children.length > 0 ? snapshot.neighborhood.children.map(c => {
+  const countStr = c.count && c.count > 1 ? ` x${c.count}` : '';
+  return `- \`<${c.tagName}>\`${c.className ? ` .${c.className.split(' ')[0]}` : ''}${countStr}`;
+}).join('\n') : '(none)'}
+` : ''}
 ### Page Context
 - URL: ${snapshot.url}
 - Timestamp: ${new Date(snapshot.timestamp).toISOString()}
@@ -505,7 +526,17 @@ ${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
 - Detected: ${framework.name}
 ${framework.ancestry ? `- Component Tree: ${framework.ancestry.join(' > ')}` : ''}
 ${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
-`;
+${snapshot.neighborhood ? `
+### DOM Neighborhood
+**Parents:** ${snapshot.neighborhood.parents.length > 0 ? snapshot.neighborhood.parents.map(p => {
+  const styleInfo = [p.styles.display, p.styles.flexDirection, p.styles.gap].filter(Boolean).join(', ');
+  return `\`<${p.tagName}>\` (${styleInfo})`;
+}).join(' > ') : '(none)'}
+**Children:** ${snapshot.neighborhood.children.length > 0 ? snapshot.neighborhood.children.map(c => {
+  const countStr = c.count && c.count > 1 ? ` x${c.count}` : '';
+  return `\`<${c.tagName}>\`${countStr}`;
+}).join(', ') : '(none)'}
+` : ''}`;
     }).join('\n---\n\n');
 
     return `# User Focus Request (${snapshots.length} Elements)

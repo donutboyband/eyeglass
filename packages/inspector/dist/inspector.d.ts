@@ -49,6 +49,7 @@ export declare class EyeglassInspector extends HTMLElement {
     private showResultToast;
     private hideToast;
     private applyTheme;
+    private toggleInspectorEnabled;
     private updateCursor;
     private showHighlight;
     private hideHighlight;

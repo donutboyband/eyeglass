@@ -116,19 +116,41 @@ export function createClickHandler(
   };
 }
 
+export interface KeyDownHandlerState {
+  frozen: boolean;
+}
+
 export interface KeyDownHandlerCallbacks {
   unfreeze: () => void;
+  toggleInspectorEnabled: () => void;
 }
 
 /**
  * Creates a keydown handler function
+ *
+ * Keyboard shortcuts:
+ * - Escape: Close panel / unfreeze
+ * - Ctrl/Cmd + Shift + E: Toggle inspector enabled
  */
 export function createKeyDownHandler(
+  getState: () => KeyDownHandlerState,
   callbacks: KeyDownHandlerCallbacks
 ): (e: KeyboardEvent) => void {
   return (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
+    const state = getState();
+
+    // Escape to close panel (only when panel is open)
+    if (e.key === "Escape" && state.frozen) {
+      e.preventDefault();
       callbacks.unfreeze();
+    }
+
+    // Ctrl/Cmd + Shift + E to toggle inspector
+    const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+    const modifierKey = isMac ? e.metaKey : e.ctrlKey;
+    if (modifierKey && e.shiftKey && e.key.toLowerCase() === "e") {
+      e.preventDefault();
+      callbacks.toggleInspectorEnabled();
     }
   };
 }

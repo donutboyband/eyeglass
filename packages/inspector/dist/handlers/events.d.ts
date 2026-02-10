@@ -31,13 +31,21 @@ export interface ClickHandlerCallbacks {
  * Creates a click handler function
  */
 export declare function createClickHandler(host: HTMLElement, getState: () => ClickHandlerState, callbacks: ClickHandlerCallbacks): (e: MouseEvent) => void;
+export interface KeyDownHandlerState {
+    frozen: boolean;
+}
 export interface KeyDownHandlerCallbacks {
     unfreeze: () => void;
+    toggleInspectorEnabled: () => void;
 }
 /**
  * Creates a keydown handler function
+ *
+ * Keyboard shortcuts:
+ * - Escape: Close panel / unfreeze
+ * - Ctrl/Cmd + Shift + E: Toggle inspector enabled
  */
-export declare function createKeyDownHandler(callbacks: KeyDownHandlerCallbacks): (e: KeyboardEvent) => void;
+export declare function createKeyDownHandler(getState: () => KeyDownHandlerState, callbacks: KeyDownHandlerCallbacks): (e: KeyboardEvent) => void;
 export interface ScrollHandlerState {
     frozen: boolean;
     currentElement: Element | null;

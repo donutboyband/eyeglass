@@ -888,7 +888,7 @@ export const STYLES = `
 }
 
 .hub-content.expanded {
-  max-height: 220px;
+  max-height: 320px;
 }
 
 .hub-list {
@@ -1078,6 +1078,69 @@ export const STYLES = `
   font-size: 9px;
   color: var(--text-muted);
   margin-top: 2px;
+}
+
+.hub-shortcuts-section {
+  margin-top: 12px;
+  padding: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider);
+}
+
+.hub-shortcuts-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.hub-shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hub-shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hub-shortcut-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.hub-shortcut-keys {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.hub-shortcut-keys kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+:host([data-theme="dark"]) .hub-shortcut-keys kbd {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  :host([data-theme="auto"]) .hub-shortcut-keys kbd {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
 }
 
 .theme-selector {

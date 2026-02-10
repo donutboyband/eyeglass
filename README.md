@@ -6,9 +6,11 @@
 
 # 🔍 Eyeglass
 
-**Visual debugging for AI coding agents.** Point at UI elements in your browser and tell Claude what to change—without leaving your browser.
+**Visual debugging for AI coding agents.** Point at UI elements in your browser and tell your AI assistant what to change—without leaving your browser.
 
-Eyeglass bridges the gap between what you *see* in your browser and what your AI coding assistant can *understand*. Select any element, describe what you want, and Claude automatically receives the context it needs to make the change.
+Eyeglass bridges the gap between what you *see* in your browser and what your AI coding assistant can *understand*. Select any element, describe what you want, and your agent automatically receives the context it needs to make the change.
+
+**Supported agents:** Claude Code, GitHub Copilot CLI, OpenAI Codex CLI
 
 ---
 
@@ -16,22 +18,22 @@ Eyeglass bridges the gap between what you *see* in your browser and what your AI
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│     Browser     │     │     Bridge      │     │   Claude Code   │
-│   (Inspector)   │────▶│   (MCP Server)  │◀────│     (Agent)     │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-        │                       │                       │
-   1. Select element      2. Stores context       3. Long-polls for
-      + type request         + emits events          requests
+│     Browser     │     │     Bridge      │     │    AI Agent     │
+│   (Inspector)   │────▶│  (MCP / HTTP)   │◀────│ Claude/Copilot/ │
+└─────────────────┘     └─────────────────┘     │     Codex       │
+        │                       │               └─────────────────┘
+   1. Select element      2. Stores context             │
+      + type request         + emits events       3. Polls for requests
         │                       │                       │
         └───────────────────────┴───────────────────────┘
-                    4. Claude receives request,
+                    4. Agent receives request,
                        makes changes, HMR updates browser
 ```
 
 1. **You select an element** in your browser and type a request (e.g., "make this blue")
 2. **The Inspector** captures semantic information: component name, file path, accessibility tree, styles
-3. **The Bridge** stores this context and notifies Claude via MCP
-4. **Claude** receives the full context and makes the code changes
+3. **The Bridge** stores this context and exposes it via MCP (Claude, Copilot) or HTTP API (Codex)
+4. **Your agent** receives the full context and makes the code changes
 5. **Hot reload** updates your browser automatically
 
 ---
@@ -44,9 +46,10 @@ Eyeglass bridges the gap between what you *see* in your browser and what your AI
 npx @eyeglass/cli init
 ```
 
-This single command will:
+This interactive command will:
+- Prompt you to select your AI agent(s): Claude Code, GitHub Copilot CLI, or OpenAI Codex CLI
 - Install `@eyeglass/inspector` as a dev dependency
-- Create `.claude/settings.json` with MCP server configuration
+- Create agent-specific config files
 - Configure your bundler (Vite, Next.js, CRA, or Remix)
 
 ### Usage
@@ -55,11 +58,13 @@ This single command will:
 # 1. Start your dev server
 npm run dev
 
-# 2. Start Claude Code
-claude
+# 2. Start your AI agent
+claude                    # Claude Code
+gh copilot               # GitHub Copilot CLI
+codex                    # OpenAI Codex CLI
 
-# 3. Tell Claude to watch for requests
-> wait_for_request
+# 3. Tell your agent to watch for requests
+> listen for eyeglass    # or "eg" / "watch eyeglass"
 ```
 
 Then in your browser:
@@ -68,6 +73,12 @@ Then in your browser:
 - **Submit**—Claude automatically receives it and starts working
 
 > 💡 **Tip:** You never need to leave your browser. Claude watches for requests via long-polling.
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd/Ctrl + Shift + E` | Toggle inspector on/off |
 
 ---
 
@@ -95,9 +106,11 @@ Eyeglass works with **any framework**. For React, Vue, and Svelte, it extracts c
 
 ---
 
-## MCP Tools Reference
+## Agent Integration
 
-The bridge exposes these tools to Claude:
+### MCP Tools (Claude Code, Copilot CLI)
+
+The bridge exposes these tools via Model Context Protocol:
 
 | Tool | Description |
 |------|-------------|
@@ -108,6 +121,19 @@ The bridge exposes these tools to Claude:
 | `ask_question` | Ask the user a clarifying question |
 | `wait_for_request` | Long-poll for new requests |
 | `get_focus_history` | Get previously focused elements |
+
+### HTTP API (OpenAI Codex CLI)
+
+For agents that don't support MCP, the bridge also exposes a REST API:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/focus` | Get current focus as markdown |
+| `GET /api/wait` | Long-poll for new requests |
+| `POST /api/status` | Update status |
+| `POST /api/thought` | Send thought |
+| `POST /api/action` | Report action |
+| `GET /api/history` | Get focus history |
 
 ---
 
@@ -156,9 +182,12 @@ Eyeglass automatically tracks changes using Git, making it easy to review and un
 
 ## Configuration
 
-### Claude Code Settings
+### Agent Config Files
 
-Eyeglass automatically creates `.claude/settings.json`:
+Eyeglass creates agent-specific config files based on your selection:
+
+<details>
+<summary><strong>Claude Code</strong> — <code>.claude/settings.json</code></summary>
 
 ```json
 {
@@ -170,6 +199,31 @@ Eyeglass automatically creates `.claude/settings.json`:
   }
 }
 ```
+
+</details>
+
+<details>
+<summary><strong>GitHub Copilot CLI</strong> — <code>.copilot/mcp-config.json</code></summary>
+
+```json
+{
+  "mcpServers": {
+    "eyeglass": {
+      "command": "npx",
+      "args": ["eyeglass-bridge"]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>OpenAI Codex CLI</strong> — <code>.codex/eyeglass.md</code></summary>
+
+Creates a markdown file with HTTP API instructions for Codex to follow.
+
+</details>
 
 ### Vite
 
@@ -278,6 +332,28 @@ interface SemanticSnapshot {
     zIndex: string;
   };
 
+  // DOM Neighborhood (layout context)
+  neighborhood?: {
+    parents: Array<{
+      tagName: string;
+      className?: string;
+      styles: {
+        display: string;
+        position: string;
+        flexDirection?: string;
+        alignItems?: string;
+        justifyContent?: string;
+        gap?: string;
+        gridTemplate?: string;
+      };
+    }>;
+    children: Array<{
+      tagName: string;
+      className?: string;
+      count?: number;
+    }>;
+  };
+
   // Metadata
   timestamp: number;
   url: string;
@@ -348,11 +424,14 @@ eyeglass/
 </details>
 
 <details>
-<summary><strong>Claude not receiving requests</strong></summary>
+<summary><strong>Agent not receiving requests</strong></summary>
 
-1. Verify `.claude/settings.json` exists with correct MCP config
-2. Restart Claude Code to pick up config changes
-3. Run `watch eyeglass` or `eg` to start listening
+1. Verify the agent config file exists:
+   - Claude: `.claude/settings.json`
+   - Copilot: `.copilot/mcp-config.json`
+   - Codex: `.codex/eyeglass.md`
+2. Restart your agent to pick up config changes
+3. Run `listen for eyeglass` or `eg` to start listening
 
 </details>
 

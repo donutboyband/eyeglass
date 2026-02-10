@@ -206,6 +206,15 @@ export function renderHubSettingsPage(
             <button class="toggle-switch ${state.autoCommitEnabled ? "active" : ""}" data-setting="autoCommit"></button>
           </div>
         </div>
+        <div class="hub-shortcuts-section">
+          <div class="hub-shortcuts-title">Keyboard Shortcuts</div>
+          <div class="hub-shortcuts-list">
+            <div class="hub-shortcut-row">
+              <span class="hub-shortcut-label">Toggle inspector</span>
+              <span class="hub-shortcut-keys"><kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "\u2318" : "Ctrl"}</kbd> <kbd>Shift</kbd> <kbd>E</kbd></span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   `;

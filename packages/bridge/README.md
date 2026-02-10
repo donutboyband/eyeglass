@@ -1,6 +1,8 @@
 # @eyeglass/bridge
 
-MCP server that connects the browser inspector to Claude Code for [Eyeglass](https://github.com/donutboyband/eyeglass).
+Server that connects the browser inspector to AI coding agents for [Eyeglass](https://github.com/donutboyband/eyeglass).
+
+**Supported agents:** Claude Code, GitHub Copilot CLI, OpenAI Codex CLI
 
 ## Installation
 
@@ -12,7 +14,9 @@ npm install @eyeglass/bridge
 
 ## Usage
 
-The bridge runs as an MCP server. Add to `.claude/settings.json`:
+The bridge runs as an MCP server (Claude, Copilot) or HTTP server (Codex).
+
+**MCP config** (`.claude/settings.json` or `.copilot/mcp-config.json`):
 
 ```json
 {
@@ -37,8 +41,19 @@ The bridge runs as an MCP server. Add to `.claude/settings.json`:
 | `wait_for_request` | Long-poll for new requests |
 | `get_focus_history` | Get previously focused elements |
 
+## HTTP API (for Codex)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/focus` | Get current focus as markdown |
+| `GET /api/wait` | Long-poll for new requests |
+| `POST /api/status` | Update status |
+| `POST /api/thought` | Send thought |
+| `POST /api/action` | Report action |
+
 ## Features
 
+- **Rich context** - element info, accessibility, styles, and DOM neighborhood (parent layout context)
 - **Auto-commits** changes on success with `[eyeglass:<id>]` tags
 - **One-click undo** via `git revert`
 - **Real-time updates** via Server-Sent Events

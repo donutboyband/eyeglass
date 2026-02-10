@@ -201,6 +201,84 @@ function getElementIdentifiers(element: Element): {
   return result;
 }
 
+// Type helpers for neighborhood
+type NeighborhoodType = NonNullable<SemanticSnapshot['neighborhood']>;
+type ParentInfo = NeighborhoodType['parents'][0];
+type ChildInfo = NeighborhoodType['children'][0];
+
+/**
+ * Get layout-relevant styles for a parent element
+ */
+function getParentLayoutStyles(element: Element): ParentInfo['styles'] {
+  const computed = getComputedStyle(element);
+  const styles: ParentInfo['styles'] = {
+    display: computed.display,
+    position: computed.position,
+  };
+
+  // Only include flex properties if it's a flex container
+  if (computed.display.includes('flex')) {
+    if (computed.flexDirection !== 'row') styles.flexDirection = computed.flexDirection;
+    if (computed.alignItems !== 'normal') styles.alignItems = computed.alignItems;
+    if (computed.justifyContent !== 'normal') styles.justifyContent = computed.justifyContent;
+    if (computed.gap !== 'normal' && computed.gap !== '0px') styles.gap = computed.gap;
+  }
+
+  // Only include grid properties if it's a grid container
+  if (computed.display.includes('grid')) {
+    styles.gridTemplate = `${computed.gridTemplateColumns} / ${computed.gridTemplateRows}`;
+  }
+
+  return styles;
+}
+
+/**
+ * Get neighborhood context (parents and children)
+ */
+function getNeighborhood(element: Element): NeighborhoodType {
+  const parents: ParentInfo[] = [];
+  const children: ChildInfo[] = [];
+
+  // Get up to 2 parent levels
+  let current = element.parentElement;
+  let depth = 0;
+  while (current && depth < 2 && current !== document.body && current !== document.documentElement) {
+    const className = current.getAttribute('class')?.trim();
+    parents.push({
+      tagName: current.tagName.toLowerCase(),
+      ...(className && { className }),
+      styles: getParentLayoutStyles(current),
+    });
+    current = current.parentElement;
+    depth++;
+  }
+
+  // Get direct children, grouped by tagName
+  const childMap = new Map<string, { className?: string; count: number }>();
+  for (const child of Array.from(element.children)) {
+    const tag = child.tagName.toLowerCase();
+    const className = child.getAttribute('class')?.trim();
+    const key = `${tag}:${className || ''}`;
+
+    if (childMap.has(key)) {
+      childMap.get(key)!.count++;
+    } else {
+      childMap.set(key, { className: className || undefined, count: 1 });
+    }
+  }
+
+  for (const [key, value] of childMap) {
+    const tag = key.split(':')[0];
+    children.push({
+      tagName: tag,
+      ...(value.className && { className: value.className }),
+      ...(value.count > 1 && { count: value.count }),
+    });
+  }
+
+  return { parents, children };
+}
+
 /**
  * Capture a complete semantic snapshot of an element
  */
@@ -216,6 +294,7 @@ export function captureSnapshot(element: Element): SemanticSnapshot {
     a11y: getA11yInfo(element),
     geometry: getGeometry(element),
     styles: getStyles(element),
+    neighborhood: getNeighborhood(element),
     timestamp: Date.now(),
     url: window.location.href,
   };

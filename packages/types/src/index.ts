@@ -49,6 +49,28 @@ export interface SemanticSnapshot {
     zIndex: string;
   };
 
+  // DOM neighborhood for layout context
+  neighborhood?: {
+    parents: Array<{
+      tagName: string;
+      className?: string;
+      styles: {
+        display: string;
+        position: string;
+        flexDirection?: string;
+        alignItems?: string;
+        justifyContent?: string;
+        gap?: string;
+        gridTemplate?: string;
+      };
+    }>;
+    children: Array<{
+      tagName: string;
+      className?: string;
+      count?: number; // If multiple similar children, group them
+    }>;
+  };
+
   timestamp: number;
   url: string;
 }
