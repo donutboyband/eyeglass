@@ -554,25 +554,111 @@ function setupVite(configFile, dryRun) {
 }
 function setupNext(configFile, dryRun) {
     const cwd = process.cwd();
-    const config = readFile(configFile);
+    // Check for App Router (app/ directory) vs Pages Router (pages/ directory)
+    const isAppRouter = fileExists(path.join(cwd, 'app')) || fileExists(path.join(cwd, 'src/app'));
+    if (isAppRouter) {
+        return setupNextAppRouter(cwd, dryRun);
+    }
+    else {
+        return setupNextPagesRouter(cwd, dryRun);
+    }
+}
+function setupNextAppRouter(cwd, dryRun) {
+    // For App Router, we need a client component wrapper since layout.tsx is a server component
+    const appDirs = ['app', 'src/app'];
+    let appDir = null;
+    for (const dir of appDirs) {
+        if (fileExists(path.join(cwd, dir))) {
+            appDir = path.join(cwd, dir);
+            break;
+        }
+    }
+    if (!appDir) {
+        log('Could not find app/ directory', 'warn');
+        return false;
+    }
+    // Create the client component wrapper
+    const providerPath = path.join(appDir, 'eyeglass-provider.tsx');
+    const providerContent = `'use client';
+
+import { useEffect } from 'react';
+
+export function EyeglassProvider({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    import('@eyeglass/inspector');
+  }, []);
+
+  return <>{children}</>;
+}
+`;
+    if (fileExists(providerPath)) {
+        log('Eyeglass provider already exists', 'success');
+    }
+    else {
+        if (dryRun) {
+            log(`Would create ${path.relative(cwd, providerPath)}`);
+        }
+        else {
+            writeFile(providerPath, providerContent);
+            log(`Created ${path.relative(cwd, providerPath)}`, 'success');
+        }
+    }
+    // Find and update layout.tsx to include the provider
+    const layoutFiles = ['layout.tsx', 'layout.jsx'];
+    let layoutPath = null;
+    for (const file of layoutFiles) {
+        const fullPath = path.join(appDir, file);
+        if (fileExists(fullPath)) {
+            layoutPath = fullPath;
+            break;
+        }
+    }
+    if (!layoutPath) {
+        log('Could not find app/layout.tsx - please add <EyeglassProvider> manually', 'warn');
+        log('Import: import { EyeglassProvider } from "./eyeglass-provider"', 'info');
+        log('Wrap your {children} with <EyeglassProvider>{children}</EyeglassProvider>', 'info');
+        return false;
+    }
+    const layoutContent = readFile(layoutPath);
     // Check if already configured
-    if (config.includes('@eyeglass/inspector')) {
-        log('Next.js config already has eyeglass', 'success');
+    if (layoutContent.includes('EyeglassProvider') || layoutContent.includes('@eyeglass/inspector')) {
+        log('Layout already has Eyeglass configured', 'success');
         return true;
     }
-    // For Next.js, we'll add the inspector import to the layout or _app file
-    const layoutFiles = [
-        'app/layout.tsx',
-        'app/layout.jsx',
-        'src/app/layout.tsx',
-        'src/app/layout.jsx',
+    // Add import and wrap children with provider
+    const importStatement = `import { EyeglassProvider } from './eyeglass-provider';\n`;
+    // Find where to add import (after any existing imports or 'use client')
+    let newContent = layoutContent;
+    // Add import at the top
+    if (newContent.startsWith("'use client'") || newContent.startsWith('"use client"')) {
+        const firstLineEnd = newContent.indexOf('\n') + 1;
+        newContent = newContent.slice(0, firstLineEnd) + importStatement + newContent.slice(firstLineEnd);
+    }
+    else {
+        newContent = importStatement + newContent;
+    }
+    // Wrap {children} with <EyeglassProvider>
+    // Look for patterns like: {children} or { children }
+    newContent = newContent.replace(/(\{[\s]*children[\s]*\})/g, '<EyeglassProvider>$1</EyeglassProvider>');
+    if (dryRun) {
+        log(`Would update ${path.relative(cwd, layoutPath)} to include EyeglassProvider`);
+    }
+    else {
+        writeFile(layoutPath, newContent);
+        log(`Updated ${path.relative(cwd, layoutPath)} with EyeglassProvider`, 'success');
+    }
+    return true;
+}
+function setupNextPagesRouter(cwd, dryRun) {
+    // For Pages Router, we can import directly in _app.tsx
+    const appFiles = [
         'pages/_app.tsx',
         'pages/_app.jsx',
         'src/pages/_app.tsx',
         'src/pages/_app.jsx',
     ];
     let targetFile = null;
-    for (const file of layoutFiles) {
+    for (const file of appFiles) {
         const fullPath = path.join(cwd, file);
         if (fileExists(fullPath)) {
             targetFile = fullPath;
@@ -580,7 +666,7 @@ function setupNext(configFile, dryRun) {
         }
     }
     if (!targetFile) {
-        log('Could not find layout.tsx or _app.tsx - please import @eyeglass/inspector manually', 'warn');
+        log('Could not find pages/_app.tsx - please import @eyeglass/inspector manually', 'warn');
         return false;
     }
     const fileContent = readFile(targetFile);
@@ -589,16 +675,9 @@ function setupNext(configFile, dryRun) {
         log('Inspector already imported in ' + path.basename(targetFile), 'success');
         return true;
     }
-    // Add import at the top (after 'use client' if present)
+    // Add import at the top
     const importStatement = `import '@eyeglass/inspector';\n`;
-    let newContent;
-    if (fileContent.startsWith("'use client'") || fileContent.startsWith('"use client"')) {
-        const firstLineEnd = fileContent.indexOf('\n') + 1;
-        newContent = fileContent.slice(0, firstLineEnd) + importStatement + fileContent.slice(firstLineEnd);
-    }
-    else {
-        newContent = importStatement + fileContent;
-    }
+    const newContent = importStatement + fileContent;
     if (dryRun) {
         log(`Would add inspector import to ${path.relative(cwd, targetFile)}`);
     }
