@@ -27,11 +27,15 @@ export function initInspector(): void {
   console.log('[eyeglass] Inspector initialized. Hover over elements and click to annotate.');
 }
 
-// Auto-initialize when imported in a browser context
+// Auto-initialize when imported in a browser context (dev only)
+// To use in production, import { initInspector } and call it manually
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initInspector);
-  } else {
-    initInspector();
+  const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
+  if (!isProduction) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initInspector);
+    } else {
+      initInspector();
+    }
   }
 }

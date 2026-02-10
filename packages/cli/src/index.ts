@@ -626,8 +626,8 @@ function setupVite(configFile: string, dryRun: boolean): boolean {
     return true;
   }
 
-  // Add import at the top
-  const importStatement = `import '@eyeglass/inspector';\n`;
+  // Add dynamic import at the top (tree-shakeable in production)
+  const importStatement = `if (process.env.NODE_ENV !== 'production') {\n  import('@eyeglass/inspector');\n}\n`;
   const newContent = importStatement + content;
 
   if (dryRun) {
@@ -785,8 +785,8 @@ function setupNextPagesRouter(cwd: string, dryRun: boolean): boolean {
     return true;
   }
 
-  // Add import at the top
-  const importStatement = `import '@eyeglass/inspector';\n`;
+  // Add dynamic import at the top (tree-shakeable in production)
+  const importStatement = `if (process.env.NODE_ENV !== 'production') {\n  import('@eyeglass/inspector');\n}\n`;
   const newContent = importStatement + fileContent;
 
   if (dryRun) {
@@ -836,8 +836,8 @@ function setupCRA(entryFile: string | undefined, dryRun: boolean): boolean {
     return true;
   }
 
-  // Add import at the top
-  const importStatement = `import '@eyeglass/inspector';\n`;
+  // Add dynamic import at the top (tree-shakeable in production)
+  const importStatement = `if (process.env.NODE_ENV !== 'production') {\n  import('@eyeglass/inspector');\n}\n`;
   const newContent = importStatement + content;
 
   if (dryRun) {
@@ -945,7 +945,7 @@ async function init(options: InitOptions): Promise<void> {
         if (content.includes('@eyeglass/inspector')) {
           log('Inspector already imported', 'success');
         } else {
-          const importStatement = `import '@eyeglass/inspector';\n`;
+          const importStatement = `if (process.env.NODE_ENV !== 'production') {\n  import('@eyeglass/inspector');\n}\n`;
           const newContent = importStatement + content;
           if (dryRun) {
             log(`Would add inspector import to ${path.relative(process.cwd(), entryFromHtml)}`);
