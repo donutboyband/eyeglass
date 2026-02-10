@@ -20,6 +20,7 @@ export declare class EyeglassInspector extends HTMLElement {
     private hubPage;
     private inspectorEnabled;
     private autoCommitEnabled;
+    private themePreference;
     private history;
     private isDragging;
     private dragOffset;
@@ -44,6 +45,9 @@ export declare class EyeglassInspector extends HTMLElement {
     private saveEnabledState;
     private loadAutoCommitState;
     private saveAutoCommitState;
+    private loadThemeState;
+    private saveThemeState;
+    private applyTheme;
     private loadHistory;
     private saveHistory;
     private addToHistory;

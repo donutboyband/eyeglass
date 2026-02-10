@@ -16,6 +16,7 @@ const STORAGE_KEY = "eyeglass_session";
 const HISTORY_KEY = "eyeglass_history";
 const ENABLED_KEY = "eyeglass_enabled";
 const AUTOCOMMIT_KEY = "eyeglass_autocommit";
+const THEME_KEY = "eyeglass_theme";
 const SESSION_TTL = 10000; // 10 seconds
 
 // Fun rotating phrases for the "fixing" status
@@ -72,6 +73,191 @@ const STYLES = `
   --error: #ef4444;
   --border-radius: 16px;
   --border-radius-sm: 10px;
+}
+
+:host([data-theme="dark"]) {
+  --glass-bg: rgba(22, 27, 34, 0.95);
+  --glass-border: rgba(240, 246, 252, 0.1);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --divider: rgba(240, 246, 252, 0.1);
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --accent: #a5b4fc;
+  --accent-soft: rgba(165, 180, 252, 0.15);
+  --success: #3fb950;
+  --error: #f85149;
+}
+
+@media (prefers-color-scheme: dark) {
+  :host([data-theme="auto"]) {
+    --glass-bg: rgba(22, 27, 34, 0.95);
+    --glass-border: rgba(240, 246, 252, 0.1);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
+    --divider: rgba(240, 246, 252, 0.1);
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --accent: #a5b4fc;
+    --accent-soft: rgba(165, 180, 252, 0.15);
+    --success: #3fb950;
+    --error: #f85149;
+  }
+}
+
+/* Dark mode component overrides */
+:host([data-theme="dark"]) .close-btn:hover,
+:host([data-theme="dark"]) .toast-close:hover,
+:host([data-theme="dark"]) .hub-header:hover,
+:host([data-theme="dark"]) .hub-disable:hover,
+:host([data-theme="dark"]) .hub-back-btn:hover,
+:host([data-theme="dark"]) .hub-settings-btn:hover,
+:host([data-theme="dark"]) .followup-done:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:host([data-theme="dark"]) .btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:host([data-theme="dark"]) .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+:host([data-theme="dark"]) .input-field {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:host([data-theme="dark"]) .input-field:focus {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+:host([data-theme="dark"]) .followup-input {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:host([data-theme="dark"]) .followup-input:focus {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+:host([data-theme="dark"]) .toggle-switch {
+  background: #30363d;
+}
+
+:host([data-theme="dark"]) .skeleton-icon,
+:host([data-theme="dark"]) .skeleton-line {
+  background: linear-gradient(90deg, #21262d 25%, #30363d 50%, #21262d 75%);
+  background-size: 200% 100%;
+}
+
+:host([data-theme="dark"]) .question-option {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:host([data-theme="dark"]) .question-option:hover {
+  background: var(--accent-soft);
+}
+
+:host([data-theme="dark"]) .user-request {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+:host([data-theme="dark"]) .hub-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:host([data-theme="dark"]) .selected-list,
+:host([data-theme="dark"]) .multi-mode-hint {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+:host([data-theme="dark"]) .followup-area {
+  background: rgba(63, 185, 80, 0.1);
+}
+
+:host([data-theme="dark"]) .panel-footer.done {
+  background: rgba(63, 185, 80, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :host([data-theme="auto"]) .close-btn:hover,
+  :host([data-theme="auto"]) .toast-close:hover,
+  :host([data-theme="auto"]) .hub-header:hover,
+  :host([data-theme="auto"]) .hub-disable:hover,
+  :host([data-theme="auto"]) .hub-back-btn:hover,
+  :host([data-theme="auto"]) .hub-settings-btn:hover,
+  :host([data-theme="auto"]) .followup-done:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  :host([data-theme="auto"]) .btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  :host([data-theme="auto"]) .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  :host([data-theme="auto"]) .input-field {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  :host([data-theme="auto"]) .input-field:focus {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  :host([data-theme="auto"]) .followup-input {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  :host([data-theme="auto"]) .followup-input:focus {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  :host([data-theme="auto"]) .toggle-switch {
+    background: #30363d;
+  }
+
+  :host([data-theme="auto"]) .skeleton-icon,
+  :host([data-theme="auto"]) .skeleton-line {
+    background: linear-gradient(90deg, #21262d 25%, #30363d 50%, #21262d 75%);
+    background-size: 200% 100%;
+  }
+
+  :host([data-theme="auto"]) .question-option {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  :host([data-theme="auto"]) .question-option:hover {
+    background: var(--accent-soft);
+  }
+
+  :host([data-theme="auto"]) .user-request {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  :host([data-theme="auto"]) .hub-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  :host([data-theme="auto"]) .selected-list,
+  :host([data-theme="auto"]) .multi-mode-hint {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  :host([data-theme="auto"]) .followup-area {
+    background: rgba(63, 185, 80, 0.1);
+  }
+
+  :host([data-theme="auto"]) .panel-footer.done {
+    background: rgba(63, 185, 80, 0.12);
+  }
 }
 
 *, *::before, *::after {
@@ -918,6 +1104,53 @@ const STYLES = `
   margin-top: 2px;
 }
 
+.theme-selector {
+  display: flex;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+:host([data-theme="dark"]) .theme-selector {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :host([data-theme="auto"]) .theme-selector {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+.theme-btn {
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-btn:hover {
+  color: var(--text-secondary);
+}
+
+.theme-btn.active {
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.theme-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 .hub-button-group {
   display: flex;
 }
@@ -1260,6 +1493,7 @@ export class EyeglassInspector extends HTMLElement {
   private hubPage: "main" | "settings" = "main";
   private inspectorEnabled = true;
   private autoCommitEnabled = true;
+  private themePreference: "light" | "dark" | "auto" = "auto";
   private history: HistoryItem[] = [];
   private isDragging = false;
   private dragOffset = { x: 0, y: 0 };
@@ -1311,6 +1545,8 @@ export class EyeglassInspector extends HTMLElement {
 
     this.loadEnabledState();
     this.loadAutoCommitState();
+    this.loadThemeState();
+    this.applyTheme();
     this.loadHistory();
     this.renderHub();
     this.connectSSE();
@@ -1434,6 +1670,29 @@ export class EyeglassInspector extends HTMLElement {
     } catch (e) {
       // Ignore storage errors
     }
+  }
+
+  private loadThemeState(): void {
+    try {
+      const stored = localStorage.getItem(THEME_KEY);
+      if (stored === "light" || stored === "dark" || stored === "auto") {
+        this.themePreference = stored;
+      }
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }
+
+  private saveThemeState(): void {
+    try {
+      localStorage.setItem(THEME_KEY, this.themePreference);
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }
+
+  private applyTheme(): void {
+    this.setAttribute("data-theme", this.themePreference);
   }
 
   private loadHistory(): void {
@@ -1653,6 +1912,11 @@ export class EyeglassInspector extends HTMLElement {
 
     this.hub.className = "hub";
 
+    // Theme icons
+    const sunIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+    const moonIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+    const autoIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+
     this.hub.innerHTML = `
       <div class="hub-header">
         <div class="hub-header-left">
@@ -1667,6 +1931,17 @@ export class EyeglassInspector extends HTMLElement {
             <span class="hub-settings-title">Settings</span>
           </div>
           <div class="hub-settings-list">
+            <div class="hub-setting-row">
+              <div class="hub-setting-info">
+                <div class="hub-setting-label">Theme</div>
+                <div class="hub-setting-desc">Light, dark, or match system</div>
+              </div>
+              <div class="theme-selector">
+                <button class="theme-btn ${this.themePreference === "light" ? "active" : ""}" data-theme="light" title="Light">${sunIcon}</button>
+                <button class="theme-btn ${this.themePreference === "auto" ? "active" : ""}" data-theme="auto" title="Auto">${autoIcon}</button>
+                <button class="theme-btn ${this.themePreference === "dark" ? "active" : ""}" data-theme="dark" title="Dark">${moonIcon}</button>
+              </div>
+            </div>
             <div class="hub-setting-row">
               <div class="hub-setting-info">
                 <div class="hub-setting-label">Auto-commit</div>
@@ -1686,6 +1961,18 @@ export class EyeglassInspector extends HTMLElement {
     backBtn.addEventListener("click", () => {
       this.hubPage = "main";
       this.renderHub();
+    });
+
+    // Wire up theme selector
+    this.hub.querySelectorAll(".theme-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const theme = (e.currentTarget as HTMLButtonElement).dataset
+          .theme as "light" | "dark" | "auto";
+        this.themePreference = theme;
+        this.saveThemeState();
+        this.applyTheme();
+        this.renderHub();
+      });
     });
 
     // Wire up toggle switches
