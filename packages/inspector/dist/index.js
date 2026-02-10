@@ -1,4 +1,4 @@
-var R=new Set([0,1,11,14,15]);function F(s){let t=Object.keys(s).find(e=>e.startsWith("__reactFiber$")||e.startsWith("__reactInternalInstance$"));return t?s[t]:null}function H(s){if(!R.has(s.tag)||typeof s.type!="function")return!1;let a=s.type.displayName||s.type.name||"";return!(!a||a.startsWith("Context")||a.endsWith("Provider")||a==="StrictMode")}function T(s){return s.type.displayName||s.type.name||void 0}function j(s){let a=s;for(;a;){if(H(a))return a;a=a.return}return null}function M(s){let a=[],t=s;for(;t;){if(H(t)){let e=T(t);e&&a.push(e)}t=t.return}return a}function C(s){if(!s)return;let a={};for(let[t,e]of Object.entries(s)){if(t==="children")continue;let i=typeof e;(i==="string"||i==="number"||i==="boolean"||e===null)&&(a[t]=e)}return Object.keys(a).length>0?a:void 0}function _(s){let a=s.__vue__;if(a)return{name:"vue",componentName:a.$options?.name||a.$options?._componentTag};let e=Object.keys(s).find(i=>i.startsWith("__vue"));if(e){let i=s[e];if(i){let n=i,r,o;n?.type?.name?r=n.type.name:n?.type?.__name?r=n.type.__name:n?.component?.type?.name?r=n.component.type.name:n?.component?.type?.__name&&(r=n.component.type.__name);let l=n?.props||n?.component?.props;l&&(o=C(l));let d;return n?.type?.__file?d=n.type.__file:n?.component?.type?.__file&&(d=n.component.type.__file),{name:"vue",componentName:r,filePath:d,props:o}}return{name:"vue"}}return null}function O(s){let t=Object.keys(s).find(e=>e.startsWith("__svelte"));if(t){let e=s[t],i;if(e?.constructor?.name&&e.constructor.name!=="Object"&&(i=e.constructor.name),!i&&e?.$$?.ctx){let n=e.$$.ctx;n?.constructor?.name&&n.constructor.name!=="Object"&&(i=n.constructor.name)}return{name:"svelte",componentName:i}}return null}function I(s){let a=F(s);if(a){let i=j(a);if(i){let r=T(i),o=i._debugSource,l=M(i);return{name:"react",componentName:r,filePath:o?.fileName,lineNumber:o?.lineNumber,props:C(i.memoizedProps),ancestry:l.length>0?l:void 0}}let n=M(a);return{name:"react",ancestry:n.length>0?n:void 0}}let t=_(s);if(t)return t;let e=O(s);return e||{name:"vanilla"}}function G(s){let a=s.getAttribute("aria-label"),t=s.getAttribute("aria-describedby"),e=s.getAttribute("aria-disabled"),i=s.getAttribute("aria-expanded"),n=s.getAttribute("aria-checked"),r=s.getAttribute("aria-hidden"),o=null;t&&(o=document.getElementById(t)?.textContent?.trim()||null);let l=e==="true"||s.disabled||s.hasAttribute("disabled");return{label:a||s.getAttribute("title")||null,description:o,disabled:l,expanded:i?i==="true":void 0,checked:n==="true"?!0:n==="false"?!1:n==="mixed"?"mixed":void 0,hidden:r==="true"||s.hidden||!1}}function U(s){let a=s.getBoundingClientRect();return{x:Math.round(a.x),y:Math.round(a.y),width:Math.round(a.width),height:Math.round(a.height),visible:a.width>0&&a.height>0}}function Y(s){let a=getComputedStyle(s);return{display:a.display,position:a.position,flexDirection:a.flexDirection!=="row"?a.flexDirection:void 0,gridTemplate:a.display==="grid"?`${a.gridTemplateColumns} / ${a.gridTemplateRows}`:void 0,padding:a.padding,margin:a.margin,color:a.color,backgroundColor:a.backgroundColor,fontFamily:a.fontFamily,zIndex:a.zIndex}}function W(s){let a=s.getAttribute("role");if(a)return a;let t=s.tagName.toLowerCase();return{a:"link",button:"button",input:s.type||"textbox",select:"combobox",textarea:"textbox",img:"img",nav:"navigation",main:"main",header:"banner",footer:"contentinfo",aside:"complementary",article:"article",section:"region",form:"form",ul:"list",ol:"list",li:"listitem",table:"table",tr:"row",td:"cell",th:"columnheader",dialog:"dialog",h1:"heading",h2:"heading",h3:"heading",h4:"heading",h5:"heading",h6:"heading"}[t]||"generic"}function K(s){let a=s.getAttribute("aria-label");if(a)return a;let t=s.getAttribute("aria-labelledby");if(t){let i=document.getElementById(t);if(i)return i.textContent?.trim()||""}if(s.tagName==="INPUT"||s.tagName==="SELECT"||s.tagName==="TEXTAREA"){let i=s.getAttribute("id");if(i){let n=document.querySelector(`label[for="${i}"]`);if(n)return n.textContent?.trim()||""}}if(s.tagName==="IMG")return s.alt||"";let e=s.textContent?.trim()||"";return e.length>50?e.slice(0,50)+"...":e}function J(s){let a={},t=s.getAttribute("id");t&&(a.id=t);let e=s.getAttribute("class");e?.trim()&&(a.className=e.trim());let i={};for(let n=0;n<s.attributes.length;n++){let r=s.attributes[n];r.name.startsWith("data-")&&(i[r.name]=r.value)}return Object.keys(i).length>0&&(a.dataAttributes=i),a}function y(s){let a=J(s);return{role:W(s),name:K(s),tagName:s.tagName.toLowerCase(),...a,framework:I(s),a11y:G(s),geometry:U(s),styles:Y(s),timestamp:Date.now(),url:window.location.href}}var b="http://localhost:3300",x="eyeglass_session",P="eyeglass_history",$="eyeglass_enabled",L="eyeglass_autocommit",N="eyeglass_theme",Z=1e4,w=["Ruminating...","Percolating...","Divining...","Grokking...","Communing...","Concocting...","Synthesizing...","Distilling...","Incubating...","Forging...","Scrutinizing...","Triangulating...","Unraveling...","Traversing...","Sifting...","Marshaling...","Hydrating...","Harmonizing...","Indexing...","Entangling..."],X='url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2MzY2ZjEiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xIDEyczQtOCAxMS04IDExIDggMTEgOC00IDgtMTEgOC0xMS04LTExLTh6Ii8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMyIgZmlsbD0iIzYzNjZmMSIvPjwvc3ZnPg==") 8 8, crosshair',Q=`
+var Tt=new Set([0,1,11,14,15]);function Pt(t){let e=Object.keys(t).find(i=>i.startsWith("__reactFiber$")||i.startsWith("__reactInternalInstance$"));return e?t[e]:null}function O(t){if(!Tt.has(t.tag)||typeof t.type!="function")return!1;let n=t.type.displayName||t.type.name||"";return!(!n||n.startsWith("Context")||n.endsWith("Provider")||n==="StrictMode")}function B(t){return t.type.displayName||t.type.name||void 0}function Lt(t){let n=t;for(;n;){if(O(n))return n;n=n.return}return null}function _(t){let n=[],e=t;for(;e;){if(O(e)){let i=B(e);i&&n.push(i)}e=e.return}return n}function j(t){if(!t)return;let n={};for(let[e,i]of Object.entries(t)){if(e==="children")continue;let o=typeof i;(o==="string"||o==="number"||o==="boolean"||i===null)&&(n[e]=i)}return Object.keys(n).length>0?n:void 0}function Dt(t){let n=t.__vue__;if(n)return{name:"vue",componentName:n.$options?.name||n.$options?._componentTag};let i=Object.keys(t).find(o=>o.startsWith("__vue"));if(i){let o=t[i];if(o){let s=o,r,a;s?.type?.name?r=s.type.name:s?.type?.__name?r=s.type.__name:s?.component?.type?.name?r=s.component.type.name:s?.component?.type?.__name&&(r=s.component.type.__name);let l=s?.props||s?.component?.props;l&&(a=j(l));let h;return s?.type?.__file?h=s.type.__file:s?.component?.type?.__file&&(h=s.component.type.__file),{name:"vue",componentName:r,filePath:h,props:a}}return{name:"vue"}}return null}function $t(t){let e=Object.keys(t).find(i=>i.startsWith("__svelte"));if(e){let i=t[e],o;if(i?.constructor?.name&&i.constructor.name!=="Object"&&(o=i.constructor.name),!o&&i?.$$?.ctx){let s=i.$$.ctx;s?.constructor?.name&&s.constructor.name!=="Object"&&(o=s.constructor.name)}return{name:"svelte",componentName:o}}return null}function T(t){let n=Pt(t);if(n){let o=Lt(n);if(o){let r=B(o),a=o._debugSource,l=_(o);return{name:"react",componentName:r,filePath:a?.fileName,lineNumber:a?.lineNumber,props:j(o.memoizedProps),ancestry:l.length>0?l:void 0}}let s=_(n);return{name:"react",ancestry:s.length>0?s:void 0}}let e=Dt(t);if(e)return e;let i=$t(t);return i||{name:"vanilla"}}function At(t){let n=t.getAttribute("aria-label"),e=t.getAttribute("aria-describedby"),i=t.getAttribute("aria-disabled"),o=t.getAttribute("aria-expanded"),s=t.getAttribute("aria-checked"),r=t.getAttribute("aria-hidden"),a=null;e&&(a=document.getElementById(e)?.textContent?.trim()||null);let l=i==="true"||t.disabled||t.hasAttribute("disabled");return{label:n||t.getAttribute("title")||null,description:a,disabled:l,expanded:o?o==="true":void 0,checked:s==="true"?!0:s==="false"?!1:s==="mixed"?"mixed":void 0,hidden:r==="true"||t.hidden||!1}}function zt(t){let n=t.getBoundingClientRect();return{x:Math.round(n.x),y:Math.round(n.y),width:Math.round(n.width),height:Math.round(n.height),visible:n.width>0&&n.height>0}}function Nt(t){let n=getComputedStyle(t);return{display:n.display,position:n.position,flexDirection:n.flexDirection!=="row"?n.flexDirection:void 0,gridTemplate:n.display==="grid"?`${n.gridTemplateColumns} / ${n.gridTemplateRows}`:void 0,padding:n.padding,margin:n.margin,color:n.color,backgroundColor:n.backgroundColor,fontFamily:n.fontFamily,zIndex:n.zIndex}}function Rt(t){let n=t.getAttribute("role");if(n)return n;let e=t.tagName.toLowerCase();return{a:"link",button:"button",input:t.type||"textbox",select:"combobox",textarea:"textbox",img:"img",nav:"navigation",main:"main",header:"banner",footer:"contentinfo",aside:"complementary",article:"article",section:"region",form:"form",ul:"list",ol:"list",li:"listitem",table:"table",tr:"row",td:"cell",th:"columnheader",dialog:"dialog",h1:"heading",h2:"heading",h3:"heading",h4:"heading",h5:"heading",h6:"heading"}[e]||"generic"}function qt(t){let n=t.getAttribute("aria-label");if(n)return n;let e=t.getAttribute("aria-labelledby");if(e){let o=document.getElementById(e);if(o)return o.textContent?.trim()||""}if(t.tagName==="INPUT"||t.tagName==="SELECT"||t.tagName==="TEXTAREA"){let o=t.getAttribute("id");if(o){let s=document.querySelector(`label[for="${o}"]`);if(s)return s.textContent?.trim()||""}}if(t.tagName==="IMG")return t.alt||"";let i=t.textContent?.trim()||"";return i.length>50?i.slice(0,50)+"...":i}function Ft(t){let n={},e=t.getAttribute("id");e&&(n.id=e);let i=t.getAttribute("class");i?.trim()&&(n.className=i.trim());let o={};for(let s=0;s<t.attributes.length;s++){let r=t.attributes[s];r.name.startsWith("data-")&&(o[r.name]=r.value)}return Object.keys(o).length>0&&(n.dataAttributes=o),n}function S(t){let n=Ft(t);return{role:Rt(t),name:qt(t),tagName:t.tagName.toLowerCase(),...n,framework:T(t),a11y:At(t),geometry:zt(t),styles:Nt(t),timestamp:Date.now(),url:window.location.href}}var f="http://localhost:3300",E="eyeglass_session",P="eyeglass_history",L="eyeglass_enabled",D="eyeglass_autocommit",$="eyeglass_theme";var v=["Ruminating...","Percolating...","Divining...","Grokking...","Communing...","Concocting...","Synthesizing...","Distilling...","Incubating...","Forging...","Scrutinizing...","Triangulating...","Unraveling...","Traversing...","Sifting...","Marshaling...","Hydrating...","Harmonizing...","Indexing...","Entangling..."],U='url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2MzY2ZjEiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xIDEyczQtOCAxMS04IDExIDggMTEgOC00IDgtMTEgOC0xMS04LTExLTh6Ii8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMyIgZmlsbD0iIzYzNjZmMSIvPjwvc3ZnPg==") 8 8, crosshair';var Y=`
 :host {
   all: initial;
   position: fixed;
@@ -1429,232 +1429,217 @@ var R=new Set([0,1,11,14,15]);function F(s){let t=Object.keys(s).find(e=>e.start
   color: var(--accent);
   text-align: center;
 }
-`,k=class s extends HTMLElement{constructor(){super();this.highlight=null;this.panel=null;this.toast=null;this.hub=null;this.currentElement=null;this.currentSnapshot=null;this.interactionId=null;this.frozen=!1;this.eventSource=null;this.throttleTimeout=null;this.mode="input";this.activityEvents=[];this.currentStatus="idle";this.hubExpanded=!1;this.hubPage="main";this.inspectorEnabled=!0;this.autoCommitEnabled=!0;this.themePreference="auto";this.history=[];this.isDragging=!1;this.dragOffset={x:0,y:0};this.customPanelPosition=null;this.multiSelectMode=!1;this.selectedElements=[];this.selectedSnapshots=[];this.multiSelectHighlights=[];this.submittedSnapshots=[];this.cursorStyleElement=null;this.scrollTimeout=null;this.phraseIndex=0;this.phraseInterval=null;this.handlePanelDrag=t=>{if(!this.isDragging||!this.panel)return;let e=Math.max(0,Math.min(t.clientX-this.dragOffset.x,window.innerWidth-340)),i=Math.max(0,Math.min(t.clientY-this.dragOffset.y,window.innerHeight-100));this.customPanelPosition={x:e,y:i},this.panel.style.left=`${e}px`,this.panel.style.top=`${i}px`};this.handlePanelDragEnd=()=>{this.isDragging=!1,document.removeEventListener("mousemove",this.handlePanelDrag),document.removeEventListener("mouseup",this.handlePanelDragEnd)};this.shadow=this.attachShadow({mode:"closed"})}static{this.MAX_SELECTION=5}connectedCallback(){let t=document.createElement("style");t.textContent=Q,this.shadow.appendChild(t),this.highlight=document.createElement("div"),this.highlight.className="highlight",this.highlight.style.display="none",this.shadow.appendChild(this.highlight),this.handleMouseMove=this.handleMouseMove.bind(this),this.handleClick=this.handleClick.bind(this),this.handleKeyDown=this.handleKeyDown.bind(this),this.handlePanelDragStart=this.handlePanelDragStart.bind(this),this.handleScroll=this.handleScroll.bind(this),document.addEventListener("mousemove",this.handleMouseMove,!0),document.addEventListener("click",this.handleClick,!0),document.addEventListener("keydown",this.handleKeyDown,!0),window.addEventListener("scroll",this.handleScroll,!0),this.loadEnabledState(),this.loadAutoCommitState(),this.loadThemeState(),this.applyTheme(),this.loadHistory(),this.renderHub(),this.connectSSE(),this.restoreSession(),this.updateCursor()}saveSession(t){if(!this.interactionId)return;let e={interactionId:this.interactionId,userNote:this._userNote||"",componentName:this.currentSnapshot?.framework.componentName||this.currentSnapshot?.tagName||"element",status:this.currentStatus,message:t,timestamp:Date.now()};try{sessionStorage.setItem(x,JSON.stringify(e))}catch{}}restoreSession(){try{let t=sessionStorage.getItem(x);if(!t)return;let e=JSON.parse(t);if(Date.now()-e.timestamp>Z){sessionStorage.removeItem(x);return}(e.status==="success"||e.status==="failed")&&(this.showResultToast(e),sessionStorage.removeItem(x))}catch{}}showResultToast(t){this.toast=document.createElement("div"),this.toast.className="result-toast";let e=t.status==="success",i=e?"\u2713":"\u2715",n=e?"Done!":"Failed";this.toast.innerHTML=`
-      <div class="toast-icon ${t.status}">${i}</div>
-      <div class="toast-content">
-        <div class="toast-title">${n}</div>
-        <div class="toast-message">${this.escapeHtml(t.message||t.userNote)}</div>
+`;function d(t){let n=document.createElement("div");return n.textContent=t,n.innerHTML}function A(t,n){switch(t){case"idle":return"Ready";case"pending":return"Waiting for agent...";case"fixing":return v[n%v.length];case"success":return"Done!";case"failed":return"Failed";default:return t}}function G(t,n,e,i){if(t&&(!n||e)){let s=i;return s||(s=document.createElement("style"),s.id="eyeglass-cursor-style",document.head.appendChild(s)),s.textContent=`
+      html, body, body * {
+        cursor: ${U} !important;
+      }
+    `,s}else return i&&(i.textContent=""),i}function z(){return`eyeglass-${Date.now()}-${Math.random().toString(36).slice(2,9)}`}function K(t){let n=new EventSource(`${f}/events`);return n.onmessage=e=>{try{let i=JSON.parse(e.data);i.type==="activity"&&t.onActivityEvent(i.payload)}catch{}},n.onerror=()=>{n.close(),setTimeout(()=>t.onReconnect(),3e3)},n}async function N(t){let n={interactionId:t.interactionId,userNote:t.userNote.trim(),autoCommit:t.autoCommit,...t.snapshots.length===1?{snapshot:t.snapshots[0]}:{snapshots:t.snapshots}};try{let e=await fetch(`${f}/focus`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(n)});return e.ok?{success:!0}:{success:!1,error:`HTTP ${e.status}`}}catch{return{success:!1,error:"Failed to connect to bridge"}}}async function W(t,n,e,i){let o={interactionId:t,questionId:n,answerId:e,answerLabel:i};try{await fetch(`${f}/answer`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(o)})}catch{}}async function J(t){try{return{success:(await fetch(`${f}/undo`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({interactionId:t})})).ok}}catch(n){return console.warn("Undo request failed:",n),{success:!1}}}async function V(t){try{return(await fetch(`${f}/commit`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({interactionId:t})})).ok?{success:!0}:(console.warn("Commit request failed"),{success:!1})}catch(n){return console.warn("Commit request failed:",n),{success:!1}}}function R(t,n,e){let i=e.map(s=>s.framework.componentName||s.tagName),o=e.length===1?i[0]:`${i.length} elements`;return{interactionId:t,userNote:n.trim(),componentName:o,filePath:e[0]?.framework.filePath,status:"pending",timestamp:Date.now()}}var Z=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="lensGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.1"/>
+    </linearGradient>
+  </defs>
+  <circle cx="30" cy="50" r="20" fill="url(#lensGrad)" stroke="#3b82f6" stroke-width="3"/>
+  <circle cx="70" cy="50" r="20" fill="url(#lensGrad)" stroke="#3b82f6" stroke-width="3"/>
+  <path d="M 50 50 Q 50 42 50 50" stroke="#3b82f6" stroke-width="3" fill="none"/>
+  <line x1="50" y1="47" x2="50" y2="53" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+  <line x1="10" y1="50" x2="10" y2="50" stroke="#3b82f6" stroke-width="3"/>
+  <path d="M 10 50 L 5 45" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+  <path d="M 90 50 L 95 45" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+  <path d="M 65 45 L 65 60 L 69 56 L 74 63 L 76 61 L 71 54 L 76 54 Z" fill="#3b82f6"/>
+</svg>`,_t='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',Ot='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',Bt='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',jt='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',Ut='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',Yt='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';function X(t,n,e){let i=n.hubExpanded?"":"collapsed",o=n.inspectorEnabled?"":"disabled",s=n.hubExpanded?"expanded":"",r=n.history.filter(c=>c.status==="pending"||c.status==="fixing").length;t.className=`hub ${i} ${o}`.trim(),t.innerHTML=`
+    <div class="hub-header">
+      <div class="hub-header-left">
+        <div class="hub-logo">${Z}</div>
+        <span class="hub-title">Eyeglass</span>
+        ${r>0?`<span class="hub-badge">${r}</span>`:""}
+        <button class="hub-toggle ${s}" title="Toggle history">\u25BC</button>
       </div>
-      <button class="toast-close">&times;</button>
-    `,this.toast.querySelector(".toast-close").addEventListener("click",()=>this.hideToast()),this.shadow.appendChild(this.toast),setTimeout(()=>this.hideToast(),4e3)}hideToast(){this.toast&&(this.toast.remove(),this.toast=null)}loadEnabledState(){try{let t=localStorage.getItem($);t!==null&&(this.inspectorEnabled=t==="true")}catch{}}saveEnabledState(){try{localStorage.setItem($,String(this.inspectorEnabled))}catch{}}loadAutoCommitState(){try{let t=localStorage.getItem(L);t!==null&&(this.autoCommitEnabled=t==="true")}catch{}}saveAutoCommitState(){try{localStorage.setItem(L,String(this.autoCommitEnabled))}catch{}}loadThemeState(){try{let t=localStorage.getItem(N);(t==="light"||t==="dark"||t==="auto")&&(this.themePreference=t)}catch{}}saveThemeState(){try{localStorage.setItem(N,this.themePreference)}catch{}}applyTheme(){this.setAttribute("data-theme",this.themePreference)}loadHistory(){try{let t=sessionStorage.getItem(P);t&&(this.history=JSON.parse(t))}catch{this.history=[]}}saveHistory(){try{sessionStorage.setItem(P,JSON.stringify(this.history))}catch{}}addToHistory(t){let e=this.history.findIndex(i=>i.interactionId===t.interactionId);e>=0?this.history[e]=t:(this.history.unshift(t),this.history.length>20&&(this.history=this.history.slice(0,20))),this.saveHistory(),this.renderHub()}updateHistoryStatus(t,e){let i=this.history.find(n=>n.interactionId===t);i&&(i.status=e,this.saveHistory(),this.renderHub())}renderHub(){this.hub||(this.hub=document.createElement("div"),this.hub.className="hub",this.shadow.appendChild(this.hub)),this.hubPage==="settings"?this.renderHubSettingsPage():this.renderHubMainPage()}renderHubMainPage(){if(!this.hub)return;let t=this.hubExpanded?"":"collapsed",e=this.inspectorEnabled?"":"disabled",i=this.hubExpanded?"expanded":"",n=this.history.filter(c=>c.status==="pending"||c.status==="fixing").length;this.hub.className=`hub ${t} ${e}`.trim();let r='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',o='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',l='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',d=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-    <defs>
-      <linearGradient id="lensGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:0.3"/>
-        <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.1"/>
-      </linearGradient>
-    </defs>
-    <circle cx="30" cy="50" r="20" fill="url(#lensGrad)" stroke="#3b82f6" stroke-width="3"/>
-    <circle cx="70" cy="50" r="20" fill="url(#lensGrad)" stroke="#3b82f6" stroke-width="3"/>
-    <path d="M 50 50 Q 50 42 50 50" stroke="#3b82f6" stroke-width="3" fill="none"/>
-    <line x1="50" y1="47" x2="50" y2="53" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
-    <line x1="10" y1="50" x2="10" y2="50" stroke="#3b82f6" stroke-width="3"/>
-    <path d="M 10 50 L 5 45" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
-    <path d="M 90 50 L 95 45" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
-    <path d="M 65 45 L 65 60 L 69 56 L 74 63 L 76 61 L 71 54 L 76 54 Z" fill="#3b82f6"/>
-  </svg>`;this.hub.innerHTML=`
-      <div class="hub-header">
-        <div class="hub-header-left">
-          <div class="hub-logo">${d}</div>
-          <span class="hub-title">Eyeglass</span>
-          ${n>0?`<span class="hub-badge">${n}</span>`:""}
-          <button class="hub-toggle ${i}" title="Toggle history">\u25BC</button>
-        </div>
-        <div class="hub-button-group">
-        <button class="hub-settings-btn" title="Settings">${l}</button>
-        <button class="hub-disable ${this.inspectorEnabled?"active":""}" title="${this.inspectorEnabled?"Disable":"Enable"} inspector">
-          ${this.inspectorEnabled?r:o}
-        </button>
-        </div>
+      <div class="hub-button-group">
+      <button class="hub-settings-btn" title="Settings">${Bt}</button>
+      <button class="hub-disable ${n.inspectorEnabled?"active":""}" title="${n.inspectorEnabled?"Disable":"Enable"} inspector">
+        ${n.inspectorEnabled?_t:Ot}
+      </button>
       </div>
-      <div class="hub-content ${i}">
-        ${this.history.length>0?`
-          <div class="hub-list">
-            ${this.history.map(c=>`
-              <div class="hub-item" data-id="${c.interactionId}">
-                <div class="hub-item-status ${c.status}"></div>
-                <div class="hub-item-content">
-                  <div class="hub-item-component">${this.escapeHtml(c.componentName)}</div>
-                  <div class="hub-item-note">${this.escapeHtml(c.userNote)}</div>
-                </div>
-                ${c.status==="success"?`
-                  <button class="hub-item-undo" data-id="${c.interactionId}" title="Undo">\u21A9</button>
-                `:""}
+    </div>
+    <div class="hub-content ${s}">
+      ${n.history.length>0?`
+        <div class="hub-list">
+          ${n.history.map(c=>`
+            <div class="hub-item" data-id="${c.interactionId}">
+              <div class="hub-item-status ${c.status}"></div>
+              <div class="hub-item-content">
+                <div class="hub-item-component">${d(c.componentName)}</div>
+                <div class="hub-item-note">${d(c.userNote)}</div>
               </div>
-            `).join("")}
-          </div>
-        `:`
-          <div class="hub-empty">No requests yet</div>
-        `}
-      </div>
-    `;let u=this.hub.querySelector(".hub-header"),f=this.hub.querySelector(".hub-disable"),g=this.hub.querySelector(".hub-settings-btn");u.addEventListener("click",c=>{c.target===f||c.target===g||c.target.closest(".hub-settings-btn")||(this.hubExpanded=!this.hubExpanded,this.renderHub())}),g.addEventListener("click",c=>{c.stopPropagation(),this.hubPage="settings",this.hubExpanded=!0,this.renderHub()}),f.addEventListener("click",c=>{c.stopPropagation(),this.inspectorEnabled=!this.inspectorEnabled,this.saveEnabledState(),this.inspectorEnabled||this.unfreeze(),this.updateCursor(),this.renderHub()}),this.hub.querySelectorAll(".hub-item-undo").forEach(c=>{c.addEventListener("click",h=>{h.stopPropagation();let p=h.currentTarget.dataset.id;this.requestUndo(p)})})}renderHubSettingsPage(){if(!this.hub)return;let t=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-    <defs>
-      <linearGradient id="lensGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:0.3"/>
-        <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.1"/>
-      </linearGradient>
-    </defs>
-    <circle cx="30" cy="50" r="20" fill="url(#lensGrad)" stroke="#3b82f6" stroke-width="3"/>
-    <circle cx="70" cy="50" r="20" fill="url(#lensGrad)" stroke="#3b82f6" stroke-width="3"/>
-    <path d="M 50 50 Q 50 42 50 50" stroke="#3b82f6" stroke-width="3" fill="none"/>
-    <line x1="50" y1="47" x2="50" y2="53" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
-    <line x1="10" y1="50" x2="10" y2="50" stroke="#3b82f6" stroke-width="3"/>
-    <path d="M 10 50 L 5 45" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
-    <path d="M 90 50 L 95 45" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
-    <path d="M 65 45 L 65 60 L 69 56 L 74 63 L 76 61 L 71 54 L 76 54 Z" fill="#3b82f6"/>
-  </svg>`;this.hub.className="hub";let e='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',i='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',n='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';this.hub.innerHTML=`
-      <div class="hub-header">
-        <div class="hub-header-left">
-          <div class="hub-logo">${t}</div>
-          <span class="hub-title">Eyeglass</span>
-        </div>
-      </div>
-      <div class="hub-content expanded">
-        <div class="hub-settings-page">
-          <div class="hub-settings-header">
-            <button class="hub-back-btn" title="Back">\u2190</button>
-            <span class="hub-settings-title">Settings</span>
-          </div>
-          <div class="hub-settings-list">
-            <div class="hub-setting-row">
-              <div class="hub-setting-info">
-                <div class="hub-setting-label">Theme</div>
-                <div class="hub-setting-desc">Light, dark, or match system</div>
-              </div>
-              <div class="theme-selector">
-                <button class="theme-btn ${this.themePreference==="light"?"active":""}" data-theme="light" title="Light">${e}</button>
-                <button class="theme-btn ${this.themePreference==="auto"?"active":""}" data-theme="auto" title="Auto">${n}</button>
-                <button class="theme-btn ${this.themePreference==="dark"?"active":""}" data-theme="dark" title="Dark">${i}</button>
-              </div>
+              ${c.status==="success"?`
+                <button class="hub-item-undo" data-id="${c.interactionId}" title="Undo">\u21A9</button>
+              `:""}
             </div>
-            <div class="hub-setting-row">
-              <div class="hub-setting-info">
-                <div class="hub-setting-label">Auto-commit</div>
-                <div class="hub-setting-desc">Automatically commit changes on success</div>
-              </div>
-              <button class="toggle-switch ${this.autoCommitEnabled?"active":""}" data-setting="autoCommit"></button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `,this.hub.querySelector(".hub-back-btn").addEventListener("click",()=>{this.hubPage="main",this.renderHub()}),this.hub.querySelectorAll(".theme-btn").forEach(o=>{o.addEventListener("click",l=>{let d=l.currentTarget.dataset.theme;this.themePreference=d,this.saveThemeState(),this.applyTheme(),this.renderHub()})}),this.hub.querySelectorAll(".toggle-switch").forEach(o=>{o.addEventListener("click",l=>{l.currentTarget.dataset.setting==="autoCommit"&&(this.autoCommitEnabled=!this.autoCommitEnabled,this.saveAutoCommitState(),this.renderHub())})})}async requestUndo(t){let e=this.history.findIndex(i=>i.interactionId===t);if(e!==-1){this.history[e].status="pending",this.saveHistory(),this.renderHub();try{(await fetch(`${b}/undo`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({interactionId:t})})).ok?(this.history.splice(e,1),this.saveHistory(),this.renderHub()):(this.history[e].status="failed",this.saveHistory(),this.renderHub())}catch(i){this.history[e]&&(this.history[e].status="failed",this.saveHistory(),this.renderHub()),console.warn("Undo request failed:",i)}}}async requestCommit(t){let e=this.history.findIndex(i=>i.interactionId===t);try{(await fetch(`${b}/commit`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({interactionId:t})})).ok?(e>=0&&(this.history[e].status="success",this.saveHistory(),this.renderHub()),this.unfreeze()):console.warn("Commit request failed")}catch(i){console.warn("Commit request failed:",i)}}disconnectedCallback(){document.removeEventListener("mousemove",this.handleMouseMove,!0),document.removeEventListener("click",this.handleClick,!0),document.removeEventListener("keydown",this.handleKeyDown,!0),window.removeEventListener("scroll",this.handleScroll,!0),this.eventSource?.close(),this.cursorStyleElement&&(this.cursorStyleElement.remove(),this.cursorStyleElement=null)}connectSSE(){this.eventSource=new EventSource(`${b}/events`),this.eventSource.onmessage=t=>{try{let e=JSON.parse(t.data);e.type==="activity"&&this.handleActivityEvent(e.payload)}catch{}},this.eventSource.onerror=()=>{this.eventSource?.close(),setTimeout(()=>this.connectSSE(),3e3)}}handleActivityEvent(t){t.type==="status"&&this.updateHistoryStatus(t.interactionId,t.status),t.interactionId===this.interactionId&&(this.activityEvents.push(t),t.type==="status"&&(this.currentStatus=t.status,this.saveSession(t.message),t.status==="fixing"?this.startPhraseRotation():this.stopPhraseRotation(),t.status==="failed"&&setTimeout(()=>this.unfreeze(),4e3)),this.renderPanel())}handleMouseMove(t){if(!this.multiSelectMode&&this.frozen||!this.inspectorEnabled)return;if(t.composedPath().includes(this)){this.multiSelectMode||this.hideHighlight();return}if(this.throttleTimeout)return;this.throttleTimeout=window.setTimeout(()=>{this.throttleTimeout=null},16),this.style.pointerEvents="none";let i=document.elementFromPoint(t.clientX,t.clientY);if(this.style.pointerEvents="",!i||i===document.documentElement||i===document.body){this.multiSelectMode||this.hideHighlight();return}this.shadow.contains(i)||(this.currentElement=i,this.showHighlight(i))}handleClick(t){if(!(!this.inspectorEnabled||!this.currentElement||t.composedPath().some(i=>i===this))){if(t.preventDefault(),t.stopPropagation(),this.multiSelectMode){this.toggleInSelection(this.currentElement);return}this.frozen||this.freeze()}}handleKeyDown(t){t.key==="Escape"&&this.unfreeze()}handleScroll(){this.frozen&&(this.disableHighlightTransitions(),this.currentElement&&this.highlight&&!this.multiSelectMode&&this.showHighlight(this.currentElement),this.multiSelectMode&&this.selectedElements.length>0&&this.updateMultiSelectHighlightPositions(),this.scrollTimeout&&window.clearTimeout(this.scrollTimeout),this.scrollTimeout=window.setTimeout(()=>{this.enableHighlightTransitions(),this.scrollTimeout=null},150))}disableHighlightTransitions(){this.highlight&&this.highlight.classList.add("no-transition"),this.multiSelectHighlights.forEach(t=>t.classList.add("no-transition"))}enableHighlightTransitions(){this.highlight&&this.highlight.classList.remove("no-transition"),this.multiSelectHighlights.forEach(t=>t.classList.remove("no-transition"))}updateMultiSelectHighlightPositions(){this.selectedElements.forEach((e,i)=>{let n=this.multiSelectHighlights[i];if(!n)return;let r=e.getBoundingClientRect();n.style.left=`${r.left-3}px`,n.style.top=`${r.top-3}px`,n.style.width=`${r.width+3*2}px`,n.style.height=`${r.height+3*2}px`})}handlePanelDragStart(t){if(t.target.closest("button"))return;this.isDragging=!0;let e=this.panel.getBoundingClientRect();this.dragOffset={x:t.clientX-e.left,y:t.clientY-e.top},document.addEventListener("mousemove",this.handlePanelDrag),document.addEventListener("mouseup",this.handlePanelDragEnd)}showHighlight(t){if(!this.highlight)return;let e=t.getBoundingClientRect(),i=3;this.highlight.style.display="block",this.highlight.style.left=`${e.left-i}px`,this.highlight.style.top=`${e.top-i}px`,this.highlight.style.width=`${e.width+i*2}px`,this.highlight.style.height=`${e.height+i*2}px`}hideHighlight(){this.highlight&&(this.highlight.style.display="none"),this.currentElement=null}freeze(){this.currentElement&&(this.frozen=!0,this.currentSnapshot=y(this.currentElement),this.selectedElements=[this.currentElement],this.selectedSnapshots=[this.currentSnapshot],this.mode="input",this.activityEvents=[],this.currentStatus="idle",this.updateCursor(),this.renderPanel())}enterMultiSelectMode(){!this.frozen||this.multiSelectMode||(this.multiSelectMode=!0,this.renderMultiSelectHighlights(),this.updateCursor(),this.renderPanel())}toggleInSelection(t){if(!this.multiSelectMode)return;let e=this.selectedElements.indexOf(t);if(e>=0)this.removeFromSelection(e);else{if(this.selectedElements.length>=s.MAX_SELECTION)return;let i=y(t);this.selectedElements.push(t),this.selectedSnapshots.push(i)}this.renderMultiSelectHighlights(),this.renderPanel()}removeFromSelection(t){if(!(t<0||t>=this.selectedElements.length)){if(this.selectedElements.length===1){this.exitMultiSelectMode();return}this.selectedElements.splice(t,1),this.selectedSnapshots.splice(t,1),this.renderMultiSelectHighlights(),this.renderPanel()}}exitMultiSelectMode(){this.multiSelectMode=!1,this.selectedElements.length>0&&(this.currentElement=this.selectedElements[0],this.currentSnapshot=this.selectedSnapshots[0]),this.selectedElements=this.currentElement?[this.currentElement]:[],this.selectedSnapshots=this.currentSnapshot?[this.currentSnapshot]:[],this.clearMultiSelectHighlights(),this.currentElement&&this.showHighlight(this.currentElement),this.updateCursor(),this.renderPanel()}renderMultiSelectHighlights(){this.clearMultiSelectHighlights();let t=3;this.selectedElements.forEach((e,i)=>{let n=e.getBoundingClientRect(),r=document.createElement("div");r.className="highlight multi",r.style.display="block",r.style.left=`${n.left-t}px`,r.style.top=`${n.top-t}px`,r.style.width=`${n.width+t*2}px`,r.style.height=`${n.height+t*2}px`;let o=document.createElement("div");o.className="highlight-badge",o.textContent=String(i+1),r.appendChild(o),this.shadow.appendChild(r),this.multiSelectHighlights.push(r)}),this.highlight&&(this.highlight.style.display="none")}clearMultiSelectHighlights(){this.multiSelectHighlights.forEach(t=>t.remove()),this.multiSelectHighlights=[]}unfreeze(){this.frozen=!1,this.currentSnapshot=null,this.interactionId=null,this.mode="input",this.activityEvents=[],this.customPanelPosition=null,this.multiSelectMode=!1,this.selectedElements=[],this.selectedSnapshots=[],this.submittedSnapshots=[],this.clearMultiSelectHighlights(),this.stopPhraseRotation(),this.hidePanel(),this.hideHighlight(),this.updateCursor();try{sessionStorage.removeItem(x)}catch{}}renderPanel(){if(!this.currentSnapshot||!this.currentElement)return;let t=this.currentElement.getBoundingClientRect(),{framework:e}=this.currentSnapshot;if(this.panel||(this.panel=document.createElement("div"),this.panel.className="glass-panel",this.shadow.appendChild(this.panel)),this.customPanelPosition)this.panel.style.left=`${this.customPanelPosition.x}px`,this.panel.style.top=`${this.customPanelPosition.y}px`;else{let r=window.innerHeight-t.bottom,o=this.mode==="activity"?400:200,l=t.bottom+12;r<o&&t.top>o&&(l=t.top-o-12);let d=t.left;d+340>window.innerWidth-20&&(d=window.innerWidth-360),d<20&&(d=20),this.panel.style.left=`${d}px`,this.panel.style.top=`${l}px`}let i=e.componentName||this.currentSnapshot.tagName,n=e.filePath?e.filePath.split("/").slice(-2).join("/"):null;this.mode==="input"?this.renderInputMode(i,n):this.renderActivityMode(i,n)}renderInputMode(t,e){if(!this.panel)return;let i=this.multiSelectMode,n=i?"multi-select-icon active":"multi-select-icon",r=i?`
-      <div class="selected-list">
-        <div class="selected-list-header">
-          <span class="selected-count">${this.selectedElements.length} element${this.selectedElements.length!==1?"s":""} selected</span>
-        </div>
-        <div class="selected-chips">
-          ${this.selectedSnapshots.map((h,p)=>{let m=h.framework.componentName||h.tagName;return`
-              <div class="selected-chip" data-index="${p}">
-                <span class="selected-chip-number">${p+1}</span>
-                <span>${this.escapeHtml(m)}</span>
-                <button class="selected-chip-remove" data-index="${p}" title="Remove">&times;</button>
-              </div>
-            `}).join("")}
-        </div>
-      </div>
-    `:"",o=i?`
-      <div class="multi-mode-hint">Click elements to add/remove from selection (max ${s.MAX_SELECTION})</div>
-    `:"";this.panel.innerHTML=`
-      <div class="panel-header">
-        <span class="component-tag">&lt;${this.escapeHtml(t)} /&gt;</span>
-        ${e?`<span class="file-path">${this.escapeHtml(e)}</span>`:""}
-        <button class="${n}" title="${i?"Exit multi-select":"Select multiple elements"}">+</button>
-        <button class="close-btn" title="Cancel (Esc)">&times;</button>
-      </div>
-      ${o}
-      ${r}
-      <div class="input-area">
-        <textarea
-          class="input-field"
-          placeholder="${i?"Describe what to change for these elements...":"What do you want to change?"}"
-          autofocus
-          rows="2"
-        ></textarea>
-        <div class="btn-row">
-          <button class="btn btn-secondary">Cancel</button>
-          <button class="btn btn-primary">Send</button>
-        </div>
-      </div>
-    `;let l=this.panel.querySelector(".input-field"),d=this.panel.querySelector(".close-btn"),u=this.panel.querySelector(".btn-secondary"),f=this.panel.querySelector(".btn-primary"),g=this.panel.querySelector(".multi-select-icon");d.addEventListener("click",()=>this.unfreeze()),u.addEventListener("click",()=>this.unfreeze()),f.addEventListener("click",()=>this.submit(l.value)),l.addEventListener("keydown",h=>{h.key==="Enter"&&!h.shiftKey&&l.value.trim()&&(h.preventDefault(),this.submit(l.value))}),g.addEventListener("click",()=>{this.multiSelectMode?this.exitMultiSelectMode():this.enterMultiSelectMode()}),this.panel.querySelectorAll(".selected-chip-remove").forEach(h=>{h.addEventListener("click",p=>{p.stopPropagation();let m=parseInt(p.currentTarget.dataset.index,10);this.removeFromSelection(m)})}),this.panel.querySelector(".panel-header").addEventListener("mousedown",this.handlePanelDragStart),requestAnimationFrame(()=>l.focus())}renderActivityMode(t,e){if(!this.panel)return;let i=this.activityEvents.length>0&&this.panel.querySelector(".user-request-text")?.textContent||"",n=this.currentStatus==="success"||this.currentStatus==="failed",r=this.currentStatus==="success"&&!this.autoCommitEnabled,o=this.currentStatus==="success",l=this.submittedSnapshots.length,d=l>1?`${l} elements`:`&lt;${this.escapeHtml(t)} /&gt;`;this.panel.innerHTML=`
-      <div class="panel-header">
-        <span class="component-tag">${d}</span>
-        ${l<=1&&e?`<span class="file-path">${this.escapeHtml(e)}</span>`:""}
-        <button class="close-btn" title="Close">&times;</button>
-      </div>
-      <div class="user-request">
-        <div class="user-request-label">Your request</div>
-        <div class="user-request-text">${this.escapeHtml(this.getUserNote())}</div>
-      </div>
-      <div class="activity-feed">
-        ${this.renderActivityFeed()}
-      </div>
-      <div class="panel-footer ${n?"done":""}">
-        <div class="status-indicator ${this.currentStatus}"></div>
-        <span class="status-text">${this.getStatusText()}</span>
-        ${r?`
-          <div class="success-actions">
-            <button class="action-btn action-btn-undo" title="Discard changes">Undo</button>
-            <button class="action-btn action-btn-commit" title="Commit changes">Commit</button>
-          </div>
-        `:""}
-      </div>
-      ${o?`
-        <div class="followup-area">
-          <div class="followup-row">
-            <textarea class="followup-input" placeholder="Anything else?" rows="1"></textarea>
-            <button class="followup-send">Send</button>
-            <button class="followup-done">\u2715</button>
-          </div>
-        </div>
-      `:""}
-    `,this.panel.querySelector(".close-btn").addEventListener("click",()=>this.unfreeze()),this.panel.querySelector(".panel-header").addEventListener("mousedown",this.handlePanelDragStart),this.panel.querySelectorAll(".question-option").forEach(v=>{v.addEventListener("click",A=>{let E=A.target,q=E.dataset.questionId,D=E.dataset.answerId,B=E.textContent;this.submitAnswer(q,D,B)})});let g=this.panel.querySelector(".action-btn-commit"),c=this.panel.querySelector(".action-btn-undo");g&&this.interactionId&&g.addEventListener("click",()=>this.requestCommit(this.interactionId)),c&&this.interactionId&&c.addEventListener("click",()=>this.requestUndo(this.interactionId));let h=this.panel.querySelector(".followup-input"),p=this.panel.querySelector(".followup-send"),m=this.panel.querySelector(".followup-done");h&&p&&(p.addEventListener("click",()=>{h.value.trim()&&this.submitFollowUp(h.value)}),h.addEventListener("keydown",v=>{v.key==="Enter"&&!v.shiftKey&&h.value.trim()&&(v.preventDefault(),this.submitFollowUp(h.value))}),requestAnimationFrame(()=>h.focus())),m&&m.addEventListener("click",()=>this.unfreeze());let S=this.panel.querySelector(".activity-feed");S&&(S.scrollTop=S.scrollHeight)}renderActivityFeed(){let t=this.activityEvents.map(e=>{switch(e.type){case"status":return e.status==="pending"||e.status==="fixing"&&(!e.message||e.message==="Agent is working...")?"":this.renderStatusItem(e);case"thought":return this.renderThoughtItem(e);case"action":return this.renderActionItem(e);case"question":return this.renderQuestionItem(e);default:return""}}).filter(Boolean);return t.length===0&&(this.currentStatus==="pending"||this.currentStatus==="fixing")?`
-        <div class="skeleton-item">
-          <div class="skeleton-icon"></div>
-          <div class="skeleton-line"></div>
-        </div>
-      `:t.join("")}renderStatusItem(t){let e=t.status==="success"?"success":t.status==="failed"?"error":"status",i=t.status==="success"?"\u2713":t.status==="failed"?"\u2715":"\u25CF";return`
-      <div class="activity-item">
-        <div class="activity-icon ${e}">${i}</div>
-        <div class="activity-content">
-          <div class="activity-text">${this.escapeHtml(t.message||t.status)}</div>
-        </div>
-      </div>
-    `}renderThoughtItem(t){return`
-      <div class="activity-item">
-        <div class="activity-icon thought">\u{1F4AD}</div>
-        <div class="activity-content">
-          <div class="activity-text muted">${this.escapeHtml(t.content)}</div>
-        </div>
-      </div>
-    `}renderActionItem(t){let e={reading:"\u{1F4D6}",writing:"\u270F\uFE0F",searching:"\u{1F50D}",thinking:"\u{1F9E0}"},i={reading:"Reading",writing:"Writing",searching:"Searching",thinking:"Thinking about"};return`
-      <div class="activity-item">
-        <div class="activity-icon action">${e[t.action]||"\u25CF"}</div>
-        <div class="activity-content">
-          <div class="activity-text">${i[t.action]||t.action}${t.complete?" \u2713":"..."}</div>
-          <div class="activity-target">${this.escapeHtml(t.target)}</div>
-        </div>
-      </div>
-    `}renderQuestionItem(t){return this.activityEvents.some(i=>i.type==="status"&&i.timestamp>t.timestamp)?`
-        <div class="activity-item">
-          <div class="activity-icon question">?</div>
-          <div class="activity-content">
-            <div class="activity-text muted">${this.escapeHtml(t.question)}</div>
-          </div>
-        </div>
-      `:`
-      <div class="question-box">
-        <div class="question-text">${this.escapeHtml(t.question)}</div>
-        <div class="question-options">
-          ${t.options.map(i=>`
-            <button
-              class="question-option"
-              data-question-id="${t.questionId}"
-              data-answer-id="${i.id}"
-            >${this.escapeHtml(i.label)}</button>
           `).join("")}
         </div>
+      `:`
+        <div class="hub-empty">No requests yet</div>
+      `}
+    </div>
+  `;let a=t.querySelector(".hub-header"),l=t.querySelector(".hub-disable"),h=t.querySelector(".hub-settings-btn");a.addEventListener("click",c=>{c.target===l||c.target===h||c.target.closest(".hub-settings-btn")||e.onToggleExpanded()}),h.addEventListener("click",c=>{c.stopPropagation(),e.onOpenSettings()}),l.addEventListener("click",c=>{c.stopPropagation(),e.onToggleEnabled()}),t.querySelectorAll(".hub-item-undo").forEach(c=>{c.addEventListener("click",g=>{g.stopPropagation();let x=g.currentTarget.dataset.id;e.onUndo(x)})})}function Q(t,n,e){t.className="hub",t.innerHTML=`
+    <div class="hub-header">
+      <div class="hub-header-left">
+        <div class="hub-logo">${Z}</div>
+        <span class="hub-title">Eyeglass</span>
       </div>
-    `}getUserNote(){let t=this.activityEvents.find(e=>e.type==="status");return this._userNote||""}getStatusText(){switch(this.currentStatus){case"idle":return"Ready";case"pending":return"Waiting for agent...";case"fixing":return w[this.phraseIndex%w.length];case"success":return"Done!";case"failed":return"Failed";default:return this.currentStatus}}startPhraseRotation(){this.phraseInterval||(this.phraseIndex=Math.floor(Math.random()*w.length),this.phraseInterval=window.setInterval(()=>{this.phraseIndex=(this.phraseIndex+1)%w.length,this.updateFooterText()},1e4))}stopPhraseRotation(){this.phraseInterval&&(window.clearInterval(this.phraseInterval),this.phraseInterval=null)}updateFooterText(){if(!this.panel)return;let t=this.panel.querySelector(".status-text");t&&(t.textContent=this.getStatusText())}hidePanel(){this.panel&&(this.panel.remove(),this.panel=null)}async submit(t){if(!t.trim()||this.selectedSnapshots.length===0&&!this.currentSnapshot)return;this.interactionId=`eyeglass-${Date.now()}-${Math.random().toString(36).slice(2,9)}`,this._userNote=t.trim();let e=this.selectedSnapshots.length>0?this.selectedSnapshots:this.currentSnapshot?[this.currentSnapshot]:[];this.submittedSnapshots=[...e];let i={interactionId:this.interactionId,userNote:t.trim(),autoCommit:this.autoCommitEnabled,...e.length===1?{snapshot:e[0]}:{snapshots:e}},n=e.map(u=>u.framework.componentName||u.tagName),r=e.length===1?n[0]:`${n.length} elements`;this.addToHistory({interactionId:this.interactionId,userNote:t.trim(),componentName:r,filePath:e[0]?.framework.filePath,status:"pending",timestamp:Date.now()});let o=this.multiSelectMode,l=[...this.selectedElements],d=[...this.selectedSnapshots];this.clearMultiSelectHighlights(),this.multiSelectMode=!1,this.mode="activity",this.activityEvents=[],this.currentStatus="pending",this.renderPanel();try{let u=await fetch(`${b}/focus`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(i)});if(!u.ok)throw new Error(`HTTP ${u.status}`)}catch{this.currentStatus="failed",this.updateHistoryStatus(this.interactionId,"failed"),this.activityEvents.push({type:"status",interactionId:this.interactionId,status:"failed",message:"Failed to connect to bridge",timestamp:Date.now()}),o&&l.length>1&&(this.multiSelectMode=!0,this.selectedElements=l,this.selectedSnapshots=d,this.mode="input",this.renderMultiSelectHighlights()),this.renderPanel()}}async submitFollowUp(t){if(!t.trim()||this.submittedSnapshots.length===0)return;this.interactionId=`eyeglass-${Date.now()}-${Math.random().toString(36).slice(2,9)}`,this._userNote=t.trim();let e=this.submittedSnapshots,i={interactionId:this.interactionId,userNote:t.trim(),autoCommit:this.autoCommitEnabled,...e.length===1?{snapshot:e[0]}:{snapshots:e}},n=e.map(o=>o.framework.componentName||o.tagName),r=e.length===1?n[0]:`${n.length} elements`;this.addToHistory({interactionId:this.interactionId,userNote:t.trim(),componentName:r,filePath:e[0]?.framework.filePath,status:"pending",timestamp:Date.now()}),this.activityEvents=[],this.currentStatus="pending",this.renderPanel();try{let o=await fetch(`${b}/focus`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(i)});if(!o.ok)throw new Error(`HTTP ${o.status}`)}catch{this.currentStatus="failed",this.updateHistoryStatus(this.interactionId,"failed"),this.activityEvents.push({type:"status",interactionId:this.interactionId,status:"failed",message:"Failed to connect to bridge",timestamp:Date.now()}),this.renderPanel()}}async submitAnswer(t,e,i){if(!this.interactionId)return;let n={interactionId:this.interactionId,questionId:t,answerId:e,answerLabel:i};try{await fetch(`${b}/answer`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(n)})}catch{}}escapeHtml(t){let e=document.createElement("div");return e.textContent=t,e.innerHTML}updateCursor(){this.inspectorEnabled&&(!this.frozen||this.multiSelectMode)?(this.cursorStyleElement||(this.cursorStyleElement=document.createElement("style"),this.cursorStyleElement.id="eyeglass-cursor-style",document.head.appendChild(this.cursorStyleElement)),this.cursorStyleElement.textContent=`
-        html, body, body * {
-          cursor: ${X} !important;
-        }
-      `):this.cursorStyleElement&&(this.cursorStyleElement.textContent="")}};customElements.get("eyeglass-inspector")||customElements.define("eyeglass-inspector",k);function z(){if(document.querySelector("eyeglass-inspector")){console.warn("[eyeglass] Inspector already initialized");return}let s=document.createElement("eyeglass-inspector");document.body.appendChild(s),console.log("[eyeglass] Inspector initialized. Hover over elements and click to annotate.")}typeof window<"u"&&typeof document<"u"&&(document.readyState==="loading"?document.addEventListener("DOMContentLoaded",z):z());export{k as EyeglassInspector,y as captureSnapshot,I as extractFrameworkInfo,z as initInspector};
+    </div>
+    <div class="hub-content expanded">
+      <div class="hub-settings-page">
+        <div class="hub-settings-header">
+          <button class="hub-back-btn" title="Back">\u2190</button>
+          <span class="hub-settings-title">Settings</span>
+        </div>
+        <div class="hub-settings-list">
+          <div class="hub-setting-row">
+            <div class="hub-setting-info">
+              <div class="hub-setting-label">Theme</div>
+              <div class="hub-setting-desc">Light, dark, or match system</div>
+            </div>
+            <div class="theme-selector">
+              <button class="theme-btn ${n.themePreference==="light"?"active":""}" data-theme="light" title="Light">${jt}</button>
+              <button class="theme-btn ${n.themePreference==="auto"?"active":""}" data-theme="auto" title="Auto">${Yt}</button>
+              <button class="theme-btn ${n.themePreference==="dark"?"active":""}" data-theme="dark" title="Dark">${Ut}</button>
+            </div>
+          </div>
+          <div class="hub-setting-row">
+            <div class="hub-setting-info">
+              <div class="hub-setting-label">Auto-commit</div>
+              <div class="hub-setting-desc">Automatically commit changes on success</div>
+            </div>
+            <button class="toggle-switch ${n.autoCommitEnabled?"active":""}" data-setting="autoCommit"></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `,t.querySelector(".hub-back-btn").addEventListener("click",()=>{e.onBack()}),t.querySelectorAll(".theme-btn").forEach(o=>{o.addEventListener("click",s=>{let r=s.currentTarget.dataset.theme;e.onThemeChange(r)})}),t.querySelectorAll(".toggle-switch").forEach(o=>{o.addEventListener("click",s=>{s.currentTarget.dataset.setting==="autoCommit"&&e.onAutoCommitToggle()})})}function tt(t,n){let e=t.map(i=>{switch(i.type){case"status":return i.status==="pending"||i.status==="fixing"&&(!i.message||i.message==="Agent is working...")?"":Gt(i);case"thought":return Kt(i);case"action":return Wt(i);case"question":return Jt(i,t);default:return""}}).filter(Boolean);return e.length===0&&(n==="pending"||n==="fixing")?`
+      <div class="skeleton-item">
+        <div class="skeleton-icon"></div>
+        <div class="skeleton-line"></div>
+      </div>
+    `:e.join("")}function Gt(t){let n=t.status==="success"?"success":t.status==="failed"?"error":"status",e=t.status==="success"?"\u2713":t.status==="failed"?"\u2715":"\u25CF";return`
+    <div class="activity-item">
+      <div class="activity-icon ${n}">${e}</div>
+      <div class="activity-content">
+        <div class="activity-text">${d(t.message||t.status)}</div>
+      </div>
+    </div>
+  `}function Kt(t){return`
+    <div class="activity-item">
+      <div class="activity-icon thought">\u{1F4AD}</div>
+      <div class="activity-content">
+        <div class="activity-text muted">${d(t.content)}</div>
+      </div>
+    </div>
+  `}function Wt(t){let n={reading:"\u{1F4D6}",writing:"\u270F\uFE0F",searching:"\u{1F50D}",thinking:"\u{1F9E0}"},e={reading:"Reading",writing:"Writing",searching:"Searching",thinking:"Thinking about"};return`
+    <div class="activity-item">
+      <div class="activity-icon action">${n[t.action]||"\u25CF"}</div>
+      <div class="activity-content">
+        <div class="activity-text">${e[t.action]||t.action}${t.complete?" \u2713":"..."}</div>
+        <div class="activity-target">${d(t.target)}</div>
+      </div>
+    </div>
+  `}function Jt(t,n){return n.some(i=>i.type==="status"&&i.timestamp>t.timestamp)?`
+      <div class="activity-item">
+        <div class="activity-icon question">?</div>
+        <div class="activity-content">
+          <div class="activity-text muted">${d(t.question)}</div>
+        </div>
+      </div>
+    `:`
+    <div class="question-box">
+      <div class="question-text">${d(t.question)}</div>
+      <div class="question-options">
+        ${t.options.map(i=>`
+          <button
+            class="question-option"
+            data-question-id="${t.questionId}"
+            data-answer-id="${i.id}"
+          >${d(i.label)}</button>
+        `).join("")}
+      </div>
+    </div>
+  `}function nt(t,n,e){if(e)return e;let i=window.innerHeight-t.bottom,o=n==="activity"?400:200,s=t.bottom+12;i<o&&t.top>o&&(s=t.top-o-12);let r=t.left;return r+340>window.innerWidth-20&&(r=window.innerWidth-360),r<20&&(r=20),{x:r,y:s}}function it(t,n,e){let i=n.multiSelectMode,o=i?"multi-select-icon active":"multi-select-icon",s=i?`
+    <div class="selected-list">
+      <div class="selected-list-header">
+        <span class="selected-count">${n.selectedSnapshots.length} element${n.selectedSnapshots.length!==1?"s":""} selected</span>
+      </div>
+      <div class="selected-chips">
+        ${n.selectedSnapshots.map((u,p)=>{let b=u.framework.componentName||u.tagName;return`
+            <div class="selected-chip" data-index="${p}">
+              <span class="selected-chip-number">${p+1}</span>
+              <span>${d(b)}</span>
+              <button class="selected-chip-remove" data-index="${p}" title="Remove">&times;</button>
+            </div>
+          `}).join("")}
+      </div>
+    </div>
+  `:"",r=i?`
+    <div class="multi-mode-hint">Click elements to add/remove from selection (max ${5})</div>
+  `:"";t.innerHTML=`
+    <div class="panel-header">
+      <span class="component-tag">&lt;${d(n.componentName)} /&gt;</span>
+      ${n.filePath?`<span class="file-path">${d(n.filePath)}</span>`:""}
+      <button class="${o}" title="${i?"Exit multi-select":"Select multiple elements"}">+</button>
+      <button class="close-btn" title="Cancel (Esc)">&times;</button>
+    </div>
+    ${r}
+    ${s}
+    <div class="input-area">
+      <textarea
+        class="input-field"
+        placeholder="${i?"Describe what to change for these elements...":"What do you want to change?"}"
+        autofocus
+        rows="2"
+      ></textarea>
+      <div class="btn-row">
+        <button class="btn btn-secondary">Cancel</button>
+        <button class="btn btn-primary">Send</button>
+      </div>
+    </div>
+  `;let a=t.querySelector(".input-field"),l=t.querySelector(".close-btn"),h=t.querySelector(".btn-secondary"),c=t.querySelector(".btn-primary"),g=t.querySelector(".multi-select-icon");l.addEventListener("click",()=>e.onClose()),h.addEventListener("click",()=>e.onClose()),c.addEventListener("click",()=>e.onSubmit(a.value)),a.addEventListener("keydown",u=>{u.key==="Enter"&&!u.shiftKey&&a.value.trim()&&(u.preventDefault(),e.onSubmit(a.value))}),g.addEventListener("click",()=>{e.onToggleMultiSelect()}),t.querySelectorAll(".selected-chip-remove").forEach(u=>{u.addEventListener("click",p=>{p.stopPropagation();let b=parseInt(p.currentTarget.dataset.index,10);e.onRemoveFromSelection(b)})}),t.querySelector(".panel-header").addEventListener("mousedown",e.onPanelDragStart),requestAnimationFrame(()=>a.focus())}function ot(t,n,e){let i=n.currentStatus==="success"||n.currentStatus==="failed",o=n.currentStatus==="success"&&!n.autoCommitEnabled,s=n.currentStatus==="success",r=n.submittedSnapshots.length,a=r>1?`${r} elements`:`&lt;${d(n.componentName)} /&gt;`,l=A(n.currentStatus,n.phraseIndex);t.innerHTML=`
+    <div class="panel-header">
+      <span class="component-tag">${a}</span>
+      ${r<=1&&n.filePath?`<span class="file-path">${d(n.filePath)}</span>`:""}
+      <button class="close-btn" title="Close">&times;</button>
+    </div>
+    <div class="user-request">
+      <div class="user-request-label">Your request</div>
+      <div class="user-request-text">${d(n.userNote)}</div>
+    </div>
+    <div class="activity-feed">
+      ${tt(n.activityEvents,n.currentStatus)}
+    </div>
+    <div class="panel-footer ${i?"done":""}">
+      <div class="status-indicator ${n.currentStatus}"></div>
+      <span class="status-text">${l}</span>
+      ${o?`
+        <div class="success-actions">
+          <button class="action-btn action-btn-undo" title="Discard changes">Undo</button>
+          <button class="action-btn action-btn-commit" title="Commit changes">Commit</button>
+        </div>
+      `:""}
+    </div>
+    ${s?`
+      <div class="followup-area">
+        <div class="followup-row">
+          <textarea class="followup-input" placeholder="Anything else?" rows="1"></textarea>
+          <button class="followup-send">Send</button>
+          <button class="followup-done">\u2715</button>
+        </div>
+      </div>
+    `:""}
+  `,t.querySelector(".close-btn").addEventListener("click",()=>e.onClose()),t.querySelector(".panel-header").addEventListener("mousedown",e.onPanelDragStart),t.querySelectorAll(".question-option").forEach(y=>{y.addEventListener("click",Mt=>{let C=Mt.target,Ht=C.dataset.questionId,It=C.dataset.answerId,Ct=C.textContent;e.onSubmitAnswer(Ht,It,Ct)})});let g=t.querySelector(".action-btn-commit"),x=t.querySelector(".action-btn-undo");g&&g.addEventListener("click",()=>e.onCommit()),x&&x.addEventListener("click",()=>e.onUndo());let u=t.querySelector(".followup-input"),p=t.querySelector(".followup-send"),b=t.querySelector(".followup-done");u&&p&&(p.addEventListener("click",()=>{u.value.trim()&&e.onSubmitFollowUp(u.value)}),u.addEventListener("keydown",y=>{y.key==="Enter"&&!y.shiftKey&&u.value.trim()&&(y.preventDefault(),e.onSubmitFollowUp(u.value))}),requestAnimationFrame(()=>u.focus())),b&&b.addEventListener("click",()=>e.onClose());let I=t.querySelector(".activity-feed");I&&(I.scrollTop=I.scrollHeight)}function st(t,n,e){if(!t)return;let i=t.querySelector(".status-text");i&&(i.textContent=A(n,e))}function rt(t,n,e,i){return o=>{let s=e();if(!s.multiSelectMode&&s.frozen||!s.inspectorEnabled)return;if(o.composedPath().includes(t)){s.multiSelectMode||i.hideHighlight();return}if(s.throttleTimeout)return;i.setThrottleTimeout(window.setTimeout(()=>{i.setThrottleTimeout(null)},16)),t.style.pointerEvents="none";let a=document.elementFromPoint(o.clientX,o.clientY);if(t.style.pointerEvents="",!a||a===document.documentElement||a===document.body){s.multiSelectMode||i.hideHighlight();return}n.contains(a)||(i.setCurrentElement(a),i.showHighlight(a))}}function at(t,n,e){return i=>{let o=n();if(!(!o.inspectorEnabled||!o.currentElement||i.composedPath().some(r=>r===t))){if(i.preventDefault(),i.stopPropagation(),o.multiSelectMode){e.toggleInSelection(o.currentElement);return}o.frozen||e.freeze()}}}function lt(t){return n=>{n.key==="Escape"&&t.unfreeze()}}function ct(t,n){return()=>{let e=t();e.frozen&&(n.disableHighlightTransitions(),e.currentElement&&e.highlight&&!e.multiSelectMode&&n.showHighlight(e.currentElement),e.multiSelectMode&&e.selectedElements.length>0&&n.updateMultiSelectHighlightPositions(),e.scrollTimeout&&window.clearTimeout(e.scrollTimeout),n.setScrollTimeout(window.setTimeout(()=>{n.enableHighlightTransitions(),n.setScrollTimeout(null)},150)))}}function dt(t,n){let e=s=>{let r=t();if(!r.isDragging||!r.panel)return;let a=Math.max(0,Math.min(s.clientX-r.dragOffset.x,window.innerWidth-340)),l=Math.max(0,Math.min(s.clientY-r.dragOffset.y,window.innerHeight-100));n.setCustomPanelPosition({x:a,y:l}),r.panel.style.left=`${a}px`,r.panel.style.top=`${l}px`},i=()=>{n.setDragging(!1),document.removeEventListener("mousemove",e),document.removeEventListener("mouseup",i)};return{handlePanelDragStart:s=>{if(s.target.closest("button"))return;let r=t();if(!r.panel)return;n.setDragging(!0);let a=r.panel.getBoundingClientRect();n.setDragOffset({x:s.clientX-a.left,y:s.clientY-a.top}),document.addEventListener("mousemove",e),document.addEventListener("mouseup",i)},handlePanelDrag:e,handlePanelDragEnd:i}}function ut(t,n,e,i,o){if(!t)return;let s={interactionId:t,userNote:n,componentName:e?.framework.componentName||e?.tagName||"element",status:i,message:o,timestamp:Date.now()};try{sessionStorage.setItem(E,JSON.stringify(s))}catch{}}function ht(){try{let t=sessionStorage.getItem(E);if(!t)return null;let n=JSON.parse(t);return Date.now()-n.timestamp>1e4?(sessionStorage.removeItem(E),null):n}catch{return null}}function q(){try{sessionStorage.removeItem(E)}catch{}}function pt(){try{let t=sessionStorage.getItem(P);if(t)return JSON.parse(t)}catch{}return[]}function m(t){try{sessionStorage.setItem(P,JSON.stringify(t))}catch{}}function F(t,n){let e=[...t],i=e.findIndex(o=>o.interactionId===n.interactionId);return i>=0?e[i]=n:(e.unshift(n),e.length>20&&(e.length=20)),e}function k(t,n,e){return t.map(i=>i.interactionId===n?{...i,status:e}:i)}function mt(t,n){return t.filter(e=>e.interactionId!==n)}function gt(){try{let t=localStorage.getItem(L);if(t!==null)return t==="true"}catch{}return!0}function bt(t){try{localStorage.setItem(L,String(t))}catch{}}function ft(){try{let t=localStorage.getItem(D);if(t!==null)return t==="true"}catch{}return!0}function vt(t){try{localStorage.setItem(D,String(t))}catch{}}function xt(){try{let t=localStorage.getItem($);if(t==="light"||t==="dark"||t==="auto")return t}catch{}return"auto"}function yt(t){try{localStorage.setItem($,t)}catch{}}function w(t,n){t.multiSelectHighlights.forEach(o=>o.remove());let e=[],i=3;return t.selectedElements.forEach((o,s)=>{let r=o.getBoundingClientRect(),a=document.createElement("div");a.className="highlight multi",a.style.display="block",a.style.left=`${r.left-i}px`,a.style.top=`${r.top-i}px`,a.style.width=`${r.width+i*2}px`,a.style.height=`${r.height+i*2}px`;let l=document.createElement("div");l.className="highlight-badge",l.textContent=String(s+1),a.appendChild(l),n.appendChild(a),e.push(a)}),e}function M(t,n){t.multiSelectHighlights.forEach(e=>e.remove())}function St(t,n){t.forEach((i,o)=>{let s=n[o];if(!s)return;let r=i.getBoundingClientRect();s.style.left=`${r.left-3}px`,s.style.top=`${r.top-3}px`,s.style.width=`${r.width+3*2}px`,s.style.height=`${r.height+3*2}px`})}function Et(t,n){t&&t.classList.add("no-transition"),n.forEach(e=>e.classList.add("no-transition"))}function wt(t,n){t&&t.classList.remove("no-transition"),n.forEach(e=>e.classList.remove("no-transition"))}var H=class extends HTMLElement{constructor(){super();this.highlight=null;this.panel=null;this.toast=null;this.hub=null;this.currentElement=null;this.currentSnapshot=null;this.interactionId=null;this.frozen=!1;this.eventSource=null;this.throttleTimeout=null;this.mode="input";this.activityEvents=[];this.currentStatus="idle";this.hubExpanded=!1;this.hubPage="main";this.inspectorEnabled=!0;this.autoCommitEnabled=!0;this.themePreference="auto";this.history=[];this.isDragging=!1;this.dragOffset={x:0,y:0};this.customPanelPosition=null;this.multiSelectMode=!1;this.selectedElements=[];this.selectedSnapshots=[];this.multiSelectHighlights=[];this.submittedSnapshots=[];this.cursorStyleElement=null;this.scrollTimeout=null;this.phraseIndex=0;this.phraseInterval=null;this._userNote="";this.shadow=this.attachShadow({mode:"closed"}),this.handleMouseMove=rt(this,this.shadow,()=>({frozen:this.frozen,multiSelectMode:this.multiSelectMode,inspectorEnabled:this.inspectorEnabled,throttleTimeout:this.throttleTimeout}),{setThrottleTimeout:e=>this.throttleTimeout=e,hideHighlight:()=>this.hideHighlight(),showHighlight:e=>this.showHighlight(e),setCurrentElement:e=>this.currentElement=e}),this.handleClick=at(this,()=>({inspectorEnabled:this.inspectorEnabled,currentElement:this.currentElement,frozen:this.frozen,multiSelectMode:this.multiSelectMode}),{toggleInSelection:e=>this.toggleInSelection(e),freeze:()=>this.freeze()}),this.handleKeyDown=lt({unfreeze:()=>this.unfreeze()}),this.handleScroll=ct(()=>({frozen:this.frozen,currentElement:this.currentElement,highlight:this.highlight,multiSelectMode:this.multiSelectMode,selectedElements:this.selectedElements,scrollTimeout:this.scrollTimeout}),{showHighlight:e=>this.showHighlight(e),updateMultiSelectHighlightPositions:()=>St(this.selectedElements,this.multiSelectHighlights),disableHighlightTransitions:()=>Et(this.highlight,this.multiSelectHighlights),enableHighlightTransitions:()=>wt(this.highlight,this.multiSelectHighlights),setScrollTimeout:e=>this.scrollTimeout=e}),this.dragHandlers=dt(()=>({isDragging:this.isDragging,dragOffset:this.dragOffset,panel:this.panel}),{setDragging:e=>this.isDragging=e,setDragOffset:e=>this.dragOffset=e,setCustomPanelPosition:e=>this.customPanelPosition=e})}connectedCallback(){let e=document.createElement("style");e.textContent=Y,this.shadow.appendChild(e),this.highlight=document.createElement("div"),this.highlight.className="highlight",this.highlight.style.display="none",this.shadow.appendChild(this.highlight),document.addEventListener("mousemove",this.handleMouseMove,!0),document.addEventListener("click",this.handleClick,!0),document.addEventListener("keydown",this.handleKeyDown,!0),window.addEventListener("scroll",this.handleScroll,!0),this.inspectorEnabled=gt(),this.autoCommitEnabled=ft(),this.themePreference=xt(),this.applyTheme(),this.history=pt(),this.renderHub(),this.connectSSE(),this.restoreSession(),this.updateCursor()}disconnectedCallback(){document.removeEventListener("mousemove",this.handleMouseMove,!0),document.removeEventListener("click",this.handleClick,!0),document.removeEventListener("keydown",this.handleKeyDown,!0),window.removeEventListener("scroll",this.handleScroll,!0),this.eventSource?.close(),this.cursorStyleElement&&(this.cursorStyleElement.remove(),this.cursorStyleElement=null)}connectSSE(){this.eventSource=K({onActivityEvent:e=>this.handleActivityEvent(e),onReconnect:()=>this.connectSSE()})}handleActivityEvent(e){e.type==="status"&&(this.history=k(this.history,e.interactionId,e.status),m(this.history),this.renderHub()),e.interactionId===this.interactionId&&(this.activityEvents.push(e),e.type==="status"&&(this.currentStatus=e.status,ut(this.interactionId,this._userNote,this.currentSnapshot,this.currentStatus,e.message),e.status==="fixing"?this.startPhraseRotation():this.stopPhraseRotation(),e.status==="failed"&&setTimeout(()=>this.unfreeze(),4e3)),this.renderPanel())}restoreSession(){let e=ht();e&&(e.status==="success"||e.status==="failed")&&(this.showResultToast(e),q())}showResultToast(e){this.toast=document.createElement("div"),this.toast.className="result-toast";let i=e.status==="success",o=i?"\u2713":"\u2715",s=i?"Done!":"Failed";this.toast.innerHTML=`
+      <div class="toast-icon ${e.status}">${o}</div>
+      <div class="toast-content">
+        <div class="toast-title">${s}</div>
+        <div class="toast-message">${d(e.message||e.userNote)}</div>
+      </div>
+      <button class="toast-close">&times;</button>
+    `,this.toast.querySelector(".toast-close").addEventListener("click",()=>this.hideToast()),this.shadow.appendChild(this.toast),setTimeout(()=>this.hideToast(),4e3)}hideToast(){this.toast&&(this.toast.remove(),this.toast=null)}applyTheme(){this.setAttribute("data-theme",this.themePreference)}updateCursor(){this.cursorStyleElement=G(this.inspectorEnabled,this.frozen,this.multiSelectMode,this.cursorStyleElement)}showHighlight(e){if(!this.highlight)return;let i=e.getBoundingClientRect(),o=3;this.highlight.style.display="block",this.highlight.style.left=`${i.left-o}px`,this.highlight.style.top=`${i.top-o}px`,this.highlight.style.width=`${i.width+o*2}px`,this.highlight.style.height=`${i.height+o*2}px`}hideHighlight(){this.highlight&&(this.highlight.style.display="none"),this.currentElement=null}freeze(){this.currentElement&&(this.frozen=!0,this.currentSnapshot=S(this.currentElement),this.selectedElements=[this.currentElement],this.selectedSnapshots=[this.currentSnapshot],this.mode="input",this.activityEvents=[],this.currentStatus="idle",this.updateCursor(),this.renderPanel())}unfreeze(){this.frozen=!1,this.currentSnapshot=null,this.interactionId=null,this.mode="input",this.activityEvents=[],this.customPanelPosition=null,this.multiSelectMode=!1,this.selectedElements=[],this.selectedSnapshots=[],this.submittedSnapshots=[],M({multiSelectHighlights:this.multiSelectHighlights},this.shadow),this.multiSelectHighlights=[],this.stopPhraseRotation(),this.hidePanel(),this.hideHighlight(),this.updateCursor(),q()}enterMultiSelectMode(){!this.frozen||this.multiSelectMode||(this.multiSelectMode=!0,this.multiSelectHighlights=w({multiSelectMode:!0,selectedElements:this.selectedElements,selectedSnapshots:this.selectedSnapshots,multiSelectHighlights:this.multiSelectHighlights,currentElement:this.currentElement,currentSnapshot:this.currentSnapshot},this.shadow),this.highlight&&(this.highlight.style.display="none"),this.updateCursor(),this.renderPanel())}exitMultiSelectMode(){this.multiSelectMode=!1,this.selectedElements.length>0&&(this.currentElement=this.selectedElements[0],this.currentSnapshot=this.selectedSnapshots[0]),this.selectedElements=this.currentElement?[this.currentElement]:[],this.selectedSnapshots=this.currentSnapshot?[this.currentSnapshot]:[],M({multiSelectHighlights:this.multiSelectHighlights},this.shadow),this.multiSelectHighlights=[],this.currentElement&&this.showHighlight(this.currentElement),this.updateCursor(),this.renderPanel()}toggleInSelection(e){if(!this.multiSelectMode)return;let i=this.selectedElements.indexOf(e);if(i>=0)this.removeFromSelection(i);else{if(this.selectedElements.length>=5)return;let o=S(e);this.selectedElements.push(e),this.selectedSnapshots.push(o)}this.multiSelectHighlights=w({multiSelectMode:!0,selectedElements:this.selectedElements,selectedSnapshots:this.selectedSnapshots,multiSelectHighlights:this.multiSelectHighlights,currentElement:this.currentElement,currentSnapshot:this.currentSnapshot},this.shadow),this.highlight&&(this.highlight.style.display="none"),this.renderPanel()}removeFromSelection(e){if(!(e<0||e>=this.selectedElements.length)){if(this.selectedElements.length===1){this.exitMultiSelectMode();return}this.selectedElements.splice(e,1),this.selectedSnapshots.splice(e,1),this.multiSelectHighlights=w({multiSelectMode:!0,selectedElements:this.selectedElements,selectedSnapshots:this.selectedSnapshots,multiSelectHighlights:this.multiSelectHighlights,currentElement:this.currentElement,currentSnapshot:this.currentSnapshot},this.shadow),this.highlight&&(this.highlight.style.display="none"),this.renderPanel()}}renderHub(){this.hub||(this.hub=document.createElement("div"),this.hub.className="hub",this.shadow.appendChild(this.hub)),this.hubPage==="settings"?Q(this.hub,{themePreference:this.themePreference,autoCommitEnabled:this.autoCommitEnabled},{onBack:()=>{this.hubPage="main",this.renderHub()},onThemeChange:e=>{this.themePreference=e,yt(e),this.applyTheme(),this.renderHub()},onAutoCommitToggle:()=>{this.autoCommitEnabled=!this.autoCommitEnabled,vt(this.autoCommitEnabled),this.renderHub()}}):X(this.hub,{hubExpanded:this.hubExpanded,inspectorEnabled:this.inspectorEnabled,history:this.history},{onToggleExpanded:()=>{this.hubExpanded=!this.hubExpanded,this.renderHub()},onToggleEnabled:()=>{this.inspectorEnabled=!this.inspectorEnabled,bt(this.inspectorEnabled),this.inspectorEnabled||this.unfreeze(),this.updateCursor(),this.renderHub()},onOpenSettings:()=>{this.hubPage="settings",this.hubExpanded=!0,this.renderHub()},onUndo:e=>this.handleUndoRequest(e)})}renderPanel(){if(!this.currentSnapshot||!this.currentElement)return;let e=this.currentElement.getBoundingClientRect(),{framework:i}=this.currentSnapshot;this.panel||(this.panel=document.createElement("div"),this.panel.className="glass-panel",this.shadow.appendChild(this.panel));let o=nt(e,this.mode,this.customPanelPosition);this.panel.style.left=`${o.x}px`,this.panel.style.top=`${o.y}px`;let s=i.componentName||this.currentSnapshot.tagName,r=i.filePath?i.filePath.split("/").slice(-2).join("/"):null;this.mode==="input"?it(this.panel,{componentName:s,filePath:r,multiSelectMode:this.multiSelectMode,selectedSnapshots:this.selectedSnapshots},{onClose:()=>this.unfreeze(),onSubmit:a=>this.submit(a),onToggleMultiSelect:()=>{this.multiSelectMode?this.exitMultiSelectMode():this.enterMultiSelectMode()},onRemoveFromSelection:a=>this.removeFromSelection(a),onPanelDragStart:this.dragHandlers.handlePanelDragStart}):ot(this.panel,{componentName:s,filePath:r,submittedSnapshots:this.submittedSnapshots,activityEvents:this.activityEvents,currentStatus:this.currentStatus,autoCommitEnabled:this.autoCommitEnabled,userNote:this._userNote,interactionId:this.interactionId,phraseIndex:this.phraseIndex},{onClose:()=>this.unfreeze(),onSubmitFollowUp:a=>this.submitFollowUp(a),onSubmitAnswer:(a,l,h)=>this.handleSubmitAnswer(a,l,h),onCommit:()=>this.handleCommitRequest(),onUndo:()=>this.handleUndoFromPanel(),onPanelDragStart:this.dragHandlers.handlePanelDragStart})}hidePanel(){this.panel&&(this.panel.remove(),this.panel=null)}startPhraseRotation(){this.phraseInterval||(this.phraseIndex=Math.floor(Math.random()*v.length),this.phraseInterval=window.setInterval(()=>{this.phraseIndex=(this.phraseIndex+1)%v.length,st(this.panel,this.currentStatus,this.phraseIndex)},1e4))}stopPhraseRotation(){this.phraseInterval&&(window.clearInterval(this.phraseInterval),this.phraseInterval=null)}async submit(e){if(!e.trim()||this.selectedSnapshots.length===0&&!this.currentSnapshot)return;this.interactionId=z(),this._userNote=e.trim();let i=this.selectedSnapshots.length>0?this.selectedSnapshots:this.currentSnapshot?[this.currentSnapshot]:[];this.submittedSnapshots=[...i];let o=R(this.interactionId,e,i);this.history=F(this.history,o),m(this.history),this.renderHub();let s=this.multiSelectMode,r=[...this.selectedElements],a=[...this.selectedSnapshots];M({multiSelectHighlights:this.multiSelectHighlights},this.shadow),this.multiSelectHighlights=[],this.multiSelectMode=!1,this.mode="activity",this.activityEvents=[],this.currentStatus="pending",this.renderPanel();let l=await N({interactionId:this.interactionId,userNote:e.trim(),autoCommit:this.autoCommitEnabled,snapshots:i});l.success||(this.currentStatus="failed",this.history=k(this.history,this.interactionId,"failed"),m(this.history),this.renderHub(),this.activityEvents.push({type:"status",interactionId:this.interactionId,status:"failed",message:l.error||"Failed to connect to bridge",timestamp:Date.now()}),s&&r.length>1&&(this.multiSelectMode=!0,this.selectedElements=r,this.selectedSnapshots=a,this.mode="input",this.multiSelectHighlights=w({multiSelectMode:!0,selectedElements:this.selectedElements,selectedSnapshots:this.selectedSnapshots,multiSelectHighlights:this.multiSelectHighlights,currentElement:this.currentElement,currentSnapshot:this.currentSnapshot},this.shadow),this.highlight&&(this.highlight.style.display="none")),this.renderPanel())}async submitFollowUp(e){if(!e.trim()||this.submittedSnapshots.length===0)return;this.interactionId=z(),this._userNote=e.trim();let i=this.submittedSnapshots,o=R(this.interactionId,e,i);this.history=F(this.history,o),m(this.history),this.renderHub(),this.activityEvents=[],this.currentStatus="pending",this.renderPanel();let s=await N({interactionId:this.interactionId,userNote:e.trim(),autoCommit:this.autoCommitEnabled,snapshots:i});s.success||(this.currentStatus="failed",this.history=k(this.history,this.interactionId,"failed"),m(this.history),this.renderHub(),this.activityEvents.push({type:"status",interactionId:this.interactionId,status:"failed",message:s.error||"Failed to connect to bridge",timestamp:Date.now()}),this.renderPanel())}async handleSubmitAnswer(e,i,o){this.interactionId&&await W(this.interactionId,e,i,o)}async handleUndoRequest(e){let i=this.history.findIndex(s=>s.interactionId===e);if(i===-1)return;this.history[i].status="pending",m(this.history),this.renderHub(),(await J(e)).success?this.history=mt(this.history,e):this.history[i].status="failed",m(this.history),this.renderHub()}async handleUndoFromPanel(){this.interactionId&&await this.handleUndoRequest(this.interactionId)}async handleCommitRequest(){if(!this.interactionId)return;let e=this.history.findIndex(o=>o.interactionId===this.interactionId);(await V(this.interactionId)).success&&(e>=0&&(this.history[e].status="success",m(this.history),this.renderHub()),this.unfreeze())}};customElements.get("eyeglass-inspector")||customElements.define("eyeglass-inspector",H);function kt(){if(document.querySelector("eyeglass-inspector")){console.warn("[eyeglass] Inspector already initialized");return}let t=document.createElement("eyeglass-inspector");document.body.appendChild(t),console.log("[eyeglass] Inspector initialized. Hover over elements and click to annotate.")}typeof window<"u"&&typeof document<"u"&&(document.readyState==="loading"?document.addEventListener("DOMContentLoaded",kt):kt());export{H as EyeglassInspector,S as captureSnapshot,T as extractFrameworkInfo,kt as initInspector};
