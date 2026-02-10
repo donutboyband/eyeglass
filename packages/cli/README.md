@@ -38,7 +38,9 @@ npx @eyeglass/cli help                # Show help
    - Claude: `.claude/settings.json` + `.claude/skills/eyeglass.md`
    - Copilot CLI: `.copilot/mcp-config.json`
    - Codex: `.codex/eyeglass.md` (HTTP API instructions)
-3. **Configures** your bundler (Vite, Next.js, CRA, or Remix)
+3. **Configures** your bundler (Vite, Next.js, CRA, or Remix) with tree-shakeable dynamic imports
+
+The inspector is automatically excluded from production builds—no extra configuration needed.
 
 ## Supported Frameworks
 

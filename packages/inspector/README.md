@@ -19,7 +19,7 @@ Import in your app's entry file:
 import '@eyeglass/inspector';
 ```
 
-The inspector auto-initializes when imported and only runs in development mode.
+The inspector auto-initializes when imported and is automatically excluded from production builds (`NODE_ENV === 'production'`). No configuration needed—your production bundle stays clean.
 
 ## Features
 

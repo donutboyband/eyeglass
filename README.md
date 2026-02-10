@@ -417,9 +417,11 @@ eyeglass/
 <details>
 <summary><strong>Inspector not appearing</strong></summary>
 
-1. Ensure you're in development mode (`NODE_ENV !== 'production'`)
+1. Ensure you're in development mode—the inspector automatically disables itself when `NODE_ENV === 'production'`
 2. Check that `@eyeglass/inspector` is imported before your app renders
 3. Look for console errors related to the inspector
+
+> **Note:** The CLI sets up dynamic imports for optimal tree-shaking in production. If you set up manually with a static import, the inspector code will be in your bundle but won't execute in production.
 
 </details>
 
