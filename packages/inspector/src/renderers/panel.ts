@@ -264,10 +264,12 @@ export function renderActivityMode(
   // Wire up question buttons if present
   panel.querySelectorAll(".question-option").forEach((btn) => {
     btn.addEventListener("click", (e) => {
-      const target = e.target as HTMLButtonElement;
-      const questionId = target.dataset.questionId!;
-      const answerId = target.dataset.answerId!;
-      const answerLabel = target.textContent!;
+      e.stopPropagation();
+      // Use currentTarget (the element with the listener) not target (might be nested element)
+      const button = e.currentTarget as HTMLButtonElement;
+      const questionId = button.dataset.questionId!;
+      const answerId = button.dataset.answerId!;
+      const answerLabel = button.textContent!;
       callbacks.onSubmitAnswer(questionId, answerId, answerLabel);
     });
   });

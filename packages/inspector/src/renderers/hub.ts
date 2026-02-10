@@ -69,7 +69,6 @@ export function renderHubMainPage(
     <div class="hub-header">
       <div class="hub-header-left">
         <div class="hub-logo">${LOGO_SVG}</div>
-        <span class="hub-title">Eyeglass</span>
         ${activeCount > 0 ? `<span class="hub-badge">${activeCount}</span>` : ""}
         <button class="hub-toggle ${expandedClass}" title="Toggle history">\u25BC</button>
       </div>

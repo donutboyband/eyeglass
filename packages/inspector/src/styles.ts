@@ -493,7 +493,7 @@ export const STYLES = `
 .activity-icon.status { background: var(--accent-soft); color: var(--accent); }
 .activity-icon.thought { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
 .activity-icon.action { background: rgba(14, 165, 233, 0.1); color: #0ea5e9; }
-.activity-icon.question { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+.activity-icon.question { background: var(--accent-soft); color: var(--accent); }
 .activity-icon.success { background: rgba(16, 185, 129, 0.1); color: var(--success); }
 .activity-icon.error { background: rgba(239, 68, 68, 0.1); color: var(--error); }
 
@@ -520,8 +520,8 @@ export const STYLES = `
 
 /* Question UI */
 .question-box {
-  background: rgba(245, 158, 11, 0.06);
-  border: 1px solid rgba(245, 158, 11, 0.15);
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.15);
   border-radius: var(--border-radius-sm);
   padding: 12px;
   margin: 8px 16px;
@@ -753,7 +753,7 @@ export const STYLES = `
   border-radius: 10px;
   box-shadow: var(--glass-shadow);
   pointer-events: auto;
-  min-width: 36px;
+  min-width: 200px;
   max-width: 200px;
   overflow: hidden;
   animation: hubIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
