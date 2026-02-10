@@ -65,6 +65,40 @@ function detectPackageManager(cwd: string, mockFs: { existsSync: (p: string) => 
   return 'npm';
 }
 
+// Helper to recreate findEntryFromHtml logic
+function findEntryFromHtml(cwd: string, mockFs: { existsSync: (p: string) => boolean; readFileSync: (p: string) => string }): string | null {
+  const htmlFiles = [
+    'index.html',
+    'public/index.html',
+    'src/index.html',
+  ];
+
+  for (const htmlFile of htmlFiles) {
+    const htmlPath = path.join(cwd, htmlFile);
+    if (!mockFs.existsSync(htmlPath)) continue;
+
+    const content = mockFs.readFileSync(htmlPath);
+
+    const moduleScriptRegex = /<script[^>]*type\s*=\s*["']module["'][^>]*src\s*=\s*["']([^"']+)["'][^>]*>/gi;
+    const altModuleScriptRegex = /<script[^>]*src\s*=\s*["']([^"']+)["'][^>]*type\s*=\s*["']module["'][^>]*>/gi;
+
+    let match = moduleScriptRegex.exec(content) || altModuleScriptRegex.exec(content);
+
+    if (match && match[1]) {
+      let scriptSrc = match[1];
+      if (scriptSrc.startsWith('/')) {
+        scriptSrc = scriptSrc.slice(1);
+      }
+      const scriptPath = path.join(cwd, scriptSrc);
+      if (mockFs.existsSync(scriptPath)) {
+        return scriptPath;
+      }
+    }
+  }
+
+  return null;
+}
+
 describe('eyeglass CLI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -285,6 +319,103 @@ export default defineConfig({
       expect(layoutFiles).toContain('app/layout.tsx');
       expect(layoutFiles).toContain('pages/_app.tsx');
       expect(layoutFiles.length).toBe(8);
+    });
+  });
+
+  describe('findEntryFromHtml', () => {
+    it('should find entry script from index.html with leading slash', () => {
+      const mockFs = {
+        existsSync: (p: string) => p.endsWith('index.html') || p.endsWith('src/main.js'),
+        readFileSync: () => `<!DOCTYPE html>
+<html>
+  <body>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>`,
+      };
+
+      const result = findEntryFromHtml('/my/project', mockFs);
+      expect(result).toContain('src/main.js');
+    });
+
+    it('should find entry script from index.html without leading slash', () => {
+      const mockFs = {
+        existsSync: (p: string) => p.endsWith('index.html') || p.endsWith('src/app.js'),
+        readFileSync: () => `<!DOCTYPE html>
+<html>
+  <body>
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>`,
+      };
+
+      const result = findEntryFromHtml('/my/project', mockFs);
+      expect(result).toContain('src/app.js');
+    });
+
+    it('should find entry script with src before type attribute', () => {
+      const mockFs = {
+        existsSync: (p: string) => p.endsWith('index.html') || p.endsWith('src/counter.ts'),
+        readFileSync: () => `<!DOCTYPE html>
+<html>
+  <body>
+    <script src="/src/counter.ts" type="module"></script>
+  </body>
+</html>`,
+      };
+
+      const result = findEntryFromHtml('/my/project', mockFs);
+      expect(result).toContain('src/counter.ts');
+    });
+
+    it('should find entry script from public/index.html', () => {
+      const mockFs = {
+        existsSync: (p: string) => p.endsWith('public/index.html') || p.endsWith('src/index.js'),
+        readFileSync: () => `<!DOCTYPE html>
+<html>
+  <body>
+    <script type="module" src="/src/index.js"></script>
+  </body>
+</html>`,
+      };
+
+      const result = findEntryFromHtml('/my/project', mockFs);
+      expect(result).toContain('src/index.js');
+    });
+
+    it('should return null when index.html does not exist', () => {
+      const mockFs = {
+        existsSync: () => false,
+        readFileSync: () => '',
+      };
+
+      const result = findEntryFromHtml('/my/project', mockFs);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when script file does not exist', () => {
+      const mockFs = {
+        existsSync: (p: string) => p.endsWith('index.html'),
+        readFileSync: () => `<script type="module" src="/src/main.js"></script>`,
+      };
+
+      const result = findEntryFromHtml('/my/project', mockFs);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when no module script is found', () => {
+      const mockFs = {
+        existsSync: (p: string) => p.endsWith('index.html'),
+        readFileSync: () => `<!DOCTYPE html>
+<html>
+  <body>
+    <script src="/src/main.js"></script>
+  </body>
+</html>`,
+      };
+
+      const result = findEntryFromHtml('/my/project', mockFs);
+      expect(result).toBeNull();
     });
   });
 

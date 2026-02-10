@@ -267,6 +267,46 @@ function detectProject() {
     return { type: 'unknown', typescript: hasTs };
 }
 // ============================================================================
+// HTML Entry Point Detection
+// ============================================================================
+/**
+ * Parses index.html to find the entry script path.
+ * Looks for <script type="module" src="..."> tags and returns the first match.
+ * Works for vanilla Vite, React, Vue, and other projects that use index.html.
+ */
+function findEntryFromHtml(cwd) {
+    // Common locations for index.html
+    const htmlFiles = [
+        'index.html',
+        'public/index.html',
+        'src/index.html',
+    ];
+    for (const htmlFile of htmlFiles) {
+        const htmlPath = path.join(cwd, htmlFile);
+        if (!fileExists(htmlPath))
+            continue;
+        const content = readFile(htmlPath);
+        // Match <script type="module" src="..."> - handles various quote styles and spacing
+        // This regex captures the src attribute value from module scripts
+        const moduleScriptRegex = /<script[^>]*type\s*=\s*["']module["'][^>]*src\s*=\s*["']([^"']+)["'][^>]*>/gi;
+        const altModuleScriptRegex = /<script[^>]*src\s*=\s*["']([^"']+)["'][^>]*type\s*=\s*["']module["'][^>]*>/gi;
+        let match = moduleScriptRegex.exec(content) || altModuleScriptRegex.exec(content);
+        if (match && match[1]) {
+            let scriptSrc = match[1];
+            // Remove leading slash if present (Vite uses /src/main.js format)
+            if (scriptSrc.startsWith('/')) {
+                scriptSrc = scriptSrc.slice(1);
+            }
+            // Resolve the path relative to the project root
+            const scriptPath = path.join(cwd, scriptSrc);
+            if (fileExists(scriptPath)) {
+                return scriptPath;
+            }
+        }
+    }
+    return null;
+}
+// ============================================================================
 // Config Modifiers
 // ============================================================================
 function setupEyeglassSkill(dryRun) {
@@ -482,8 +522,16 @@ function setupVite(configFile, dryRun) {
             break;
         }
     }
+    // Fallback: parse index.html to find the actual entry script
+    if (!entryFile) {
+        entryFile = findEntryFromHtml(cwd);
+        if (entryFile) {
+            log(`Found entry file from index.html: ${path.relative(cwd, entryFile)}`, 'info');
+        }
+    }
     if (!entryFile) {
         log('Could not find entry file - please import @eyeglass/inspector manually in your main file', 'warn');
+        log('Tip: Check your index.html for the entry script path', 'info');
         return false;
     }
     const content = readFile(entryFile);
@@ -573,8 +621,16 @@ function setupCRA(entryFile, dryRun) {
             }
         }
     }
+    // Fallback: parse index.html to find the actual entry script
+    if (!entryFile) {
+        entryFile = findEntryFromHtml(cwd) ?? undefined;
+        if (entryFile) {
+            log(`Found entry file from index.html: ${path.relative(cwd, entryFile)}`, 'info');
+        }
+    }
     if (!entryFile || !fileExists(entryFile)) {
         log('Could not find entry file - please import @eyeglass/inspector manually', 'warn');
+        log('Tip: Check your index.html for the entry script path', 'info');
         return false;
     }
     const content = readFile(entryFile);
@@ -665,10 +721,34 @@ async function init(options) {
         case 'remix':
             setupCRA(project.entryFile, dryRun);
             break;
-        default:
-            log('Unknown project type - please configure manually:', 'warn');
-            console.log('  1. Import @eyeglass/inspector in your entry file');
-            console.log('  2. Or add <script type="module">import "@eyeglass/inspector";</script> to your HTML\n');
+        default: {
+            // Try to find entry file from index.html for unknown project types
+            const entryFromHtml = findEntryFromHtml(process.cwd());
+            if (entryFromHtml) {
+                log(`Found entry file from index.html: ${path.relative(process.cwd(), entryFromHtml)}`, 'info');
+                const content = readFile(entryFromHtml);
+                if (content.includes('@eyeglass/inspector')) {
+                    log('Inspector already imported', 'success');
+                }
+                else {
+                    const importStatement = `import '@eyeglass/inspector';\n`;
+                    const newContent = importStatement + content;
+                    if (dryRun) {
+                        log(`Would add inspector import to ${path.relative(process.cwd(), entryFromHtml)}`);
+                    }
+                    else {
+                        writeFile(entryFromHtml, newContent);
+                        log(`Added inspector import to ${path.relative(process.cwd(), entryFromHtml)}`, 'success');
+                    }
+                }
+            }
+            else {
+                log('Unknown project type - please configure manually:', 'warn');
+                console.log('  1. Import @eyeglass/inspector in your entry file');
+                console.log('  2. Or add <script type="module">import "@eyeglass/inspector";</script> to your HTML\n');
+            }
+            break;
+        }
     }
     // Done!
     console.log('\n\x1b[1mSetup complete!\x1b[0m\n');
