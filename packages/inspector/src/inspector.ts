@@ -83,8 +83,8 @@ const STYLES = `
   --text-primary: #e6edf3;
   --text-secondary: #8b949e;
   --text-muted: #6e7681;
-  --accent: #a5b4fc;
-  --accent-soft: rgba(165, 180, 252, 0.15);
+  --accent: #3b82f6;
+  --accent-soft: rgba(59, 130, 246, 0.15);
   --success: #3fb950;
   --error: #f85149;
 }
@@ -98,8 +98,8 @@ const STYLES = `
     --text-primary: #e6edf3;
     --text-secondary: #8b949e;
     --text-muted: #6e7681;
-    --accent: #a5b4fc;
-    --accent-soft: rgba(165, 180, 252, 0.15);
+    --accent: #3b82f6;
+    --accent-soft: rgba(59, 130, 246, 0.15);
     --success: #3fb950;
     --error: #f85149;
   }
@@ -144,6 +144,10 @@ const STYLES = `
 
 :host([data-theme="dark"]) .toggle-switch {
   background: #30363d;
+}
+
+:host([data-theme="dark"]) .toggle-switch.active {
+  background: var(--accent);
 }
 
 :host([data-theme="dark"]) .skeleton-icon,
@@ -221,6 +225,10 @@ const STYLES = `
 
   :host([data-theme="auto"]) .toggle-switch {
     background: #30363d;
+  }
+
+  :host([data-theme="auto"]) .toggle-switch.active {
+    background: var(--accent);
   }
 
   :host([data-theme="auto"]) .skeleton-icon,
@@ -397,6 +405,13 @@ const STYLES = `
 .user-request-text {
   color: var(--text-primary);
   font-weight: 500;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
 /* Input Mode */
@@ -415,6 +430,11 @@ const STYLES = `
   color: var(--text-primary);
   outline: none;
   transition: all 0.15s;
+  min-height: 60px;
+  max-height: 150px;
+  resize: none;
+  line-height: 1.4;
+  overflow-y: auto;
 }
 
 .input-field::placeholder {
@@ -1248,7 +1268,7 @@ const STYLES = `
 .followup-row {
   display: flex;
   gap: 8px;
-  align-items: center;
+  align-items: flex-end;
 }
 
 .followup-input {
@@ -1262,6 +1282,11 @@ const STYLES = `
   color: var(--text-primary);
   outline: none;
   transition: all 0.15s;
+  min-height: 36px;
+  max-height: 100px;
+  resize: none;
+  line-height: 1.4;
+  overflow-y: auto;
 }
 
 .followup-input::placeholder {
@@ -2555,12 +2580,12 @@ export class EyeglassInspector extends HTMLElement {
       ${multiModeHint}
       ${selectedListHtml}
       <div class="input-area">
-        <input
-          type="text"
+        <textarea
           class="input-field"
           placeholder="${isMultiSelect ? "Describe what to change for these elements..." : "What do you want to change?"}"
           autofocus
-        />
+          rows="2"
+        ></textarea>
         <div class="btn-row">
           <button class="btn btn-secondary">Cancel</button>
           <button class="btn btn-primary">Send</button>
@@ -2568,7 +2593,7 @@ export class EyeglassInspector extends HTMLElement {
       </div>
     `;
 
-    const input = this.panel.querySelector(".input-field") as HTMLInputElement;
+    const input = this.panel.querySelector(".input-field") as HTMLTextAreaElement;
     const closeBtn = this.panel.querySelector(
       ".close-btn",
     ) as HTMLButtonElement;
@@ -2586,7 +2611,8 @@ export class EyeglassInspector extends HTMLElement {
     cancelBtn.addEventListener("click", () => this.unfreeze());
     sendBtn.addEventListener("click", () => this.submit(input.value));
     input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && input.value.trim()) {
+      if (e.key === "Enter" && !e.shiftKey && input.value.trim()) {
+        e.preventDefault();
         this.submit(input.value);
       }
     });
@@ -2675,7 +2701,7 @@ export class EyeglassInspector extends HTMLElement {
           ? `
         <div class="followup-area">
           <div class="followup-row">
-            <input type="text" class="followup-input" placeholder="Anything else?" />
+            <textarea class="followup-input" placeholder="Anything else?" rows="1"></textarea>
             <button class="followup-send">Send</button>
             <button class="followup-done">✕</button>
           </div>
@@ -2722,7 +2748,7 @@ export class EyeglassInspector extends HTMLElement {
     // Wire up follow-up input if present
     const followupInput = this.panel.querySelector(
       ".followup-input",
-    ) as HTMLInputElement;
+    ) as HTMLTextAreaElement;
     const followupSend = this.panel.querySelector(
       ".followup-send",
     ) as HTMLButtonElement;
@@ -2736,7 +2762,8 @@ export class EyeglassInspector extends HTMLElement {
         }
       });
       followupInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && followupInput.value.trim()) {
+        if (e.key === "Enter" && !e.shiftKey && followupInput.value.trim()) {
+          e.preventDefault();
           this.submitFollowUp(followupInput.value);
         }
       });
