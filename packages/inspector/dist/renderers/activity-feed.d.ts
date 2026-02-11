@@ -38,4 +38,6 @@ export declare function renderQuestionItem(event: {
         label: string;
     }>;
     timestamp: number;
-}, activityEvents: ActivityEvent[]): string;
+    selectedAnswerId?: string;
+    selectedAnswerLabel?: string;
+}, _activityEvents: ActivityEvent[]): string;

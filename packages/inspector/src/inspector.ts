@@ -821,6 +821,19 @@ export class EyeglassInspector extends HTMLElement {
     answerLabel: string
   ): Promise<void> {
     if (!this.interactionId) return;
+
+    // Mark the question as answered in the activity events
+    const questionEvent = this.activityEvents.find(
+      (e) => e.type === "question" && (e as any).questionId === questionId
+    );
+    if (questionEvent) {
+      (questionEvent as any).selectedAnswerId = answerId;
+      (questionEvent as any).selectedAnswerLabel = answerLabel;
+    }
+
+    // Re-render to show the selected answer
+    this.renderPanel();
+
     await submitAnswer(this.interactionId, questionId, answerId, answerLabel);
   }
 

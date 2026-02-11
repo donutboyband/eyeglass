@@ -131,20 +131,19 @@ export function renderQuestionItem(
     question: string;
     options: Array<{ id: string; label: string }>;
     timestamp: number;
+    selectedAnswerId?: string;
+    selectedAnswerLabel?: string;
   },
-  activityEvents: ActivityEvent[]
+  _activityEvents: ActivityEvent[]
 ): string {
-  // Check if this question was already answered
-  const wasAnswered = activityEvents.some(
-    (e) => e.type === "status" && e.timestamp > event.timestamp
-  );
-
-  if (wasAnswered) {
+  // Check if this question was answered (user clicked an option)
+  if (event.selectedAnswerId) {
     return `
       <div class="activity-item">
         <div class="activity-icon question">?</div>
         <div class="activity-content">
           <div class="activity-text muted">${escapeHtml(event.question)}</div>
+          <div class="activity-target">${escapeHtml(event.selectedAnswerLabel || event.selectedAnswerId)}</div>
         </div>
       </div>
     `;
