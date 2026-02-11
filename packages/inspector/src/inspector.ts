@@ -491,9 +491,6 @@ export class EyeglassInspector extends HTMLElement {
       this.removeFromSelection(existingIndex);
     } else {
       // Add to selection (if under limit)
-      if (this.selectedElements.length >= 5) {
-        return;
-      }
 
       const snapshot = captureSnapshot(element);
       this.selectedElements.push(element);

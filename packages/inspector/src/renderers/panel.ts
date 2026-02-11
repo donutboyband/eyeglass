@@ -4,7 +4,6 @@
 
 import type { SemanticSnapshot, InteractionStatus, ActivityEvent } from "@eyeglass/types";
 import type { PanelMode } from "../types.js";
-import { MAX_SELECTION } from "../constants.js";
 import { escapeHtml, getStatusText } from "../utils/helpers.js";
 import { renderActivityFeed } from "./activity-feed.js";
 
@@ -101,7 +100,7 @@ export function renderInputMode(
 
   const multiModeHint = isMultiSelect
     ? `
-    <div class="multi-mode-hint">Click elements to add/remove from selection (max ${MAX_SELECTION})</div>
+    <div class="multi-mode-hint">Click elements to add/remove from selection</div>
   `
     : "";
 

@@ -10,9 +10,6 @@ export const AUTOCOMMIT_KEY = "eyeglass_autocommit";
 export const THEME_KEY = "eyeglass_theme";
 export const SESSION_TTL = 10000; // 10 seconds
 
-// Maximum number of elements that can be selected in multi-select mode
-export const MAX_SELECTION = 5;
-
 // Fun rotating phrases for the "fixing" status
 export const WORKING_PHRASES = [
   "Ruminating...",

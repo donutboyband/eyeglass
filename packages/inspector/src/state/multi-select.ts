@@ -3,7 +3,6 @@
  */
 
 import type { SemanticSnapshot } from "@eyeglass/types";
-import { MAX_SELECTION } from "../constants.js";
 import { captureSnapshot } from "../snapshot.js";
 
 export interface MultiSelectState {
@@ -103,10 +102,6 @@ export function toggleInSelection(
     newState = removeFromSelectionByIndex(state, existingIndex, shadow, callbacks);
   } else {
     // Add to selection (if under limit)
-    if (state.selectedElements.length >= MAX_SELECTION) {
-      // Could show a toast/warning, for now just ignore
-      return state;
-    }
 
     const snapshot = captureSnapshot(element);
     newState = {
