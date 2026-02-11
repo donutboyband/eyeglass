@@ -385,7 +385,8 @@ export class EyeglassInspector extends HTMLElement {
     if (this.highlight) {
       this.highlight.style.display = "none";
     }
-    this.currentElement = null;
+    // Don't clear currentElement - it's needed for panel rendering in multi-select mode
+    // and will be updated naturally when mouse moves back to page elements
   }
 
   private freeze(): void {

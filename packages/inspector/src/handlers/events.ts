@@ -37,9 +37,7 @@ export function createMouseMoveHandler(
     // the host element will be in the composed path
     const path = e.composedPath();
     if (path.includes(host)) {
-      if (!state.multiSelectMode) {
-        callbacks.hideHighlight();
-      }
+      callbacks.hideHighlight();
       return;
     }
 
@@ -59,20 +57,14 @@ export function createMouseMoveHandler(
       target === document.documentElement ||
       target === document.body
     ) {
-      if (!state.multiSelectMode) {
-        callbacks.hideHighlight();
-      }
+      callbacks.hideHighlight();
       return;
     }
 
     if (shadow.contains(target as Node)) return;
 
     callbacks.setCurrentElement(target);
-
-    // In multi-select mode, don't show the single highlight (we have numbered highlights)
-    if (!state.multiSelectMode) {
-      callbacks.showHighlight(target);
-    }
+    callbacks.showHighlight(target);
   };
 }
 
