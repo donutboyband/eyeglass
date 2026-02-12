@@ -124,6 +124,9 @@ export interface KeyDownHandlerCallbacks {
   toggleContextOverlays: () => void;
   toggleMultiSelect: () => void;
   submitShortcut: () => void;
+  rotateInteractionState: () => void;
+  captureStateCapsule: () => void;
+  toggleDomPause: () => void;
 }
 
 /**
@@ -173,10 +176,28 @@ export function createKeyDownHandler(
       callbacks.toggleMultiSelect();
     }
 
+    // Ctrl/Cmd + Shift + K to rotate interaction state label
+    if (state.frozen && modifierKey && e.shiftKey && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      callbacks.rotateInteractionState();
+    }
+
+    // Ctrl/Cmd + Shift + L to capture a state capsule
+    if (state.frozen && modifierKey && e.shiftKey && e.key.toLowerCase() === "l") {
+      e.preventDefault();
+      callbacks.captureStateCapsule();
+    }
+
     // Ctrl/Cmd + Shift + C to toggle context overlays
     if (state.frozen && modifierKey && e.shiftKey && e.key.toLowerCase() === "c") {
       e.preventDefault();
       callbacks.toggleContextOverlays();
+    }
+
+    // Ctrl/Cmd + Shift + P to pause/resume DOM
+    if (modifierKey && e.shiftKey && e.key.toLowerCase() === "p") {
+      e.preventDefault();
+      callbacks.toggleDomPause();
     }
 
     // Ctrl/Cmd + Enter to submit current note

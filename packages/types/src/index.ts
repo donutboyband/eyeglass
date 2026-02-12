@@ -130,6 +130,14 @@ export interface SystemicInfo {
   designSystem: DesignSystemInfo;
 }
 
+// --- USER CONTEXT (State variants) ---
+export interface InteractionStateInfo {
+  variant?: string;           // e.g., "default", "hover", "focused", "pressed"
+  label?: string;             // Human-friendly label
+  domPaused?: boolean;        // Whether the DOM was paused when captured
+  capturedAt: number;         // Epoch ms when snapshot was taken
+}
+
 // --- ACCESSIBILITY Types (for backward compat) ---
 export interface A11yInfo {
   label: string | null;
@@ -206,6 +214,9 @@ export interface SemanticSnapshot {
 
   // --- LAYER 7: SYSTEMIC (Architectural Impact) ---
   systemic?: SystemicInfo;
+
+  // --- Interaction State Metadata ---
+  interactionState?: InteractionStateInfo;
 
   // --- DOM Neighborhood (Layout Context) ---
   neighborhood?: {

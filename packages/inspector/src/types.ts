@@ -28,6 +28,14 @@ export interface HistoryItem {
   timestamp: number;
 }
 
+export interface StateCapsule {
+  id: string;
+  variant: string;
+  label: string;
+  snapshot: SemanticSnapshot;
+  capturedAt: number;
+}
+
 /**
  * State interface for the inspector that modules can access
  */
@@ -75,6 +83,10 @@ export interface InspectorState {
   selectedSnapshots: SemanticSnapshot[];
   multiSelectHighlights: HTMLDivElement[];
   submittedSnapshots: SemanticSnapshot[];
+  stateCapsules: StateCapsule[];
+  activeCapsuleId: string | null;
+  interactionStateLabel: string;
+  domPaused: boolean;
 
   // Cursor style
   cursorStyleElement: HTMLStyleElement | null;
@@ -116,4 +128,9 @@ export interface InspectorCallbacks {
   handlePanelDragStart: (e: MouseEvent) => void;
   renderHub: () => void;
   renderPanel: () => void;
+  captureStateCapsule: () => void;
+  selectStateCapsule: (id: string) => void;
+  deleteStateCapsule: (id: string) => void;
+  rotateInteractionState: () => void;
+  toggleDomPause: () => void;
 }

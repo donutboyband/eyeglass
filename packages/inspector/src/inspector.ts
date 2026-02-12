@@ -8,6 +8,7 @@ import type {
   SemanticSnapshot,
   ActivityEvent,
   InteractionStatus,
+  InteractionStateInfo,
 } from "@eyeglass/types";
 import { captureSnapshot } from "./snapshot.js";
 
@@ -15,7 +16,7 @@ import { captureSnapshot } from "./snapshot.js";
 import { WORKING_PHRASES } from "./constants.js";
 
 // Import types
-import type { PanelMode, HistoryItem, ThemePreference, HubPage } from "./types.js";
+import type { PanelMode, HistoryItem, ThemePreference, HubPage, StateCapsule } from "./types.js";
 
 // Import styles
 import { STYLES } from "./styles.js";
@@ -100,6 +101,9 @@ import {
 // v2.0 UI Mode - Loupe follows cursor, Lens is expanded view
 type UIMode = 'loupe' | 'lens';
 
+const STATE_VARIANTS = ["default", "hover", "focus", "pressed"];
+const MAX_STATE_CAPSULES = 6;
+
 export class EyeglassInspector extends HTMLElement {
   private shadow: ShadowRoot;
   private highlight: HTMLDivElement | null = null;
@@ -133,6 +137,9 @@ export class EyeglassInspector extends HTMLElement {
   private selectedSnapshots: SemanticSnapshot[] = [];
   private multiSelectHighlights: HTMLDivElement[] = [];
   private submittedSnapshots: SemanticSnapshot[] = [];
+  private stateCapsules: StateCapsule[] = [];
+  private activeCapsuleId: string | null = null;
+  private interactionStateLabel = "default";
 
   // Cursor style element (injected into document head)
   private cursorStyleElement: HTMLStyleElement | null = null;
@@ -155,6 +162,16 @@ export class EyeglassInspector extends HTMLElement {
   private lastMouseY = 0;
   private crosshairX: HTMLDivElement | null = null;
   private crosshairY: HTMLDivElement | null = null;
+  private simulatedHoverElement: Element | null = null;
+  private simulatedPressedElement: Element | null = null;
+  private simulatedFocusedElement: Element | null = null;
+  private simulatedStateVariant: string = "default";
+  private domPaused = false;
+  private pauseStyleElement: HTMLStyleElement | null = null;
+  private pausedAnimations: Animation[] = [];
+  private pseudoMirrorReady = false;
+  private pseudoMirrorStyle: HTMLStyleElement | null = null;
+  private forcedStateElements = new Set<Element>();
 
   // Context overlay state
   private showingContextOverlays = false;
@@ -231,6 +248,9 @@ export class EyeglassInspector extends HTMLElement {
           }
         },
         submitShortcut: () => this.submitFromLensShortcut(),
+        rotateInteractionState: () => this.rotateInteractionState(),
+        captureStateCapsule: () => this.captureStateCapsule(),
+        toggleDomPause: () => this.toggleDomPause(),
       }
     );
 
@@ -519,15 +539,19 @@ export class EyeglassInspector extends HTMLElement {
 
     this.frozen = true;
     this._userNote = "";
-    this.currentSnapshot = captureSnapshot(this.currentElement);
+    const snapshot = captureSnapshot(this.currentElement, this.buildInteractionStateInfo());
+    this.applySnapshotSelection(snapshot);
     // Initialize selectedElements with the first element
     this.selectedElements = [this.currentElement];
-    this.selectedSnapshots = [this.currentSnapshot];
     this.mode = "input";
     this.activityEvents = [];
     this.currentStatus = "idle";
     this.updateCursor();
     this.toggleCrosshair(false);
+    this.applyInteractionVariant(this.interactionStateLabel);
+    this.stateCapsules = [];
+    const initialCapsule = this.pushCapsule(snapshot);
+    this.activeCapsuleId = initialCapsule.id;
 
     // v2.0: Hide loupe and show lens
     if (this.loupe) {
@@ -558,6 +582,11 @@ export class EyeglassInspector extends HTMLElement {
       this.shadow
     );
     this.multiSelectHighlights = [];
+    this.stateCapsules = [];
+    this.activeCapsuleId = null;
+    this.interactionStateLabel = "default";
+    this.clearSimulatedState();
+    this.resumeDom();
 
     // Stop phrase rotation
     this.stopPhraseRotation();
@@ -712,6 +741,343 @@ export class EyeglassInspector extends HTMLElement {
     } else {
       this.renderPanel();
     }
+  }
+
+  private buildInteractionStateInfo(overrides: Partial<InteractionStateInfo> = {}): InteractionStateInfo {
+    return {
+      variant: overrides.variant ?? this.interactionStateLabel,
+      label: overrides.label ?? this.interactionStateLabel,
+      domPaused: overrides.domPaused ?? this.domPaused,
+      capturedAt: overrides.capturedAt ?? Date.now(),
+    };
+  }
+
+  private applySnapshotSelection(snapshot: SemanticSnapshot): void {
+    this.currentSnapshot = snapshot;
+    if (!this.multiSelectMode) {
+      this.selectedSnapshots = [snapshot];
+    }
+  }
+
+  private capturePreviewSnapshot(): void {
+    if (!this.currentElement) return;
+    const info = this.buildInteractionStateInfo();
+    const snapshot = captureSnapshot(this.currentElement, info);
+    this.activeCapsuleId = null;
+    this.applySnapshotSelection(snapshot);
+  }
+
+  private toCapsule(snapshot: SemanticSnapshot): StateCapsule {
+    const meta = snapshot.interactionState ?? this.buildInteractionStateInfo();
+    const variant = meta.variant || "custom";
+    return {
+      id: generateInteractionId(),
+      variant,
+      label: meta.label || variant,
+      snapshot,
+      capturedAt: meta.capturedAt ?? Date.now(),
+    };
+  }
+
+  private pushCapsule(snapshot: SemanticSnapshot): StateCapsule {
+    const capsule = this.toCapsule(snapshot);
+    this.stateCapsules = [capsule, ...this.stateCapsules].slice(0, MAX_STATE_CAPSULES);
+    return capsule;
+  }
+
+  private captureStateCapsule(): void {
+    if (!this.currentElement) return;
+    this.applyInteractionVariant(this.interactionStateLabel);
+    const info = this.buildInteractionStateInfo();
+    const snapshot = captureSnapshot(this.currentElement, info);
+    this.applySnapshotSelection(snapshot);
+    const capsule = this.pushCapsule(snapshot);
+    this.activeCapsuleId = capsule.id;
+    this.renderLens();
+  }
+
+  private selectStateCapsule(id: string): void {
+    const capsule = this.stateCapsules.find((c) => c.id === id);
+    if (!capsule) return;
+    this.activeCapsuleId = capsule.id;
+    this.interactionStateLabel = capsule.variant;
+    this.applyInteractionVariant(this.interactionStateLabel);
+    this.applySnapshotSelection(capsule.snapshot);
+    this.renderLens();
+  }
+
+  private deleteStateCapsule(id: string): void {
+    const removedActive = this.activeCapsuleId === id;
+    this.stateCapsules = this.stateCapsules.filter((c) => c.id !== id);
+    if (removedActive) {
+      const fallback = this.stateCapsules[0];
+      if (fallback) {
+        this.selectStateCapsule(fallback.id);
+        return;
+      }
+      this.activeCapsuleId = null;
+      this.applyInteractionVariant(this.interactionStateLabel);
+      this.capturePreviewSnapshot();
+    }
+    this.renderLens();
+  }
+
+  private rotateInteractionState(): void {
+    const currentIndex = STATE_VARIANTS.indexOf(this.interactionStateLabel);
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % STATE_VARIANTS.length;
+    this.interactionStateLabel = STATE_VARIANTS[nextIndex];
+    this.applyInteractionVariant(this.interactionStateLabel);
+    this.capturePreviewSnapshot();
+    if (this.uiMode === 'lens') {
+      this.renderLens();
+    }
+  }
+
+  private applyInteractionVariant(variant: string): void {
+    if (!this.currentElement) return;
+    if (variant === this.simulatedStateVariant && variant !== "pressed") {
+      return;
+    }
+    this.ensurePseudoMirrorStyles();
+    this.clearSimulatedState();
+    this.simulatedStateVariant = variant;
+    switch (variant) {
+      case "hover":
+        this.simulateHover(this.currentElement);
+        break;
+      case "focus":
+        this.simulateFocus(this.currentElement);
+        break;
+      case "pressed":
+        this.simulatePressed(this.currentElement);
+        break;
+      default:
+        break;
+    }
+    const forcedStates = this.getForcedStatesForVariant(variant);
+    this.updateForcedStates(this.currentElement, forcedStates);
+  }
+
+  private clearSimulatedState(): void {
+    if (this.simulatedHoverElement) {
+      this.dispatchSyntheticEvent(this.simulatedHoverElement, "pointerleave", { bubbles: false });
+      this.dispatchSyntheticEvent(this.simulatedHoverElement, "mouseleave", { bubbles: false });
+      this.dispatchSyntheticEvent(this.simulatedHoverElement, "pointerout");
+      this.dispatchSyntheticEvent(this.simulatedHoverElement, "mouseout");
+      this.simulatedHoverElement = null;
+    }
+    if (this.simulatedPressedElement) {
+      this.dispatchSyntheticEvent(this.simulatedPressedElement, "pointerup");
+      this.dispatchSyntheticEvent(this.simulatedPressedElement, "mouseup");
+      this.simulatedPressedElement = null;
+    }
+    if (this.simulatedFocusedElement && this.simulatedFocusedElement instanceof HTMLElement) {
+      this.simulatedFocusedElement.blur();
+      this.simulatedFocusedElement = null;
+    }
+    this.simulatedStateVariant = "default";
+    if (this.currentElement) {
+      this.updateForcedStates(this.currentElement, []);
+    }
+  }
+
+  private simulateHover(element: Element): void {
+    const coords = this.getElementCenter(element);
+    this.dispatchSyntheticEvent(element, "pointerenter", { bubbles: false, clientX: coords.x, clientY: coords.y });
+    this.dispatchSyntheticEvent(element, "mouseenter", { bubbles: false, clientX: coords.x, clientY: coords.y });
+    this.dispatchSyntheticEvent(element, "pointerover", { clientX: coords.x, clientY: coords.y });
+    this.dispatchSyntheticEvent(element, "mouseover", { clientX: coords.x, clientY: coords.y });
+    this.simulatedHoverElement = element;
+  }
+
+  private simulateFocus(element: Element): void {
+    if (element instanceof HTMLElement && typeof element.focus === "function") {
+      try {
+        element.focus({ preventScroll: true });
+        this.simulatedFocusedElement = element;
+      } catch {
+        // ignore focus errors
+      }
+    }
+  }
+
+  private simulatePressed(element: Element): void {
+    const coords = this.getElementCenter(element);
+    this.dispatchSyntheticEvent(element, "pointerdown", { clientX: coords.x, clientY: coords.y });
+    this.dispatchSyntheticEvent(element, "mousedown", { clientX: coords.x, clientY: coords.y });
+    this.simulatedPressedElement = element;
+  }
+
+  private dispatchSyntheticEvent(element: Element, type: string, options: MouseEventInit = {}): void {
+    const eventInit: MouseEventInit = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      ...options,
+    };
+    const isPointer = type.startsWith("pointer");
+    if (isPointer && typeof PointerEvent !== "undefined") {
+      try {
+        element.dispatchEvent(new PointerEvent(type, eventInit));
+        return;
+      } catch {
+        // fall back
+      }
+    }
+    const mouseType = isPointer ? type.replace("pointer", "mouse") : type;
+    element.dispatchEvent(new MouseEvent(mouseType as keyof DocumentEventMap, eventInit));
+  }
+
+  private getElementCenter(element: Element): { x: number; y: number } {
+    const rect = element.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+  }
+
+  private getForcedStatesForVariant(variant: string): string[] {
+    switch (variant) {
+      case "hover":
+        return ["hover"];
+      case "focus":
+        return ["focus", "focus-visible"];
+      case "pressed":
+        return ["hover", "active"];
+      default:
+        return [];
+    }
+  }
+
+  private updateForcedStates(element: Element, states: string[]): void {
+    if (!element) return;
+    if (states.length === 0) {
+      element.removeAttribute("data-eyeglass-force-state");
+      this.forcedStateElements.delete(element);
+      return;
+    }
+    element.setAttribute("data-eyeglass-force-state", states.join(" "));
+    this.forcedStateElements.add(element);
+  }
+
+  private ensurePseudoMirrorStyles(): void {
+    if (this.pseudoMirrorReady) return;
+    const rules: string[] = [];
+    for (const sheet of Array.from(document.styleSheets)) {
+      try {
+        if (!sheet.cssRules) continue;
+      } catch {
+        continue;
+      }
+      try {
+        this.collectPseudoMirrorRules(sheet.cssRules, rules);
+      } catch {
+        // Ignore sheets we can't read
+      }
+    }
+    if (rules.length > 0) {
+      this.pseudoMirrorStyle = document.createElement("style");
+      this.pseudoMirrorStyle.dataset.source = "eyeglass-pseudo-mirror";
+      this.pseudoMirrorStyle.textContent = rules.join("\n");
+      document.head.appendChild(this.pseudoMirrorStyle);
+    }
+    this.pseudoMirrorReady = true;
+  }
+
+  private collectPseudoMirrorRules(ruleList: CSSRuleList, fragments: string[]): void {
+    const pseudos: Array<{ pseudo: string; attr: string }> = [
+      { pseudo: ":hover", attr: '[data-eyeglass-force-state~="hover"]' },
+      { pseudo: ":focus-visible", attr: '[data-eyeglass-force-state~="focus-visible"]' },
+      { pseudo: ":focus", attr: '[data-eyeglass-force-state~="focus"]' },
+      { pseudo: ":active", attr: '[data-eyeglass-force-state~="active"]' },
+    ];
+
+    const StyleRule = typeof CSSStyleRule !== "undefined" ? CSSStyleRule : null;
+    const MediaRule = typeof CSSMediaRule !== "undefined" ? CSSMediaRule : null;
+    const SupportsRule = typeof CSSSupportsRule !== "undefined" ? CSSSupportsRule : null;
+
+    for (const rule of Array.from(ruleList)) {
+      if (StyleRule && rule instanceof StyleRule) {
+        const styleRule = rule as CSSStyleRule;
+        let selector = styleRule.selectorText;
+        let replaced = false;
+        for (const { pseudo, attr } of pseudos) {
+          if (selector.includes(pseudo)) {
+            selector = selector.split(pseudo).join(attr);
+            replaced = true;
+          }
+        }
+        if (replaced) {
+          fragments.push(`${selector} { ${styleRule.style.cssText} }`);
+        }
+      } else if (MediaRule && rule instanceof MediaRule) {
+        const nested: string[] = [];
+        this.collectPseudoMirrorRules(rule.cssRules, nested);
+        if (nested.length > 0) {
+          fragments.push(`@media ${rule.conditionText} {\n${nested.join("\n")}\n}`);
+        }
+      } else if (SupportsRule && rule instanceof SupportsRule) {
+        const nested: string[] = [];
+        this.collectPseudoMirrorRules(rule.cssRules, nested);
+        if (nested.length > 0) {
+          fragments.push(`@supports ${rule.conditionText} {\n${nested.join("\n")}\n}`);
+        }
+      }
+    }
+  }
+
+  private toggleDomPause(): void {
+    if (this.domPaused) {
+      this.resumeDom();
+    } else {
+      this.pauseDom();
+    }
+    if (this.uiMode === 'lens') {
+      this.renderLens();
+    }
+  }
+
+  private pauseDom(): void {
+    if (this.domPaused) return;
+    this.domPaused = true;
+    if (typeof document.getAnimations === 'function') {
+      this.pausedAnimations = document.getAnimations();
+      this.pausedAnimations.forEach((anim) => {
+        try {
+          anim.pause();
+        } catch {
+          // ignore animation pause errors
+        }
+      });
+    }
+    this.pauseStyleElement = document.createElement("style");
+    this.pauseStyleElement.dataset.source = "eyeglass-pause";
+    this.pauseStyleElement.textContent = `
+      * {
+        transition-property: none !important;
+        animation-play-state: paused !important;
+      }
+    `;
+    document.head.appendChild(this.pauseStyleElement);
+    document.documentElement.classList.add("eyeglass-dom-paused");
+  }
+
+  private resumeDom(): void {
+    if (!this.domPaused) return;
+    this.domPaused = false;
+    this.pausedAnimations.forEach((anim) => {
+      try {
+        anim.play();
+      } catch {
+        // ignore
+      }
+    });
+    this.pausedAnimations = [];
+    if (this.pauseStyleElement) {
+      this.pauseStyleElement.remove();
+      this.pauseStyleElement = null;
+    }
+    document.documentElement.classList.remove("eyeglass-dom-paused");
   }
 
   private renderHub(): void {
@@ -870,11 +1236,16 @@ export class EyeglassInspector extends HTMLElement {
       isDragging: this.isDragging,
       dragOffset: this.dragOffset,
       customPanelPosition: this.customPanelPosition,
+      customLensPosition: this.customLensPosition,
       multiSelectMode: this.multiSelectMode,
       selectedElements: this.selectedElements,
       selectedSnapshots: this.selectedSnapshots,
       multiSelectHighlights: this.multiSelectHighlights,
       submittedSnapshots: this.submittedSnapshots,
+      stateCapsules: this.stateCapsules,
+      activeCapsuleId: this.activeCapsuleId,
+      interactionStateLabel: this.interactionStateLabel,
+      domPaused: this.domPaused,
       cursorStyleElement: this.cursorStyleElement,
       throttleTimeout: this.throttleTimeout,
       scrollTimeout: this.scrollTimeout,
@@ -903,6 +1274,11 @@ export class EyeglassInspector extends HTMLElement {
       handlePanelDragStart: this.dragHandlers.handlePanelDragStart,
       renderHub: () => this.renderHub(),
       renderPanel: () => this.renderPanel(),
+      captureStateCapsule: () => this.captureStateCapsule(),
+      selectStateCapsule: (id: string) => this.selectStateCapsule(id),
+      deleteStateCapsule: (id: string) => this.deleteStateCapsule(id),
+      rotateInteractionState: () => this.rotateInteractionState(),
+      toggleDomPause: () => this.toggleDomPause(),
     };
 
     this.lens.innerHTML = renderLensCard(state, callbacks);
@@ -992,6 +1368,30 @@ export class EyeglassInspector extends HTMLElement {
     if (contextBtn) {
       contextBtn.addEventListener("click", () => this.toggleContextOverlays());
     }
+
+    const rotateStateBtn = this.lens.querySelector('[data-action="rotate-state"]');
+    rotateStateBtn?.addEventListener("click", () => this.rotateInteractionState());
+
+    const captureCapsuleBtn = this.lens.querySelector('[data-action="capture-capsule"]');
+    captureCapsuleBtn?.addEventListener("click", () => this.captureStateCapsule());
+
+    const pauseBtn = this.lens.querySelector('[data-action="toggle-pause"]');
+    pauseBtn?.addEventListener("click", () => this.toggleDomPause());
+
+    this.lens.querySelectorAll('[data-action="select-capsule"]').forEach((el) => {
+      el.addEventListener("click", (event) => {
+        const id = (event.currentTarget as HTMLElement).getAttribute("data-capsule-id");
+        if (id) this.selectStateCapsule(id);
+      });
+    });
+
+    this.lens.querySelectorAll('[data-action="delete-capsule"]').forEach((el) => {
+      el.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const id = (event.currentTarget as HTMLElement).getAttribute("data-capsule-id");
+        if (id) this.deleteStateCapsule(id);
+      });
+    });
 
     // Peek raw schema
     const peekSchemaBtn = this.lens.querySelector('[data-action="peek-schema"]');

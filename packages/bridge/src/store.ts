@@ -616,6 +616,7 @@ ${healthSummary}
 ${snapshot.id ? `- ID: \`#${snapshot.id}\`` : ''}
 ${snapshot.className ? `- Classes: \`${snapshot.className}\`` : ''}
 ${snapshot.dataAttributes ? `- Data attrs: ${Object.entries(snapshot.dataAttributes).map(([k, v]) => `\`${k}="${v}"\``).join(', ')}` : ''}
+${this.formatInteractionState(snapshot)}
 ${a11y ? `
 ### Accessibility Tree
 - Label: ${a11y.label ?? 'none'}
@@ -715,6 +716,7 @@ ${snapshot.neighborhood.children.length > 0 ? snapshot.neighborhood.children.map
 ${snapshot.id ? `- ID: \`#${snapshot.id}\`` : ''}
 ${snapshot.className ? `- Classes: \`${snapshot.className}\`` : ''}
 ${snapshot.dataAttributes ? `- Data attrs: ${Object.entries(snapshot.dataAttributes).map(([k, v]) => `\`${k}="${v}"\``).join(', ')}` : ''}
+${this.formatInteractionState(snapshot)}
 ${a11y ? `
 ### Accessibility Tree
 - Label: ${a11y.label ?? 'none'}
@@ -768,6 +770,15 @@ ${elementSections}
 - URL: ${snapshots[0].url}
 - Timestamp: ${new Date(snapshots[0].timestamp).toISOString()}
 `;
+  }
+
+  private formatInteractionState(snapshot: import('@eyeglass/types').SemanticSnapshot): string {
+    const meta = snapshot.interactionState;
+    if (!meta) return '';
+    const label = meta.label || meta.variant || 'unspecified';
+    const paused = meta.domPaused ? ' (DOM paused)' : '';
+    const timestamp = meta.capturedAt ? ` @ ${new Date(meta.capturedAt).toISOString()}` : '';
+    return `- State: ${label}${paused}${timestamp}`;
   }
 
   private writeContextFile(): void {

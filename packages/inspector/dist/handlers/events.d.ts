@@ -42,6 +42,9 @@ export interface KeyDownHandlerCallbacks {
     toggleContextOverlays: () => void;
     toggleMultiSelect: () => void;
     submitShortcut: () => void;
+    rotateInteractionState: () => void;
+    captureStateCapsule: () => void;
+    toggleDomPause: () => void;
 }
 /**
  * Creates a keydown handler function

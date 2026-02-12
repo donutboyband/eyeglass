@@ -9,6 +9,7 @@ import type {
   PerceptionInfo,
   MetalInfo,
   SystemicInfo,
+  InteractionStateInfo,
   EventListener,
   BlockingHandler,
   StackingContext,
@@ -822,7 +823,10 @@ function getMetalInfo(element: Element): MetalInfo {
  * Capture a complete semantic snapshot of an element
  * Returns all 7 layers of frontend reality
  */
-export function captureSnapshot(element: Element): SemanticSnapshot {
+export function captureSnapshot(
+  element: Element,
+  interactionState?: InteractionStateInfo
+): SemanticSnapshot {
   const identifiers = getElementIdentifiers(element);
   const frameworkInfo = extractFrameworkInfo(element);
   const styles = getStyles(element);
@@ -858,6 +862,9 @@ export function captureSnapshot(element: Element): SemanticSnapshot {
 
     // DOM Neighborhood (Layout Context)
     neighborhood: getNeighborhood(element),
+
+    // Interaction metadata
+    interactionState,
 
     // Metadata
     timestamp: Date.now(),

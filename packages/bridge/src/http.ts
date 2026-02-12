@@ -214,7 +214,10 @@ export function startHttpServer(): void {
         const firstSnapshot = snapshot || (snapshots && snapshots[0]);
         if (!firstSnapshot) return `${i + 1}. **unknown** - "${userNote}"`;
         const elementCount = snapshots ? ` (${snapshots.length} elements)` : '';
-        return `${i + 1}. **${firstSnapshot.framework.componentName || firstSnapshot.tagName}**${elementCount} - "${userNote}"`;
+        const stateMeta = firstSnapshot.interactionState;
+        const stateLabel = stateMeta?.label || stateMeta?.variant;
+        const stateSuffix = stateLabel ? ` [${stateLabel}${stateMeta?.domPaused ? ', paused' : ''}]` : stateMeta?.domPaused ? ' [paused]' : '';
+        return `${i + 1}. **${firstSnapshot.framework.componentName || firstSnapshot.tagName}**${elementCount}${stateSuffix} - "${userNote}"`;
       })
       .join('\n');
 

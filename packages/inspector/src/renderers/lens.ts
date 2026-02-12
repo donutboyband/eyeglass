@@ -52,6 +52,43 @@ function renderSystemicImpact(snapshot: SemanticSnapshot): string {
   `;
 }
 
+function renderStateControls(state: InspectorState): string {
+  if (state.multiSelectMode) return '';
+  const pausedClass = state.domPaused ? 'active' : '';
+  const stateLabel = escapeHtml(state.interactionStateLabel);
+  return `
+    <div class="lens-state-toolbar">
+      <div class="lens-state-label">State: <span>${stateLabel}</span>${state.domPaused ? ' · DOM paused' : ''}</div>
+      <div class="lens-state-actions">
+        <button class="state-btn" data-action="rotate-state" title="Cycle state (⌘/Ctrl + Shift + K)">Cycle</button>
+        <button class="state-btn" data-action="capture-capsule" title="Save state capsule (⌘/Ctrl + Shift + L)">Save</button>
+        <button class="state-btn ${pausedClass}" data-action="toggle-pause" title="Pause DOM (⌘/Ctrl + Shift + P)">${state.domPaused ? 'Resume DOM' : 'Pause DOM'}</button>
+      </div>
+    </div>
+    ${renderStateCapsules(state)}
+  `;
+}
+
+function renderStateCapsules(state: InspectorState): string {
+  if (!state.stateCapsules.length) return '';
+  return `
+    <div class="lens-capsules">
+      ${state.stateCapsules.map((capsule) => `
+        <div class="lens-capsule ${state.activeCapsuleId === capsule.id ? 'active' : ''}" data-action="select-capsule" data-capsule-id="${capsule.id}">
+          <div class="capsule-name">&lt;${escapeHtml(capsule.label)}&gt;</div>
+          <div class="capsule-time">${new Date(capsule.capturedAt).toLocaleTimeString()}</div>
+          <button class="capsule-remove" data-action="delete-capsule" data-capsule-id="${capsule.id}" title="Remove">×</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderPauseBanner(domPaused: boolean): string {
+  if (!domPaused) return '';
+  return `<div class="lens-pause-banner">DOM paused during capture</div>`;
+}
+
 export function renderLensCard(
   state: InspectorState,
   callbacks: InspectorCallbacks
@@ -72,6 +109,7 @@ export function renderLensCard(
   const pulseColor = getPulseColor(pulseLevel);
   const issues = analyzeHealth(currentSnapshot);
   const systemicImpact = renderSystemicImpact(currentSnapshot);
+  const stateControls = renderStateControls(state);
 
   if (mode === 'activity') {
     return renderActivityLens(state, displayName, filePath);
@@ -88,6 +126,7 @@ export function renderLensCard(
       </div>
     </div>
     ${filePath ? `<div class="lens-path">${escapeHtml(filePath)}</div>` : ''}
+    ${stateControls}
     ${renderHealthIssues(issues)}
     ${systemicImpact}
     <div class="lens-input-row">
@@ -115,6 +154,7 @@ function renderActivityLens(state: InspectorState, displayName: string, filePath
   const lastThought = [...activityEvents].reverse().find(e => e.type === 'thought');
   const lastAction = [...activityEvents].reverse().find(e => e.type === 'action');
   const activityFeed = renderLensActivityFeed(activityEvents, currentStatus);
+  const pauseBanner = renderPauseBanner(state.domPaused);
 
   let message = 'Working...';
   if (lastThought) {
@@ -141,6 +181,7 @@ function renderActivityLens(state: InspectorState, displayName: string, filePath
       </div>
     </div>
     ${filePath ? `<div class="lens-path">${escapeHtml(filePath)}</div>` : ''}
+    ${pauseBanner}
     <div class="lens-activity">
       ${currentStatus === 'fixing' ? '<div class="lens-progress"><div class="lens-progress-bar"></div></div>' : ''}
       <div class="lens-message">${escapeHtml(message)}</div>
@@ -172,6 +213,7 @@ function renderActivityLens(state: InspectorState, displayName: string, filePath
 
 function renderMultiSelectLens(state: InspectorState): string {
   const { selectedSnapshots, _userNote } = state;
+  const pauseBanner = renderPauseBanner(state.domPaused);
   return `
     <div class="lens-bar">
       <span class="lens-tag">${selectedSnapshots.length} selected</span>
@@ -179,6 +221,7 @@ function renderMultiSelectLens(state: InspectorState): string {
         <button class="lens-tool lens-close" data-action="exit-multi" title="Exit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
     </div>
+    ${pauseBanner}
     <div class="lens-selection">
       ${selectedSnapshots.map((s, i) => `
         <div class="lens-chip">
@@ -483,6 +526,115 @@ export const LENS_STYLES = `
   padding: 4px 8px;
   font-size: 11px;
   cursor: pointer;
+}
+
+.lens-state-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 10px 4px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.lens-state-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.lens-state-label span {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.lens-state-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.state-btn {
+  flex: 1;
+  border: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.04);
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding: 4px 6px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.state-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.state-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.lens-capsules {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 0 10px 6px;
+}
+
+.lens-capsule {
+  border: 1px solid var(--glass-border);
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 9px;
+  cursor: pointer;
+  min-width: 80px;
+  position: relative;
+}
+
+.lens-capsule.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.capsule-name {
+  font-family: 'SF Mono', monospace;
+  color: var(--text-primary);
+}
+
+.capsule-time {
+  color: var(--text-muted);
+  font-size: 8px;
+}
+
+.capsule-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.capsule-remove:hover {
+  color: var(--error);
+}
+
+.lens-pause-banner {
+  padding: 6px 10px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--divider);
+  background: rgba(249,115,22,0.08);
 }
 
 .lens-btn.primary {

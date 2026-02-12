@@ -101,6 +101,12 @@ export interface SystemicInfo {
     impact: ImpactInfo;
     designSystem: DesignSystemInfo;
 }
+export interface InteractionStateInfo {
+    variant?: string;
+    label?: string;
+    domPaused?: boolean;
+    capturedAt: number;
+}
 export interface A11yInfo {
     label: string | null;
     description: string | null;
@@ -152,6 +158,7 @@ export interface SemanticSnapshot {
     perception?: PerceptionInfo;
     metal?: MetalInfo;
     systemic?: SystemicInfo;
+    interactionState?: InteractionStateInfo;
     neighborhood?: {
         parents: Array<{
             tagName: string;

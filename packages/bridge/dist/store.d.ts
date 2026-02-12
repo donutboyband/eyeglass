@@ -61,6 +61,7 @@ export declare class ContextStore extends EventEmitter {
     formatAsMarkdown(): string;
     private formatSingleSnapshot;
     private formatMultipleSnapshots;
+    private formatInteractionState;
     private writeContextFile;
 }
 export declare const store: ContextStore;

@@ -119,6 +119,10 @@ function buildState(snapshot: Partial<SemanticSnapshot>): InspectorState {
     selectedSnapshots: [],
     multiSelectHighlights: [],
     submittedSnapshots: [],
+    stateCapsules: [],
+    activeCapsuleId: null,
+    interactionStateLabel: 'default',
+    domPaused: false,
     cursorStyleElement: null,
     throttleTimeout: null,
     scrollTimeout: null,
@@ -150,6 +154,11 @@ const noopCallbacks: InspectorCallbacks = {
   handlePanelDragStart: () => {},
   renderHub: () => {},
   renderPanel: () => {},
+  captureStateCapsule: () => {},
+  selectStateCapsule: () => {},
+  deleteStateCapsule: () => {},
+  rotateInteractionState: () => {},
+  toggleDomPause: () => {},
 };
 
 describe('Lens systemic impact', () => {
