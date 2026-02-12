@@ -49,6 +49,7 @@ export interface InspectorState {
   mode: PanelMode;
   activityEvents: ActivityEvent[];
   currentStatus: InteractionStatus;
+  currentStatusMessage?: string | null;
 
   // Hub state
   hubExpanded: boolean;

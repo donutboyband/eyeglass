@@ -91,18 +91,27 @@ export function renderLensCard(
 }
 
 function renderActivityLens(state: InspectorState, displayName: string, filePath: string | null): string {
-  const { currentStatus, activityEvents } = state;
+  const { currentStatus, currentStatusMessage, activityEvents } = state;
   const lastThought = [...activityEvents].reverse().find(e => e.type === 'thought');
   const lastAction = [...activityEvents].reverse().find(e => e.type === 'action');
   // Only show unanswered questions
   const lastQuestion = [...activityEvents].reverse().find(e => e.type === 'question' && (e as any).questionId && !(e as any).answered);
 
   let message = 'Working...';
-  if (currentStatus === 'pending') message = 'Waiting for agent...';
-  else if (currentStatus === 'success') message = 'Done';
-  else if (currentStatus === 'failed') message = 'Failed';
-  else if (lastThought) message = (lastThought as any).content;
-  else if (lastAction) message = `${(lastAction as any).action}: ${(lastAction as any).target}`;
+  if (lastThought) {
+    message = (lastThought as any).content;
+  } else if (lastAction) {
+    const action = lastAction as any;
+    message = `${action.action}: ${action.target}${action.complete ? ' ✓' : '...'}`;
+  } else if (currentStatusMessage) {
+    message = currentStatusMessage;
+  } else if (currentStatus === 'pending') {
+    message = 'Waiting for agent...';
+  } else if (currentStatus === 'success') {
+    message = 'Done';
+  } else if (currentStatus === 'failed') {
+    message = 'Failed';
+  }
 
   return `
     <div class="lens-bar">

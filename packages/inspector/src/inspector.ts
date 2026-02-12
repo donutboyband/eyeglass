@@ -115,6 +115,7 @@ export class EyeglassInspector extends HTMLElement {
   private mode: PanelMode = "input";
   private activityEvents: ActivityEvent[] = [];
   private currentStatus: InteractionStatus = "idle";
+  private currentStatusMessage: string | null = null;
   private hubExpanded = false;
   private hubPage: HubPage = "main";
   private inspectorEnabled = true;
@@ -323,6 +324,7 @@ export class EyeglassInspector extends HTMLElement {
 
     if (event.type === "status") {
       this.currentStatus = event.status;
+      this.currentStatusMessage = event.message || null;
       // Persist session so we can show result after page reload
       saveSession(
         this.interactionId,
@@ -484,6 +486,7 @@ export class EyeglassInspector extends HTMLElement {
     this.mode = "input";
     this._userNote = "";
     this.activityEvents = [];
+    this.currentStatusMessage = null;
     this.customPanelPosition = null;
 
     // Clear multi-select state
@@ -796,6 +799,7 @@ export class EyeglassInspector extends HTMLElement {
       mode: this.mode,
       activityEvents: this.activityEvents,
       currentStatus: this.currentStatus,
+      currentStatusMessage: this.currentStatusMessage,
       hubExpanded: this.hubExpanded,
       hubPage: this.hubPage,
       inspectorEnabled: this.inspectorEnabled,
@@ -1073,6 +1077,7 @@ export class EyeglassInspector extends HTMLElement {
     this.mode = "activity";
     this.activityEvents = [];
     this.currentStatus = "pending";
+    this.currentStatusMessage = null;
 
     // v2.0: Render lens when in lens mode
     if (this.uiMode === 'lens') {
@@ -1153,6 +1158,7 @@ export class EyeglassInspector extends HTMLElement {
     // Reset activity state for new request
     this.activityEvents = [];
     this.currentStatus = "pending";
+    this.currentStatusMessage = null;
 
     // v2.0: Render lens when in lens mode
     if (this.uiMode === 'lens') {

@@ -17,6 +17,7 @@ export declare class EyeglassInspector extends HTMLElement {
     private mode;
     private activityEvents;
     private currentStatus;
+    private currentStatusMessage;
     private hubExpanded;
     private hubPage;
     private inspectorEnabled;

@@ -37,6 +37,7 @@ export interface InspectorState {
     mode: PanelMode;
     activityEvents: ActivityEvent[];
     currentStatus: InteractionStatus;
+    currentStatusMessage?: string | null;
     hubExpanded: boolean;
     hubPage: HubPage;
     inspectorEnabled: boolean;
