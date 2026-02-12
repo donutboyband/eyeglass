@@ -122,7 +122,7 @@ export function renderInputMode(
       ></textarea>
       <div class="btn-row">
         <button class="btn btn-secondary">Cancel</button>
-        <button class="btn btn-primary">Send</button>
+        <button class="btn btn-primary" aria-label="Send request">Send</button>
       </div>
     </div>
   `;
@@ -136,6 +136,12 @@ export function renderInputMode(
   closeBtn.addEventListener("click", () => callbacks.onClose());
   cancelBtn.addEventListener("click", () => callbacks.onClose());
   sendBtn.addEventListener("click", () => callbacks.onSubmit(input.value));
+  sendBtn.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      callbacks.onSubmit(input.value);
+    }
+  });
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && input.value.trim()) {
       e.preventDefault();

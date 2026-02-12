@@ -71,14 +71,13 @@ export function renderLensCard(
     ${filePath ? `<div class="lens-path">${escapeHtml(filePath)}</div>` : ''}
     ${renderHealthIssues(issues)}
     <div class="lens-input-row">
-      <input
-        type="text"
+      <textarea
         class="lens-input"
         placeholder="Ask Eyeglass..."
-        value="${escapeHtml(state._userNote || '')}"
         data-action="input"
-      />
-      <kbd class="lens-enter-hint">↵</kbd>
+        rows="2"
+      >${escapeHtml(state._userNote || '')}</textarea>
+      <button class="lens-enter-btn" data-action="submit-note" aria-label="Send request" title="Send">↵</button>
     </div>
     <div class="lens-schema" data-expanded="false">
       <button class="lens-schema-toggle" data-action="toggle-schema">
@@ -154,14 +153,13 @@ function renderMultiSelectLens(state: InspectorState): string {
       `).join('')}
     </div>
     <div class="lens-input-row">
-      <input
-        type="text"
+      <textarea
         class="lens-input"
         placeholder="What should change?"
-        value="${escapeHtml(_userNote || '')}"
         data-action="input"
-      />
-      <kbd class="lens-enter-hint">↵</kbd>
+        rows="2"
+      >${escapeHtml(_userNote || '')}</textarea>
+      <button class="lens-enter-btn" data-action="submit-note" aria-label="Send request" title="Send">↵</button>
     </div>
   `;
 }
@@ -365,12 +363,12 @@ export const LENS_STYLES = `
   position: relative;
   display: flex;
   align-items: center;
+  gap: 6px;
 }
 
 .lens-input {
   flex: 1;
   padding: 8px 10px;
-  padding-right: 32px;
   background: rgba(0,0,0,0.06);
   border: 1px solid var(--glass-border);
   font-size: 11px;
@@ -378,6 +376,9 @@ export const LENS_STYLES = `
   color: var(--text-primary);
   outline: none;
   transition: border-color 0.1s, background 0.1s;
+  min-height: 48px;
+  resize: vertical;
+  line-height: 1.4;
 }
 
 .lens-input:focus {
@@ -389,28 +390,26 @@ export const LENS_STYLES = `
   color: var(--text-muted);
 }
 
-.lens-enter-hint {
-  position: absolute;
-  right: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  font-family: inherit;
-  font-size: 11px;
-  color: var(--text-muted);
-  background: rgba(255,255,255,0.06);
+.lens-enter-btn {
   border: 1px solid var(--glass-border);
-  opacity: 0.6;
-  transition: opacity 0.1s;
-  pointer-events: none;
+  background: rgba(0,0,0,0.06);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s, background 0.1s, opacity 0.1s;
 }
 
-.lens-input:focus + .lens-enter-hint {
-  opacity: 1;
-  color: var(--accent);
+.lens-enter-btn:hover {
   border-color: var(--accent);
+  color: var(--text-primary);
+  opacity: 0.9;
+}
+
+.lens-enter-btn:active {
+  background: var(--accent-muted);
+  color: var(--text-primary);
 }
 
 /* Activity */
@@ -601,6 +600,8 @@ export const LENS_STYLES = `
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.15s ease-out, padding 0.15s ease-out;
+  color: var(--text-primary);
+  background: rgba(0,0,0,0.04);
 }
 
 .lens-schema[data-expanded="true"] .lens-schema-code {
@@ -610,7 +611,7 @@ export const LENS_STYLES = `
 }
 
 /* JSON syntax highlighting */
-.lens-schema-code .json-key { color: #7dd3fc; }
+.lens-schema-code .json-key { color: var(--accent); }
 .lens-schema-code .json-string { color: #86efac; }
 .lens-schema-code .json-number { color: #fcd34d; }
 .lens-schema-code .json-bool { color: #f9a8d4; }

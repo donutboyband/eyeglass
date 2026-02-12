@@ -43,6 +43,8 @@ export declare class EyeglassInspector extends HTMLElement {
     private lens;
     private lastMouseX;
     private lastMouseY;
+    private crosshairX;
+    private crosshairY;
     private showingContextOverlays;
     private contextOverlays;
     private contextOverlayElements;
@@ -63,6 +65,8 @@ export declare class EyeglassInspector extends HTMLElement {
     private toggleInspectorEnabled;
     private updateCursor;
     private showHighlight;
+    private updateCrosshair;
+    private toggleCrosshair;
     private hideHighlight;
     private freeze;
     private unfreeze;

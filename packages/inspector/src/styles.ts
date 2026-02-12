@@ -224,6 +224,32 @@ export const STYLES = `
   transition: none;
 }
 
+/* Crosshair axes */
+.crosshair {
+  position: fixed;
+  background: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2147483639;
+  transition: opacity 0.08s ease-out;
+}
+
+.crosshair.crosshair-x {
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 1px;
+  transform: translateY(0);
+}
+
+.crosshair.crosshair-y {
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 100vh;
+  transform: translateX(0);
+}
+
 /* Glass Panel */
 .glass-panel {
   position: absolute;
@@ -400,11 +426,19 @@ export const STYLES = `
 .btn-primary {
   background: var(--accent);
   color: white;
+  border: 1px solid var(--accent);
 }
 
 .btn-primary:hover {
   background: #4f46e5;
+  border-color: #4f46e5;
   transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  background: var(--accent-muted);
+  border-color: var(--accent-muted);
+  transform: translateY(0);
 }
 
 .btn-secondary {
@@ -414,6 +448,10 @@ export const STYLES = `
 
 .btn-secondary:hover {
   background: rgba(0, 0, 0, 0.08);
+}
+
+.btn-secondary:active {
+  background: rgba(0, 0, 0, 0.12);
 }
 
 /* Activity Feed */

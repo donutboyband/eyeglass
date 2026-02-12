@@ -128,8 +128,8 @@ export function renderContextOverlays(
       top: ${rect.top - 2}px;
       width: ${rect.width + 4}px;
       height: ${rect.height + 4}px;
-      border: 2px solid ${overlay.color};
-      border-radius: 4px;
+      border: 1.5px solid ${overlay.color};
+      border-radius: 0px;
       pointer-events: none;
       z-index: 9;
       box-sizing: border-box;
@@ -144,11 +144,13 @@ export function renderContextOverlays(
       top: -20px;
       left: 0;
       padding: 2px 6px;
-      background: ${overlay.color};
-      color: white;
+      background: var(--glass-bg);
+      color: ${overlay.color};
       font-size: 10px;
       font-weight: 500;
-      border-radius: 4px;
+      border: 1px solid ${overlay.color};
+      border-radius: 0px;
+      letter-spacing: 0.02em;
       white-space: nowrap;
       pointer-events: none;
     `;
@@ -194,6 +196,8 @@ export function updateOverlayPositions(
 export const CONTEXT_OVERLAY_STYLES = `
 .context-overlay {
   animation: context-appear 0.2s ease-out;
+  box-shadow: none;
+  background: transparent;
 }
 
 @keyframes context-appear {
@@ -207,23 +211,7 @@ export const CONTEXT_OVERLAY_STYLES = `
   }
 }
 
-.context-overlay.context-component {
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
-}
-
-.context-overlay.context-state-owner {
-  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.2);
-}
-
-.context-overlay.context-layout-parent {
-  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.2);
-}
-
-.context-overlay.context-event-blocker {
-  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
-}
-
 .context-label {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
 }
 `;

@@ -153,6 +153,8 @@ export class EyeglassInspector extends HTMLElement {
   private lens: HTMLDivElement | null = null;
   private lastMouseX = 0;
   private lastMouseY = 0;
+  private crosshairX: HTMLDivElement | null = null;
+  private crosshairY: HTMLDivElement | null = null;
 
   // Context overlay state
   private showingContextOverlays = false;
@@ -188,6 +190,7 @@ export class EyeglassInspector extends HTMLElement {
           if (e) {
             this.lastMouseX = e.clientX;
             this.lastMouseY = e.clientY;
+            this.updateCrosshair(this.lastMouseX, this.lastMouseY);
           }
           this.showHighlight(el);
         },
@@ -271,6 +274,13 @@ export class EyeglassInspector extends HTMLElement {
 
     // v2.0: Create the Loupe element
     this.loupe = createLoupe(this.shadow);
+    this.crosshairX = document.createElement("div");
+    this.crosshairX.className = "crosshair crosshair-x";
+    this.shadow.appendChild(this.crosshairX);
+
+    this.crosshairY = document.createElement("div");
+    this.crosshairY.className = "crosshair crosshair-y";
+    this.shadow.appendChild(this.crosshairY);
 
     document.addEventListener("mousemove", this.handleMouseMove, true);
     document.addEventListener("click", this.handleClick, true);
@@ -299,6 +309,8 @@ export class EyeglassInspector extends HTMLElement {
       this.cursorStyleElement.remove();
       this.cursorStyleElement = null;
     }
+    this.crosshairX?.remove();
+    this.crosshairY?.remove();
   }
 
   private connectSSE(): void {
@@ -411,6 +423,7 @@ export class EyeglassInspector extends HTMLElement {
     saveEnabledState(this.inspectorEnabled);
     if (!this.inspectorEnabled) {
       this.unfreeze();
+      this.toggleCrosshair(false);
     }
     this.updateCursor();
     this.renderHub();
@@ -445,6 +458,26 @@ export class EyeglassInspector extends HTMLElement {
       updateLoupe(this.loupe, snapshot, rect);
       showLoupe(this.loupe);
     }
+    // Keep crosshair visible while hovering
+    this.toggleCrosshair(true);
+  }
+
+  private updateCrosshair(x: number, y: number): void {
+    if (!this.crosshairX || !this.crosshairY) return;
+    if (!this.inspectorEnabled) {
+      this.toggleCrosshair(false);
+      return;
+    }
+    this.crosshairX.style.transform = `translateY(${y}px)`;
+    this.crosshairY.style.transform = `translateX(${x}px)`;
+    this.toggleCrosshair(true);
+  }
+
+  private toggleCrosshair(show: boolean): void {
+    if (!this.crosshairX || !this.crosshairY) return;
+    const opacity = show ? "1" : "0";
+    this.crosshairX.style.opacity = opacity;
+    this.crosshairY.style.opacity = opacity;
   }
 
   private hideHighlight(): void {
@@ -455,6 +488,7 @@ export class EyeglassInspector extends HTMLElement {
     if (this.loupe && !this.frozen) {
       hideLoupe(this.loupe);
     }
+    this.toggleCrosshair(false);
     // Don't clear currentElement - it's needed for panel rendering in multi-select mode
     // and will be updated naturally when mouse moves back to page elements
   }
@@ -472,6 +506,7 @@ export class EyeglassInspector extends HTMLElement {
     this.activityEvents = [];
     this.currentStatus = "idle";
     this.updateCursor();
+    this.toggleCrosshair(false);
 
     // v2.0: Hide loupe and show lens
     if (this.loupe) {
@@ -515,6 +550,7 @@ export class EyeglassInspector extends HTMLElement {
 
     this.hidePanel();
     this.hideHighlight();
+    this.toggleCrosshair(false);
     this.updateCursor();
     clearSession();
   }
@@ -611,6 +647,7 @@ export class EyeglassInspector extends HTMLElement {
     if (this.highlight) {
       this.highlight.style.display = "none";
     }
+    this.toggleCrosshair(false);
 
     // v2.0: Render lens when in lens mode
     if (this.uiMode === 'lens') {
@@ -882,15 +919,28 @@ export class EyeglassInspector extends HTMLElement {
     }
 
     // Input field - Enter to submit
-    const input = this.lens.querySelector('.lens-input') as HTMLInputElement;
+    const input = this.lens.querySelector('.lens-input') as HTMLTextAreaElement;
     if (input) {
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && input.value.trim()) {
+        if (e.key === "Enter" && !e.shiftKey && input.value.trim()) {
           this.submit(input.value);
+          e.preventDefault();
         }
       });
       // Auto-focus input
       setTimeout(() => input.focus(), 100);
+    }
+
+    // Clickable enter/send button for accessibility
+    const enterBtn = this.lens.querySelector('.lens-enter-btn') as HTMLButtonElement;
+    if (enterBtn && input) {
+      enterBtn.addEventListener("click", () => {
+        if (input.value.trim()) {
+          this.submit(input.value);
+        } else {
+          input.focus();
+        }
+      });
     }
 
     // Multi-select button
