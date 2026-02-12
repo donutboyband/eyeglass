@@ -46,8 +46,46 @@ function snapshotWith(overrides: Partial<SemanticSnapshot>): SemanticSnapshot {
   return {
     ...base,
     ...overrides,
-    causality: { ...base.causality, ...overrides.causality },
-    perception: { ...base.perception, ...overrides.perception },
+    causality: {
+      ...base.causality!,
+      ...overrides.causality,
+      events: {
+        ...base.causality!.events,
+        ...overrides.causality?.events,
+      },
+    },
+    perception: {
+      ...base.perception!,
+      ...overrides.perception,
+      affordance: {
+        ...base.perception!.affordance,
+        ...overrides.perception?.affordance,
+      },
+      visibility: {
+        ...base.perception!.visibility,
+        ...overrides.perception?.visibility,
+      },
+      legibility: {
+        ...base.perception!.legibility,
+        ...overrides.perception?.legibility,
+      },
+      usability: {
+        ...base.perception!.usability,
+        ...overrides.perception?.usability,
+      },
+    },
+    systemic: {
+      ...base.systemic!,
+      ...overrides.systemic,
+      impact: {
+        ...base.systemic!.impact,
+        ...overrides.systemic?.impact,
+      },
+      designSystem: {
+        ...base.systemic!.designSystem,
+        ...overrides.systemic?.designSystem,
+      },
+    },
   };
 }
 

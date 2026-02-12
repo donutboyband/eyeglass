@@ -110,7 +110,8 @@ export function renderLensCard(
 }
 
 function renderActivityLens(state: InspectorState, displayName: string, filePath: string | null): string {
-  const { currentStatus, currentStatusMessage, activityEvents, _userNote } = state;
+  const { currentStatus, currentStatusMessage, activityEvents, _userNote, autoCommitEnabled } = state;
+  const requiresManualCommit = currentStatus === 'success' && !autoCommitEnabled;
   const lastThought = [...activityEvents].reverse().find(e => e.type === 'thought');
   const lastAction = [...activityEvents].reverse().find(e => e.type === 'action');
   const activityFeed = renderLensActivityFeed(activityEvents, currentStatus);
@@ -145,6 +146,15 @@ function renderActivityLens(state: InspectorState, displayName: string, filePath
       <div class="lens-message">${escapeHtml(message)}</div>
       ${_userNote ? `<div class="lens-user-note" title="Original request">${escapeHtml(_userNote)}</div>` : ''}
       ${activityFeed}
+      ${requiresManualCommit ? `
+        <div class="lens-actions">
+          <div class="lens-actions-text">Auto-commit is off. Apply these changes?</div>
+          <div class="lens-actions-row">
+            <button class="lens-btn" data-action="lens-undo">Undo</button>
+            <button class="lens-btn primary" data-action="lens-commit">Commit</button>
+          </div>
+        </div>
+      ` : ''}
       ${currentStatus === 'success' || currentStatus === 'failed' ? `
         <div class="lens-followup">
           <textarea class="lens-followup-input" rows="2" placeholder="Send a follow-up..."></textarea>
@@ -157,7 +167,7 @@ function renderActivityLens(state: InspectorState, displayName: string, filePath
         <button class="lens-btn" data-action="new-request">New Request</button>
       </div>
     ` : ''}
-  `;
+`;
 }
 
 function renderMultiSelectLens(state: InspectorState): string {
@@ -444,6 +454,41 @@ export const LENS_STYLES = `
 .lens-status-badge.pending {
   background: rgba(245,158,11,0.15);
   color: #f59e0b;
+}
+
+.lens-actions {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lens-actions-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.lens-actions-row {
+  display: flex;
+  gap: 6px;
+}
+
+.lens-btn {
+  border: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.05);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.lens-btn.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
 
 /* Issues */

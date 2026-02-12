@@ -48,9 +48,46 @@ function buildState(snapshot: Partial<SemanticSnapshot>): InspectorState {
     ...baseSnapshot,
     ...snapshot,
     framework: { ...baseSnapshot.framework, ...snapshot.framework },
-    systemic: { ...baseSnapshot.systemic, ...snapshot.systemic },
-    perception: { ...baseSnapshot.perception, ...snapshot.perception },
-    causality: { ...baseSnapshot.causality, ...snapshot.causality },
+    systemic: {
+      ...baseSnapshot.systemic!,
+      ...snapshot.systemic,
+      impact: {
+        ...baseSnapshot.systemic!.impact,
+        ...snapshot.systemic?.impact,
+      },
+      designSystem: {
+        ...baseSnapshot.systemic!.designSystem,
+        ...snapshot.systemic?.designSystem,
+      },
+    },
+    perception: {
+      ...baseSnapshot.perception!,
+      ...snapshot.perception,
+      affordance: {
+        ...baseSnapshot.perception!.affordance,
+        ...snapshot.perception?.affordance,
+      },
+      visibility: {
+        ...baseSnapshot.perception!.visibility,
+        ...snapshot.perception?.visibility,
+      },
+      legibility: {
+        ...baseSnapshot.perception!.legibility,
+        ...snapshot.perception?.legibility,
+      },
+      usability: {
+        ...baseSnapshot.perception!.usability,
+        ...snapshot.perception?.usability,
+      },
+    },
+    causality: {
+      ...baseSnapshot.causality!,
+      ...snapshot.causality,
+      events: {
+        ...baseSnapshot.causality!.events,
+        ...snapshot.causality?.events,
+      },
+    },
   };
 
   const state: InspectorState = {

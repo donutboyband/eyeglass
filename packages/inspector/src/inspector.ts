@@ -939,6 +939,16 @@ export class EyeglassInspector extends HTMLElement {
       closeBtn.addEventListener("click", () => this.unfreeze());
     }
 
+    const lensCommitBtn = this.lens.querySelector('[data-action="lens-commit"]');
+    if (lensCommitBtn) {
+      lensCommitBtn.addEventListener('click', () => this.handleCommitRequest());
+    }
+
+    const lensUndoBtn = this.lens.querySelector('[data-action="lens-undo"]');
+    if (lensUndoBtn) {
+      lensUndoBtn.addEventListener('click', () => this.handleUndoFromPanel());
+    }
+
     // Input field - Enter to submit
     const input = this.lens.querySelector('.lens-input') as HTMLTextAreaElement;
     if (input) {
