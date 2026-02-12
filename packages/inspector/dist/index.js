@@ -1796,7 +1796,7 @@ var nt=new Set([0,1,11,14,15]);function ee(e){let n=Object.keys(e).find(i=>i.sta
       </button>
       <pre class="lens-schema-code"></pre>
     </div>
-  `}function Qt(e,t,n){let{currentStatus:i,activityEvents:o}=e,s=[...o].reverse().find(c=>c.type==="thought"),r=[...o].reverse().find(c=>c.type==="action"),a=[...o].reverse().find(c=>c.type==="question"&&c.questionId),l="Working...";return i==="pending"?l="Waiting for agent...":i==="success"?l="Done":i==="failed"?l="Failed":s?l=s.content:r&&(l=`${r.action}: ${r.target}`),`
+  `}function Qt(e,t,n){let{currentStatus:i,activityEvents:o}=e,s=[...o].reverse().find(c=>c.type==="thought"),r=[...o].reverse().find(c=>c.type==="action"),a=[...o].reverse().find(c=>c.type==="question"&&c.questionId&&!c.answered),l="Working...";return i==="pending"?l="Waiting for agent...":i==="success"?l="Done":i==="failed"?l="Failed":s?l=s.content:r&&(l=`${r.action}: ${r.target}`),`
     <div class="lens-bar">
       <span class="lens-tag">&lt;${f(t)} /&gt;</span>
       <span class="lens-status-badge ${i}">${i}</span>

@@ -94,7 +94,8 @@ function renderActivityLens(state: InspectorState, displayName: string, filePath
   const { currentStatus, activityEvents } = state;
   const lastThought = [...activityEvents].reverse().find(e => e.type === 'thought');
   const lastAction = [...activityEvents].reverse().find(e => e.type === 'action');
-  const lastQuestion = [...activityEvents].reverse().find(e => e.type === 'question' && (e as any).questionId);
+  // Only show unanswered questions
+  const lastQuestion = [...activityEvents].reverse().find(e => e.type === 'question' && (e as any).questionId && !(e as any).answered);
 
   let message = 'Working...';
   if (currentStatus === 'pending') message = 'Waiting for agent...';
