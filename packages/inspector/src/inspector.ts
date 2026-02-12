@@ -459,6 +459,7 @@ export class EyeglassInspector extends HTMLElement {
     if (!this.currentElement) return;
 
     this.frozen = true;
+    this._userNote = "";
     this.currentSnapshot = captureSnapshot(this.currentElement);
     // Initialize selectedElements with the first element
     this.selectedElements = [this.currentElement];
@@ -481,6 +482,7 @@ export class EyeglassInspector extends HTMLElement {
     this.currentSnapshot = null;
     this.interactionId = null;
     this.mode = "input";
+    this._userNote = "";
     this.activityEvents = [];
     this.customPanelPosition = null;
 
@@ -942,6 +944,7 @@ export class EyeglassInspector extends HTMLElement {
     if (newRequestBtn) {
       newRequestBtn.addEventListener("click", () => {
         this.mode = "input";
+        this._userNote = "";
         this.activityEvents = [];
         this.currentStatus = "idle";
         this.renderLens();
