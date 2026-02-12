@@ -194,8 +194,8 @@ export function createKeyDownHandler(
       callbacks.toggleContextOverlays();
     }
 
-    // Ctrl/Cmd + Shift + P to pause/resume DOM
-    if (modifierKey && e.shiftKey && e.key.toLowerCase() === "p") {
+    // Ctrl/Cmd + Shift + U to pause/resume DOM
+    if (modifierKey && e.shiftKey && e.key.toLowerCase() === "u") {
       e.preventDefault();
       callbacks.toggleDomPause();
     }

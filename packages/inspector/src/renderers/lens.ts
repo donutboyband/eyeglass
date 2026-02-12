@@ -58,11 +58,19 @@ function renderStateControls(state: InspectorState): string {
   const stateLabel = escapeHtml(state.interactionStateLabel);
   return `
     <div class="lens-state-toolbar">
-      <div class="lens-state-label">State: <span>${stateLabel}</span>${state.domPaused ? ' · DOM paused' : ''}</div>
+      <div class="lens-state-label">State <span>${stateLabel}</span>${state.domPaused ? ' · DOM paused' : ''}</div>
       <div class="lens-state-actions">
-        <button class="state-btn" data-action="rotate-state" title="Cycle state (⌘/Ctrl + Shift + K)">Cycle</button>
-        <button class="state-btn" data-action="capture-capsule" title="Save state capsule (⌘/Ctrl + Shift + L)">Save</button>
-        <button class="state-btn ${pausedClass}" data-action="toggle-pause" title="Pause DOM (⌘/Ctrl + Shift + P)">${state.domPaused ? 'Resume DOM' : 'Pause DOM'}</button>
+        <button class="state-btn icon-btn" data-action="rotate-state" title="Cycle state (⌘/Ctrl + Shift + K)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 12 3 4 11 4"/><path d="M21 12a9 9 0 0 0-9-9H3"/><polyline points="21 12 21 20 13 20"/><path d="M3 12a9 9 0 0 0 9 9h9"/></svg>
+        </button>
+        <button class="state-btn icon-btn" data-action="capture-capsule" title="Save state capsule (⌘/Ctrl + Shift + L)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M3 7l5-5h8l5 5"/></svg>
+        </button>
+        <button class="state-btn icon-btn ${pausedClass}" data-action="toggle-pause" title="Pause DOM (⌘/Ctrl + Shift + U)">
+          ${state.domPaused
+            ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="8 5 18 12 8 19 8 5"/></svg>'
+            : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>'}
+        </button>
       </div>
     </div>
     ${renderStateCapsules(state)}
@@ -72,13 +80,18 @@ function renderStateControls(state: InspectorState): string {
 function renderStateCapsules(state: InspectorState): string {
   if (!state.stateCapsules.length) return '';
   return `
-    <div class="lens-capsules">
+    <div class="lens-capsules" role="list">
       ${state.stateCapsules.map((capsule) => `
-        <div class="lens-capsule ${state.activeCapsuleId === capsule.id ? 'active' : ''}" data-action="select-capsule" data-capsule-id="${capsule.id}">
-          <div class="capsule-name">&lt;${escapeHtml(capsule.label)}&gt;</div>
-          <div class="capsule-time">${new Date(capsule.capturedAt).toLocaleTimeString()}</div>
-          <button class="capsule-remove" data-action="delete-capsule" data-capsule-id="${capsule.id}" title="Remove">×</button>
-        </div>
+        <button
+          class="lens-capsule ${state.activeCapsuleId === capsule.id ? 'active' : ''}"
+          data-action="select-capsule"
+          data-capsule-id="${capsule.id}"
+          role="listitem"
+        >
+          <span class="capsule-label">${escapeHtml(capsule.label)}</span>
+          <span class="capsule-meta">${new Date(capsule.capturedAt).toLocaleTimeString()}</span>
+          <span class="capsule-remove" data-action="delete-capsule" data-capsule-id="${capsule.id}" title="Remove capsule" aria-label="Remove capsule">×</span>
+        </button>
       `).join('')}
     </div>
   `;
@@ -596,19 +609,23 @@ export const LENS_STYLES = `
   cursor: pointer;
   min-width: 80px;
   position: relative;
+  background: rgba(255,255,255,0.03);
+  color: var(--text-primary);
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .lens-capsule.active {
   border-color: var(--accent);
   background: var(--accent-soft);
+  color: var(--accent);
 }
 
-.capsule-name {
+.capsule-label {
   font-family: 'SF Mono', monospace;
-  color: var(--text-primary);
+  color: inherit;
 }
 
-.capsule-time {
+.capsule-meta {
   color: var(--text-muted);
   font-size: 8px;
 }
