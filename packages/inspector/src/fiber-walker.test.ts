@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { extractFrameworkInfo } from './fiber-walker.js';
+import { extractFrameworkInfo, extractHooks, extractContext, getRenderAnalysis } from './fiber-walker.js';
 
 // Helper to create a mock function with a displayName
 function createMockComponent(name: string) {
@@ -7,6 +7,11 @@ function createMockComponent(name: string) {
   fn.displayName = name;
   return fn;
 }
+
+// Fiber tag constants (must match fiber-walker.ts)
+const FunctionComponent = 0;
+const HostComponent = 5;
+const ContextProvider = 10;
 
 describe('extractFrameworkInfo', () => {
   beforeEach(() => {
@@ -20,7 +25,9 @@ describe('extractFrameworkInfo', () => {
 
       const info = extractFrameworkInfo(div);
 
-      expect(info.name).toBe('vanilla');
+      expect(info.type).toBe('vanilla');
+      expect(info.name).toBe('vanilla'); // Legacy compat
+      expect(info.displayName).toBeUndefined();
       expect(info.componentName).toBeUndefined();
       expect(info.filePath).toBeUndefined();
     });
@@ -33,7 +40,7 @@ describe('extractFrameworkInfo', () => {
 
       // Mock React fiber structure
       const mockFiber = {
-        tag: 0, // FunctionComponent
+        tag: FunctionComponent,
         type: createMockComponent('MyComponent'),
         return: null,
         _debugSource: {
@@ -51,8 +58,10 @@ describe('extractFrameworkInfo', () => {
 
       const info = extractFrameworkInfo(div);
 
-      expect(info.name).toBe('react');
-      expect(info.componentName).toBe('MyComponent');
+      expect(info.type).toBe('react');
+      expect(info.name).toBe('react'); // Legacy compat
+      expect(info.displayName).toBe('MyComponent');
+      expect(info.componentName).toBe('MyComponent'); // Legacy compat
       expect(info.filePath).toBe('src/components/MyComponent.tsx');
       expect(info.lineNumber).toBe(42);
     });
@@ -62,7 +71,7 @@ describe('extractFrameworkInfo', () => {
       document.body.appendChild(div);
 
       const mockFiber = {
-        tag: 0,
+        tag: FunctionComponent,
         type: createMockComponent('Button'),
         return: null,
       };
@@ -71,8 +80,8 @@ describe('extractFrameworkInfo', () => {
 
       const info = extractFrameworkInfo(div);
 
-      expect(info.name).toBe('react');
-      expect(info.componentName).toBe('Button');
+      expect(info.type).toBe('react');
+      expect(info.displayName).toBe('Button');
     });
 
     it('should extract safe props (primitives only)', () => {
@@ -80,7 +89,7 @@ describe('extractFrameworkInfo', () => {
       document.body.appendChild(div);
 
       const mockFiber = {
-        tag: 0,
+        tag: FunctionComponent,
         type: createMockComponent('Card'),
         return: null,
         memoizedProps: {
@@ -98,12 +107,22 @@ describe('extractFrameworkInfo', () => {
 
       const info = extractFrameworkInfo(div);
 
+      // Legacy props location
       expect(info.props).toEqual({
         title: 'Hello',
         count: 42,
         isOpen: true,
         data: null,
       });
+
+      // New state.props location
+      expect(info.state?.props).toEqual({
+        title: 'Hello',
+        count: 42,
+        isOpen: true,
+        data: null,
+      });
+
       // Should not include children, functions, or objects
       expect(info.props?.children).toBeUndefined();
       expect(info.props?.onClick).toBeUndefined();
@@ -116,13 +135,13 @@ describe('extractFrameworkInfo', () => {
 
       // Simulate a DOM fiber with component parents
       const parentFiber = {
-        tag: 0,
+        tag: FunctionComponent,
         type: createMockComponent('ParentComponent'),
         return: null,
       };
 
       const domFiber = {
-        tag: 5, // HostComponent (div)
+        tag: HostComponent,
         type: 'div',
         return: parentFiber,
       };
@@ -131,8 +150,8 @@ describe('extractFrameworkInfo', () => {
 
       const info = extractFrameworkInfo(div);
 
-      expect(info.name).toBe('react');
-      expect(info.componentName).toBe('ParentComponent');
+      expect(info.type).toBe('react');
+      expect(info.displayName).toBe('ParentComponent');
     });
 
     it('should collect ancestry chain', () => {
@@ -140,19 +159,19 @@ describe('extractFrameworkInfo', () => {
       document.body.appendChild(div);
 
       const appFiber = {
-        tag: 0,
+        tag: FunctionComponent,
         type: createMockComponent('App'),
         return: null,
       };
 
       const cardFiber = {
-        tag: 0,
+        tag: FunctionComponent,
         type: createMockComponent('Card'),
         return: appFiber,
       };
 
       const buttonFiber = {
-        tag: 0,
+        tag: FunctionComponent,
         type: createMockComponent('Button'),
         return: cardFiber,
       };
@@ -164,32 +183,44 @@ describe('extractFrameworkInfo', () => {
       expect(info.ancestry).toEqual(['Button', 'Card', 'App']);
     });
 
-    it('should skip Context.Provider and similar internal components', () => {
+    it('should extract React key when present', () => {
+      const div = document.createElement('div');
+      document.body.appendChild(div);
+
+      const mockFiber = {
+        tag: FunctionComponent,
+        type: createMockComponent('ListItem'),
+        return: null,
+        key: 'item-42',
+      };
+
+      (div as any)['__reactFiber$test'] = mockFiber;
+
+      const info = extractFrameworkInfo(div);
+
+      expect(info.key).toBe('item-42');
+    });
+
+    it('should skip StrictMode and similar internal components', () => {
       const div = document.createElement('div');
       document.body.appendChild(div);
 
       const appFiber = {
-        tag: 0,
+        tag: FunctionComponent,
         type: createMockComponent('App'),
         return: null,
       };
 
-      const providerFiber = {
-        tag: 0,
-        type: createMockComponent('ThemeProvider'),
+      const strictModeFiber = {
+        tag: FunctionComponent,
+        type: createMockComponent('StrictMode'),
         return: appFiber,
       };
 
-      const contextFiber = {
-        tag: 0,
-        type: createMockComponent('Context.Consumer'),
-        return: providerFiber,
-      };
-
       const buttonFiber = {
-        tag: 0,
+        tag: FunctionComponent,
         type: createMockComponent('Button'),
-        return: contextFiber,
+        return: strictModeFiber,
       };
 
       (div as any)['__reactFiber$test'] = buttonFiber;
@@ -197,121 +228,255 @@ describe('extractFrameworkInfo', () => {
       const info = extractFrameworkInfo(div);
 
       // The nearest user component should be Button
-      expect(info.componentName).toBe('Button');
+      expect(info.displayName).toBe('Button');
     });
   });
+});
 
-  describe('Vue detection', () => {
-    it('should detect Vue 2 from __vue__', () => {
-      const div = document.createElement('div');
-      document.body.appendChild(div);
-
-      (div as any).__vue__ = {
-        $options: {
-          name: 'MyVueComponent',
+describe('extractHooks', () => {
+  it('should extract useState hooks', () => {
+    const mockFiber = {
+      tag: FunctionComponent,
+      type: createMockComponent('Counter'),
+      return: null,
+      memoizedState: {
+        memoizedState: {
+          baseState: 42,
+          queue: { lastRenderedReducer: { name: 'basicStateReducer' } },
         },
-      };
+        next: null,
+      },
+    };
 
-      const info = extractFrameworkInfo(div);
+    const hooks = extractHooks(mockFiber as any);
 
-      expect(info.name).toBe('vue');
-      expect(info.componentName).toBe('MyVueComponent');
-    });
-
-    it('should detect Vue 3 from __vueParentComponent', () => {
-      const div = document.createElement('div');
-      document.body.appendChild(div);
-
-      (div as any).__vueParentComponent = {
-        type: {
-          name: 'VueThreeComponent',
-          __file: 'src/components/VueThreeComponent.vue',
-        },
-        props: {
-          message: 'Hello',
-          count: 5,
-        },
-      };
-
-      const info = extractFrameworkInfo(div);
-
-      expect(info.name).toBe('vue');
-      expect(info.componentName).toBe('VueThreeComponent');
-      expect(info.filePath).toBe('src/components/VueThreeComponent.vue');
-      expect(info.props).toEqual({
-        message: 'Hello',
-        count: 5,
-      });
-    });
-
-    it('should detect Vue 3 with __name', () => {
-      const div = document.createElement('div');
-      document.body.appendChild(div);
-
-      (div as any).__vueParentComponent = {
-        type: {
-          __name: 'SetupScriptComponent',
-        },
-      };
-
-      const info = extractFrameworkInfo(div);
-
-      expect(info.name).toBe('vue');
-      expect(info.componentName).toBe('SetupScriptComponent');
-    });
+    expect(hooks.length).toBeGreaterThanOrEqual(1);
+    expect(hooks[0].name).toBe('useState');
+    expect(hooks[0].value).toBe(42);
   });
 
-  describe('Svelte detection', () => {
-    it('should detect Svelte from __svelte key', () => {
-      const div = document.createElement('div');
-      document.body.appendChild(div);
+  it('should extract useRef hooks', () => {
+    const mockFiber = {
+      tag: FunctionComponent,
+      type: createMockComponent('FormInput'),
+      return: null,
+      memoizedState: {
+        memoizedState: { current: null },
+        next: null,
+      },
+    };
 
-      (div as any).__svelte_component = {
-        constructor: {
-          name: 'SvelteButton',
-        },
-      };
+    const hooks = extractHooks(mockFiber as any);
 
-      const info = extractFrameworkInfo(div);
-
-      expect(info.name).toBe('svelte');
-    });
-
-    it('should extract Svelte component name', () => {
-      const div = document.createElement('div');
-      document.body.appendChild(div);
-
-      class MySvelteComponent {}
-      (div as any).__svelte_component = new MySvelteComponent();
-
-      const info = extractFrameworkInfo(div);
-
-      expect(info.name).toBe('svelte');
-      expect(info.componentName).toBe('MySvelteComponent');
-    });
+    expect(hooks.length).toBeGreaterThanOrEqual(1);
+    expect(hooks[0].name).toBe('useRef');
+    expect(hooks[0].value).toBeNull();
   });
 
-  describe('framework priority', () => {
-    it('should prefer React over Vue if both are present', () => {
-      const div = document.createElement('div');
-      document.body.appendChild(div);
+  it('should handle multiple hooks in a chain', () => {
+    const mockFiber = {
+      tag: FunctionComponent,
+      type: createMockComponent('ComplexComponent'),
+      return: null,
+      memoizedState: {
+        memoizedState: {
+          baseState: 'hello',
+          queue: { lastRenderedReducer: { name: 'basicStateReducer' } },
+        },
+        next: {
+          memoizedState: { current: null },
+          next: null,
+        },
+      },
+    };
 
-      // Add both React and Vue markers
-      const mockFiber = {
-        tag: 0,
-        type: createMockComponent('ReactComp'),
-        return: null,
-      };
-      (div as any)['__reactFiber$test'] = mockFiber;
+    const hooks = extractHooks(mockFiber as any);
 
-      (div as any).__vue__ = {
-        $options: { name: 'VueComp' },
-      };
+    expect(hooks.length).toBe(2);
+    expect(hooks[0].name).toBe('useState');
+    expect(hooks[1].name).toBe('useRef');
+  });
 
-      const info = extractFrameworkInfo(div);
+  it('should return empty array for class components', () => {
+    const mockFiber = {
+      tag: 1, // ClassComponent
+      type: createMockComponent('ClassButton'),
+      return: null,
+      memoizedState: {},
+    };
 
-      expect(info.name).toBe('react');
-      expect(info.componentName).toBe('ReactComp');
-    });
+    const hooks = extractHooks(mockFiber as any);
+
+    expect(hooks).toEqual([]);
+  });
+});
+
+describe('extractContext', () => {
+  it('should extract context from Provider ancestors', () => {
+    const providerFiber = {
+      tag: ContextProvider,
+      type: {
+        _context: {
+          displayName: 'ThemeContext',
+        },
+      },
+      return: null,
+      memoizedProps: {
+        value: { mode: 'dark' },
+      },
+    };
+
+    const componentFiber = {
+      tag: FunctionComponent,
+      type: createMockComponent('Button'),
+      return: providerFiber,
+    };
+
+    const contexts = extractContext(componentFiber as any);
+
+    expect(contexts.length).toBe(1);
+    expect(contexts[0].name).toBe('ThemeContext');
+    expect(contexts[0].value).toEqual({ mode: 'dark' });
+  });
+
+  it('should collect multiple context providers', () => {
+    const authProvider = {
+      tag: ContextProvider,
+      type: { _context: { displayName: 'AuthContext' } },
+      return: null,
+      memoizedProps: { value: { user: 'john' } },
+    };
+
+    const themeProvider = {
+      tag: ContextProvider,
+      type: { _context: { displayName: 'ThemeContext' } },
+      return: authProvider,
+      memoizedProps: { value: { mode: 'light' } },
+    };
+
+    const componentFiber = {
+      tag: FunctionComponent,
+      type: createMockComponent('Header'),
+      return: themeProvider,
+    };
+
+    const contexts = extractContext(componentFiber as any);
+
+    expect(contexts.length).toBe(2);
+    expect(contexts.map(c => c.name)).toContain('ThemeContext');
+    expect(contexts.map(c => c.name)).toContain('AuthContext');
+  });
+
+  it('should not duplicate contexts', () => {
+    const contextType = { displayName: 'TestContext' };
+
+    const provider1 = {
+      tag: ContextProvider,
+      type: { _context: contextType },
+      return: null,
+      memoizedProps: { value: 'first' },
+    };
+
+    const provider2 = {
+      tag: ContextProvider,
+      type: { _context: contextType },
+      return: provider1,
+      memoizedProps: { value: 'second' },
+    };
+
+    const componentFiber = {
+      tag: FunctionComponent,
+      type: createMockComponent('Consumer'),
+      return: provider2,
+    };
+
+    const contexts = extractContext(componentFiber as any);
+
+    // Should only include the nearest provider (first one encountered)
+    expect(contexts.length).toBe(1);
+  });
+});
+
+describe('getRenderAnalysis', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('should return null for vanilla elements', () => {
+    const div = document.createElement('div');
+    document.body.appendChild(div);
+
+    const analysis = getRenderAnalysis(div);
+
+    expect(analysis).toBeNull();
+  });
+
+  it('should detect initial render', () => {
+    const div = document.createElement('div');
+    document.body.appendChild(div);
+
+    const mockFiber = {
+      tag: FunctionComponent,
+      type: createMockComponent('Button'),
+      return: null,
+      alternate: null, // No previous render
+    };
+
+    (div as any)['__reactFiber$test'] = mockFiber;
+
+    const analysis = getRenderAnalysis(div);
+
+    expect(analysis).not.toBeNull();
+    expect(analysis?.lastRenderReason).toBe('Initial render');
+  });
+
+  it('should detect prop changes', () => {
+    const div = document.createElement('div');
+    document.body.appendChild(div);
+
+    const alternateFiber = {
+      tag: FunctionComponent,
+      type: createMockComponent('Button'),
+      return: null,
+      memoizedProps: { count: 1, label: 'old' },
+    };
+
+    const mockFiber = {
+      tag: FunctionComponent,
+      type: createMockComponent('Button'),
+      return: null,
+      alternate: alternateFiber,
+      memoizedProps: { count: 2, label: 'old' },
+    };
+
+    (div as any)['__reactFiber$test'] = mockFiber;
+
+    const analysis = getRenderAnalysis(div);
+
+    expect(analysis).not.toBeNull();
+    expect(analysis?.changedProps).toContain('count');
+    expect(analysis?.lastRenderReason).toContain('Props changed');
+  });
+
+  it('should track render count across calls', () => {
+    const div = document.createElement('div');
+    document.body.appendChild(div);
+
+    const mockFiber = {
+      tag: FunctionComponent,
+      type: createMockComponent('Counter'),
+      return: null,
+      alternate: null,
+    };
+
+    (div as any)['__reactFiber$test'] = mockFiber;
+
+    const analysis1 = getRenderAnalysis(div);
+    const analysis2 = getRenderAnalysis(div);
+    const analysis3 = getRenderAnalysis(div);
+
+    expect(analysis1?.renderCount).toBe(1);
+    expect(analysis2?.renderCount).toBe(2);
+    expect(analysis3?.renderCount).toBe(3);
   });
 });

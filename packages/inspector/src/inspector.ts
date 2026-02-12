@@ -1,5 +1,6 @@
 /**
  * Eyeglass Inspector - Glass UI for visual element inspection
+ * v2.0 - Loupe-to-Lens interaction model
  */
 
 import type {
@@ -42,6 +43,25 @@ import {
   updateFooterStatusText,
 } from "./renderers/panel.js";
 
+// Import v2.0 Loupe/Lens renderers
+import {
+  createLoupe,
+  updateLoupe,
+  showLoupe,
+  hideLoupe,
+} from "./renderers/loupe.js";
+import {
+  renderLensCard,
+  calculateLensPosition,
+} from "./renderers/lens.js";
+import {
+  findRelatedElements,
+  renderContextOverlays,
+  clearContextOverlays,
+  updateOverlayPositions,
+  type ContextOverlay,
+} from "./renderers/context-overlays.js";
+
 // Import handlers
 import {
   createMouseMoveHandler,
@@ -75,6 +95,9 @@ import {
   disableHighlightTransitions,
   enableHighlightTransitions,
 } from "./state/multi-select.js";
+
+// v2.0 UI Mode - Loupe follows cursor, Lens is expanded view
+type UIMode = 'loupe' | 'lens';
 
 export class EyeglassInspector extends HTMLElement {
   private shadow: ShadowRoot;
@@ -121,6 +144,18 @@ export class EyeglassInspector extends HTMLElement {
   // User note (stored temporarily)
   private _userNote = "";
 
+  // v2.0 Loupe/Lens UI state
+  private uiMode: UIMode = 'loupe';
+  private loupe: HTMLDivElement | null = null;
+  private lens: HTMLDivElement | null = null;
+  private lastMouseX = 0;
+  private lastMouseY = 0;
+
+  // Context overlay state
+  private showingContextOverlays = false;
+  private contextOverlays: ContextOverlay[] = [];
+  private contextOverlayElements: HTMLDivElement[] = [];
+
   // Bound handlers
   private handleMouseMove: (e: MouseEvent) => void;
   private handleClick: (e: MouseEvent) => void;
@@ -145,7 +180,14 @@ export class EyeglassInspector extends HTMLElement {
       {
         setThrottleTimeout: (t) => (this.throttleTimeout = t),
         hideHighlight: () => this.hideHighlight(),
-        showHighlight: (el) => this.showHighlight(el),
+        showHighlight: (el, e?: MouseEvent) => {
+          // v2.0: Track mouse position for Loupe
+          if (e) {
+            this.lastMouseX = e.clientX;
+            this.lastMouseY = e.clientY;
+          }
+          this.showHighlight(el);
+        },
         setCurrentElement: (el) => (this.currentElement = el),
       }
     );
@@ -203,6 +245,7 @@ export class EyeglassInspector extends HTMLElement {
         isDragging: this.isDragging,
         dragOffset: this.dragOffset,
         panel: this.panel,
+        lens: this.lens,
       }),
       {
         setDragging: (d) => (this.isDragging = d),
@@ -221,6 +264,9 @@ export class EyeglassInspector extends HTMLElement {
     this.highlight.className = "highlight";
     this.highlight.style.display = "none";
     this.shadow.appendChild(this.highlight);
+
+    // v2.0: Create the Loupe element
+    this.loupe = createLoupe(this.shadow);
 
     document.addEventListener("mousemove", this.handleMouseMove, true);
     document.addEventListener("click", this.handleClick, true);
@@ -299,7 +345,12 @@ export class EyeglassInspector extends HTMLElement {
       // Don't auto-close on success - show follow-up UI instead
     }
 
-    this.renderPanel();
+    // v2.0: Re-render lens when in lens mode
+    if (this.uiMode === 'lens') {
+      this.renderLens();
+    } else {
+      this.renderPanel();
+    }
   }
 
   private restoreSession(): void {
@@ -379,11 +430,25 @@ export class EyeglassInspector extends HTMLElement {
     this.highlight.style.top = `${rect.top - padding}px`;
     this.highlight.style.width = `${rect.width + padding * 2}px`;
     this.highlight.style.height = `${rect.height + padding * 2}px`;
+
+    // v2.0: Update and show the Loupe when not frozen
+    if (!this.frozen && this.loupe && this.uiMode === 'loupe') {
+      // Capture snapshot for loupe display
+      const snapshot = captureSnapshot(element);
+      this.currentSnapshot = snapshot;
+      // Pass element rect for intelligent positioning (not cursor position)
+      updateLoupe(this.loupe, snapshot, rect);
+      showLoupe(this.loupe);
+    }
   }
 
   private hideHighlight(): void {
     if (this.highlight) {
       this.highlight.style.display = "none";
+    }
+    // v2.0: Hide the Loupe when not hovering
+    if (this.loupe && !this.frozen) {
+      hideLoupe(this.loupe);
     }
     // Don't clear currentElement - it's needed for panel rendering in multi-select mode
     // and will be updated naturally when mouse moves back to page elements
@@ -401,7 +466,13 @@ export class EyeglassInspector extends HTMLElement {
     this.activityEvents = [];
     this.currentStatus = "idle";
     this.updateCursor();
-    this.renderPanel();
+
+    // v2.0: Hide loupe and show lens
+    if (this.loupe) {
+      hideLoupe(this.loupe);
+    }
+    this.uiMode = 'lens';
+    this.renderLens();
   }
 
   private unfreeze(): void {
@@ -425,6 +496,13 @@ export class EyeglassInspector extends HTMLElement {
 
     // Stop phrase rotation
     this.stopPhraseRotation();
+
+    // v2.0: Hide lens and reset to loupe mode
+    this.hideLens();
+    this.uiMode = 'loupe';
+
+    // Clear context overlays
+    this.hideContextOverlays();
 
     this.hidePanel();
     this.hideHighlight();
@@ -453,7 +531,13 @@ export class EyeglassInspector extends HTMLElement {
       this.highlight.style.display = "none";
     }
     this.updateCursor();
-    this.renderPanel();
+
+    // v2.0: Render lens when in lens mode
+    if (this.uiMode === 'lens') {
+      this.renderLens();
+    } else {
+      this.renderPanel();
+    }
   }
 
   private exitMultiSelectMode(): void {
@@ -477,7 +561,13 @@ export class EyeglassInspector extends HTMLElement {
       this.showHighlight(this.currentElement);
     }
     this.updateCursor();
-    this.renderPanel();
+
+    // v2.0: Render lens when in lens mode
+    if (this.uiMode === 'lens') {
+      this.renderLens();
+    } else {
+      this.renderPanel();
+    }
   }
 
   private toggleInSelection(element: Element): void {
@@ -512,7 +602,13 @@ export class EyeglassInspector extends HTMLElement {
     if (this.highlight) {
       this.highlight.style.display = "none";
     }
-    this.renderPanel();
+
+    // v2.0: Render lens when in lens mode
+    if (this.uiMode === 'lens') {
+      this.renderLens();
+    } else {
+      this.renderPanel();
+    }
   }
 
   private removeFromSelection(index: number): void {
@@ -542,7 +638,13 @@ export class EyeglassInspector extends HTMLElement {
     if (this.highlight) {
       this.highlight.style.display = "none";
     }
-    this.renderPanel();
+
+    // v2.0: Render lens when in lens mode
+    if (this.uiMode === 'lens') {
+      this.renderLens();
+    } else {
+      this.renderPanel();
+    }
   }
 
   private renderHub(): void {
@@ -664,6 +766,216 @@ export class EyeglassInspector extends HTMLElement {
     }
   }
 
+  // ========================================
+  // v2.0 Lens Card Methods
+  // ========================================
+
+  private renderLens(): void {
+    if (!this.currentSnapshot || !this.currentElement) return;
+
+    if (!this.lens) {
+      this.lens = document.createElement("div");
+      this.lens.className = "lens-card";
+      this.shadow.appendChild(this.lens);
+    }
+
+    // Render the lens card content
+    const state = {
+      shadow: this.shadow,
+      highlight: this.highlight,
+      panel: this.panel,
+      toast: this.toast,
+      hub: this.hub,
+      currentElement: this.currentElement,
+      currentSnapshot: this.currentSnapshot,
+      interactionId: this.interactionId,
+      frozen: this.frozen,
+      mode: this.mode,
+      activityEvents: this.activityEvents,
+      currentStatus: this.currentStatus,
+      hubExpanded: this.hubExpanded,
+      hubPage: this.hubPage,
+      inspectorEnabled: this.inspectorEnabled,
+      autoCommitEnabled: this.autoCommitEnabled,
+      themePreference: this.themePreference,
+      history: this.history,
+      isDragging: this.isDragging,
+      dragOffset: this.dragOffset,
+      customPanelPosition: this.customPanelPosition,
+      multiSelectMode: this.multiSelectMode,
+      selectedElements: this.selectedElements,
+      selectedSnapshots: this.selectedSnapshots,
+      multiSelectHighlights: this.multiSelectHighlights,
+      submittedSnapshots: this.submittedSnapshots,
+      cursorStyleElement: this.cursorStyleElement,
+      throttleTimeout: this.throttleTimeout,
+      scrollTimeout: this.scrollTimeout,
+      phraseIndex: this.phraseIndex,
+      phraseInterval: this.phraseInterval,
+      _userNote: this._userNote,
+      eventSource: this.eventSource,
+    };
+
+    const callbacks = {
+      unfreeze: () => this.unfreeze(),
+      submit: (userNote: string) => this.submit(userNote),
+      submitFollowUp: (userNote: string) => this.submitFollowUp(userNote),
+      submitAnswer: (qId: string, aId: string, aLabel: string) => this.handleSubmitAnswer(qId, aId, aLabel),
+      requestUndo: (id: string) => this.handleUndoRequest(id),
+      requestCommit: (id: string) => this.handleCommitRequest(),
+      enterMultiSelectMode: () => this.enterMultiSelectMode(),
+      exitMultiSelectMode: () => this.exitMultiSelectMode(),
+      removeFromSelection: (index: number) => this.removeFromSelection(index),
+      toggleHubExpanded: () => { this.hubExpanded = !this.hubExpanded; this.renderHub(); },
+      toggleInspectorEnabled: () => this.toggleInspectorEnabled(),
+      openSettingsPage: () => { this.hubPage = "settings"; this.hubExpanded = true; this.renderHub(); },
+      closeSettingsPage: () => { this.hubPage = "main"; this.renderHub(); },
+      setTheme: (theme: ThemePreference) => { this.themePreference = theme; saveThemeState(theme); this.applyTheme(); },
+      toggleAutoCommit: () => { this.autoCommitEnabled = !this.autoCommitEnabled; saveAutoCommitState(this.autoCommitEnabled); },
+      handlePanelDragStart: this.dragHandlers.handlePanelDragStart,
+      renderHub: () => this.renderHub(),
+      renderPanel: () => this.renderPanel(),
+    };
+
+    this.lens.innerHTML = renderLensCard(state, callbacks);
+
+    // Position the lens card
+    const elementRect = this.currentElement.getBoundingClientRect();
+    const lensRect = { width: 320, height: this.lens.offsetHeight || 300 };
+    const position = calculateLensPosition(elementRect, lensRect);
+    this.lens.style.left = `${position.x}px`;
+    this.lens.style.top = `${position.y}px`;
+
+    // Wire up event listeners
+    this.wireLensEvents();
+  }
+
+  private wireLensEvents(): void {
+    if (!this.lens) return;
+
+    // Drag handler on header
+    const header = this.lens.querySelector('.lens-header');
+    if (header) {
+      header.addEventListener("mousedown", this.dragHandlers.handleLensDragStart as EventListener);
+    }
+
+    // Close button
+    const closeBtn = this.lens.querySelector('[data-action="close"]');
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => this.unfreeze());
+    }
+
+    // Submit button
+    const submitBtn = this.lens.querySelector('[data-action="submit"]');
+    const input = this.lens.querySelector('.lens-input') as HTMLInputElement;
+    if (submitBtn && input) {
+      submitBtn.addEventListener("click", () => {
+        if (input.value.trim()) {
+          this.submit(input.value);
+        }
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && input.value.trim()) {
+          this.submit(input.value);
+        }
+      });
+      // Auto-focus input
+      setTimeout(() => input.focus(), 100);
+    }
+
+    // Multi-select button
+    const multiSelectBtn = this.lens.querySelector('[data-action="multi-select"]');
+    if (multiSelectBtn) {
+      multiSelectBtn.addEventListener("click", () => {
+        if (this.multiSelectMode) {
+          this.exitMultiSelectMode();
+        } else {
+          this.enterMultiSelectMode();
+        }
+        this.renderLens();
+      });
+    }
+
+    // Toggle context overlays
+    const contextBtn = this.lens.querySelector('[data-action="toggle-context"]');
+    if (contextBtn) {
+      contextBtn.addEventListener("click", () => this.toggleContextOverlays());
+    }
+
+    // Exit multi-select
+    const exitMultiBtn = this.lens.querySelector('[data-action="exit-multi"]');
+    if (exitMultiBtn) {
+      exitMultiBtn.addEventListener("click", () => {
+        this.exitMultiSelectMode();
+        this.renderLens();
+      });
+    }
+
+    // Remove from selection
+    this.lens.querySelectorAll('[data-action="remove-selection"]').forEach(btn => {
+      btn.addEventListener("click", () => {
+        const index = parseInt(btn.getAttribute("data-index") || "0", 10);
+        this.removeFromSelection(index);
+        this.renderLens();
+      });
+    });
+
+    // Answer question
+    this.lens.querySelectorAll('[data-action="answer"]').forEach(btn => {
+      btn.addEventListener("click", () => {
+        const qId = btn.getAttribute("data-question-id") || "";
+        const aId = btn.getAttribute("data-answer-id") || "";
+        const aLabel = btn.getAttribute("data-answer-label") || "";
+        this.handleSubmitAnswer(qId, aId, aLabel);
+      });
+    });
+
+    // New request button
+    const newRequestBtn = this.lens.querySelector('[data-action="new-request"]');
+    if (newRequestBtn) {
+      newRequestBtn.addEventListener("click", () => {
+        this.mode = "input";
+        this.activityEvents = [];
+        this.currentStatus = "idle";
+        this.renderLens();
+      });
+    }
+  }
+
+  private hideLens(): void {
+    if (this.lens) {
+      this.lens.remove();
+      this.lens = null;
+    }
+  }
+
+  // ========================================
+  // v2.0 Context Overlay Methods
+  // ========================================
+
+  private toggleContextOverlays(): void {
+    if (this.showingContextOverlays) {
+      this.hideContextOverlays();
+    } else {
+      this.showContextOverlays();
+    }
+  }
+
+  private showContextOverlays(): void {
+    if (!this.currentElement || !this.currentSnapshot) return;
+
+    this.showingContextOverlays = true;
+    this.contextOverlays = findRelatedElements(this.currentElement, this.currentSnapshot);
+    this.contextOverlayElements = renderContextOverlays(this.shadow, this.contextOverlays);
+  }
+
+  private hideContextOverlays(): void {
+    this.showingContextOverlays = false;
+    clearContextOverlays(this.shadow);
+    this.contextOverlays = [];
+    this.contextOverlayElements = [];
+  }
+
   private startPhraseRotation(): void {
     if (this.phraseInterval) return;
     this.phraseIndex = Math.floor(Math.random() * WORKING_PHRASES.length);
@@ -719,7 +1031,13 @@ export class EyeglassInspector extends HTMLElement {
     this.mode = "activity";
     this.activityEvents = [];
     this.currentStatus = "pending";
-    this.renderPanel();
+
+    // v2.0: Render lens when in lens mode
+    if (this.uiMode === 'lens') {
+      this.renderLens();
+    } else {
+      this.renderPanel();
+    }
 
     const result = await submitFocus({
       interactionId: this.interactionId,
@@ -764,7 +1082,12 @@ export class EyeglassInspector extends HTMLElement {
         }
       }
 
-      this.renderPanel();
+      // v2.0: Render lens when in lens mode
+      if (this.uiMode === 'lens') {
+        this.renderLens();
+      } else {
+        this.renderPanel();
+      }
     }
   }
 
@@ -788,7 +1111,13 @@ export class EyeglassInspector extends HTMLElement {
     // Reset activity state for new request
     this.activityEvents = [];
     this.currentStatus = "pending";
-    this.renderPanel();
+
+    // v2.0: Render lens when in lens mode
+    if (this.uiMode === 'lens') {
+      this.renderLens();
+    } else {
+      this.renderPanel();
+    }
 
     const result = await submitFocus({
       interactionId: this.interactionId,
@@ -809,7 +1138,13 @@ export class EyeglassInspector extends HTMLElement {
         message: result.error || "Failed to connect to bridge",
         timestamp: Date.now(),
       });
-      this.renderPanel();
+
+      // v2.0: Render lens when in lens mode
+      if (this.uiMode === 'lens') {
+        this.renderLens();
+      } else {
+        this.renderPanel();
+      }
     }
   }
 
@@ -830,7 +1165,12 @@ export class EyeglassInspector extends HTMLElement {
     }
 
     // Re-render to show the selected answer
-    this.renderPanel();
+    // v2.0: Render lens when in lens mode
+    if (this.uiMode === 'lens') {
+      this.renderLens();
+    } else {
+      this.renderPanel();
+    }
 
     await submitAnswer(this.interactionId, questionId, answerId, answerLabel);
   }

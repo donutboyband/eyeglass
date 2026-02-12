@@ -1,5 +1,5 @@
 /**
- * Drag handlers for Eyeglass Inspector panel
+ * Drag handlers for Eyeglass Inspector panel and lens
  */
 export interface DragState {
     isDragging: boolean;
@@ -8,6 +8,7 @@ export interface DragState {
         y: number;
     };
     panel: HTMLDivElement | null;
+    lens?: HTMLDivElement | null;
 }
 export interface DragCallbacks {
     setDragging: (isDragging: boolean) => void;
@@ -21,10 +22,11 @@ export interface DragCallbacks {
     }) => void;
 }
 /**
- * Creates panel drag handler functions
+ * Creates panel/lens drag handler functions
  */
 export declare function createDragHandlers(getState: () => DragState, callbacks: DragCallbacks): {
     handlePanelDragStart: (e: MouseEvent) => void;
     handlePanelDrag: (e: MouseEvent) => void;
     handlePanelDragEnd: () => void;
+    handleLensDragStart: (e: MouseEvent) => void;
 };

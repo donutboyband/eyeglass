@@ -1496,4 +1496,431 @@ export const STYLES = `
   color: var(--accent);
   text-align: center;
 }
+
+/* ========================================
+   LOUPE - Hover Pill (v2.0)
+   ======================================== */
+.loupe {
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--glass-shadow);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+  z-index: 10;
+  white-space: nowrap;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loupe.visible {
+  opacity: 1;
+}
+
+.loupe-name {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.loupe-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.15);
+  }
+}
+
+/* ========================================
+   LENS CARD - Expanded View (v2.0)
+   ======================================== */
+.lens-card {
+  position: fixed;
+  width: 320px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--glass-shadow);
+  pointer-events: auto;
+  overflow: hidden;
+  animation: lens-appear 0.2s ease-out;
+}
+
+@keyframes lens-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.lens-header {
+  position: relative;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--divider);
+  cursor: grab;
+  user-select: none;
+}
+
+.lens-header:active {
+  cursor: grabbing;
+}
+
+.lens-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lens-component {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.lens-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.lens-status {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.lens-status.fixing {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.lens-status.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+.lens-status.failed {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error);
+}
+
+.lens-status.pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.lens-path {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.lens-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.lens-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+.lens-health {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.health-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+}
+
+.health-card.warning {
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.health-card.critical {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.health-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.health-message {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.health-details {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.lens-input-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.lens-input {
+  flex: 1;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.lens-input:focus {
+  border-color: var(--accent);
+}
+
+.lens-input::placeholder {
+  color: var(--text-muted);
+}
+
+.lens-submit {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+}
+
+.lens-submit:hover {
+  transform: scale(1.05);
+}
+
+.lens-submit:active {
+  transform: scale(0.95);
+}
+
+.lens-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--divider);
+}
+
+.lens-action {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.lens-action:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.lens-activity {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.activity-message {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.activity-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--glass-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.lens-question {
+  padding: 12px 16px;
+  border-top: 1px solid var(--divider);
+}
+
+.lens-done {
+  padding: 12px 16px;
+  border-top: 1px solid var(--divider);
+}
+
+.lens-action-btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.lens-action-btn:hover {
+  filter: brightness(1.1);
+}
+
+.lens-selected-list {
+  padding: 8px 16px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.selected-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+
+.selected-name {
+  font-family: 'SF Mono', monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.selected-remove {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.selected-remove:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--error);
+}
+
+.lens-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ========================================
+   CONTEXT OVERLAYS - Relationship View (v2.0)
+   ======================================== */
+.context-overlay {
+  animation: context-appear 0.2s ease-out;
+}
+
+@keyframes context-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.context-overlay.context-component {
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
+.context-overlay.context-state-owner {
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.2);
+}
+
+.context-overlay.context-layout-parent {
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.2);
+}
+
+.context-overlay.context-event-blocker {
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
+}
+
+.context-label {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
 `;

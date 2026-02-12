@@ -151,7 +151,7 @@ describe('captureSnapshot', () => {
 
       const snapshot = captureSnapshot(button);
 
-      expect(snapshot.a11y.label).toBe('Close dialog');
+      expect(snapshot.a11y?.label).toBe('Close dialog');
       expect(snapshot.name).toBe('Close dialog');
     });
 
@@ -162,7 +162,7 @@ describe('captureSnapshot', () => {
 
       const snapshot = captureSnapshot(button);
 
-      expect(snapshot.a11y.label).toBe('Helpful tooltip');
+      expect(snapshot.a11y?.label).toBe('Helpful tooltip');
     });
 
     it('should capture aria-describedby', () => {
@@ -177,7 +177,7 @@ describe('captureSnapshot', () => {
 
       const snapshot = captureSnapshot(button);
 
-      expect(snapshot.a11y.description).toBe('This is the description');
+      expect(snapshot.a11y?.description).toBe('This is the description');
     });
 
     it('should capture disabled state from aria-disabled', () => {
@@ -187,7 +187,7 @@ describe('captureSnapshot', () => {
 
       const snapshot = captureSnapshot(button);
 
-      expect(snapshot.a11y.disabled).toBe(true);
+      expect(snapshot.a11y?.disabled).toBe(true);
     });
 
     it('should capture disabled state from disabled attribute', () => {
@@ -197,7 +197,7 @@ describe('captureSnapshot', () => {
 
       const snapshot = captureSnapshot(button);
 
-      expect(snapshot.a11y.disabled).toBe(true);
+      expect(snapshot.a11y?.disabled).toBe(true);
     });
 
     it('should capture aria-expanded', () => {
@@ -207,7 +207,7 @@ describe('captureSnapshot', () => {
 
       const snapshot = captureSnapshot(button);
 
-      expect(snapshot.a11y.expanded).toBe(true);
+      expect(snapshot.a11y?.expanded).toBe(true);
     });
 
     it('should capture aria-checked states', () => {
@@ -221,8 +221,8 @@ describe('captureSnapshot', () => {
       checkbox2.setAttribute('aria-checked', 'mixed');
       document.body.appendChild(checkbox2);
 
-      expect(captureSnapshot(checkbox1).a11y.checked).toBe(true);
-      expect(captureSnapshot(checkbox2).a11y.checked).toBe('mixed');
+      expect(captureSnapshot(checkbox1).a11y?.checked).toBe(true);
+      expect(captureSnapshot(checkbox2).a11y?.checked).toBe('mixed');
     });
 
     it('should capture hidden state', () => {
@@ -232,7 +232,7 @@ describe('captureSnapshot', () => {
 
       const snapshot = captureSnapshot(div);
 
-      expect(snapshot.a11y.hidden).toBe(true);
+      expect(snapshot.a11y?.hidden).toBe(true);
     });
   });
 

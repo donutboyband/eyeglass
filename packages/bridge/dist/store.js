@@ -332,14 +332,46 @@ export class ContextStore extends EventEmitter {
     }
     formatSingleSnapshot(snapshot, userNote, interactionId) {
         const { framework, a11y, geometry, styles } = snapshot;
-        const componentInfo = framework.componentName
-            ? `\`<${framework.componentName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
+        const displayName = framework.displayName || framework.componentName;
+        const componentInfo = displayName
+            ? `\`<${displayName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
             : `\`<${snapshot.tagName}>\` (vanilla element)`;
+        // Format props from new state or legacy location
+        const props = framework.state?.props || framework.props;
+        const propsStr = props && Object.keys(props).length > 0 ? JSON.stringify(props, null, 2) : null;
+        // Format hooks if present
+        const hooksStr = framework.state?.hooks?.length
+            ? framework.state.hooks.map(h => `${h.name}${h.label ? `(${h.label})` : ''}${h.value !== undefined ? ` = ${JSON.stringify(h.value)}` : ''}`).join(', ')
+            : null;
+        // Format context if present
+        const contextStr = framework.state?.context?.length
+            ? framework.state.context.map(c => c.name).join(', ')
+            : null;
+        // Analyze health issues
+        const healthIssues = [];
+        if (snapshot.perception?.legibility?.wcagStatus === 'fail') {
+            healthIssues.push(`🛑 Low contrast (${snapshot.perception.legibility.contrastRatio}:1)`);
+        }
+        if (snapshot.perception?.affordance?.dissonanceScore && snapshot.perception.affordance.dissonanceScore > 0.5) {
+            healthIssues.push('⚠️ Affordance mismatch');
+        }
+        if (snapshot.causality?.events?.blockingHandlers?.length) {
+            healthIssues.push(`🛑 Events blocked (${snapshot.causality.events.blockingHandlers.length})`);
+        }
+        if (snapshot.metal?.performance?.renderCount && snapshot.metal.performance.renderCount > 10) {
+            healthIssues.push(`⚠️ High render count (${snapshot.metal.performance.renderCount})`);
+        }
+        if (snapshot.perception?.visibility?.isOccluded) {
+            healthIssues.push('⚠️ Element occluded');
+        }
+        const healthSummary = healthIssues.length > 0
+            ? `\n**⚠️ Health Issues:** ${healthIssues.join(', ')}\n`
+            : '';
         return `## User Focus Request
 **Interaction ID:** ${interactionId}
 **User Note:** "${userNote}"
 **Component:** ${componentInfo}
-
+${healthSummary}
 ### Element Info
 - Tag: \`<${snapshot.tagName}>\`
 - Role: ${snapshot.role}
@@ -347,14 +379,14 @@ export class ContextStore extends EventEmitter {
 ${snapshot.id ? `- ID: \`#${snapshot.id}\`` : ''}
 ${snapshot.className ? `- Classes: \`${snapshot.className}\`` : ''}
 ${snapshot.dataAttributes ? `- Data attrs: ${Object.entries(snapshot.dataAttributes).map(([k, v]) => `\`${k}="${v}"\``).join(', ')}` : ''}
-
+${a11y ? `
 ### Accessibility Tree
 - Label: ${a11y.label ?? 'none'}
 - Description: ${a11y.description ?? 'none'}
 - Disabled: ${a11y.disabled}
 - Hidden: ${a11y.hidden}
 ${a11y.expanded !== undefined ? `- Expanded: ${a11y.expanded}` : ''}
-${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}
+${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}` : ''}
 
 ### Geometry
 - Box: ${geometry.width}x${geometry.height} at (${geometry.x}, ${geometry.y})
@@ -373,9 +405,30 @@ ${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
 - Z-Index: ${styles.zIndex}
 
 ### Framework
-- Detected: ${framework.name}
+- Detected: ${framework.type || framework.name || 'vanilla'}
 ${framework.ancestry ? `- Component Tree: ${framework.ancestry.join(' > ')}` : ''}
-${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
+${propsStr ? `- Props: ${propsStr}` : ''}
+${hooksStr ? `- Hooks: ${hooksStr}` : ''}
+${contextStr ? `- Context: ${contextStr}` : ''}
+${snapshot.causality ? `
+### Causality (Event Flow)
+- Event Listeners: ${snapshot.causality.events.listeners.length > 0 ? snapshot.causality.events.listeners.map(l => l.type).join(', ') : 'none'}
+${snapshot.causality.events.blockingHandlers.length > 0 ? `- **Blocked Events:** ${snapshot.causality.events.blockingHandlers.map(b => `${b.event} (${b.reason} on ${b.element})`).join(', ')}` : ''}
+- Stacking Context: ${snapshot.causality.stackingContext.isStackingContext ? `Yes (${snapshot.causality.stackingContext.reason})` : 'No'}
+${snapshot.causality.stackingContext.parentContext ? `- Parent Context: ${snapshot.causality.stackingContext.parentContext}` : ''}
+${snapshot.causality.layoutConstraints.length > 0 ? `- Layout Constraints: ${snapshot.causality.layoutConstraints.join('; ')}` : ''}` : ''}
+${snapshot.perception ? `
+### Perception (User Experience)
+- **Affordance:** ${snapshot.perception.affordance.looksInteractable ? 'Looks clickable' : 'Does not look clickable'} / ${snapshot.perception.affordance.isInteractable ? 'Is interactive' : 'Not interactive'}${snapshot.perception.affordance.dissonanceScore > 0 ? ` ⚠️ Dissonance: ${Math.round(snapshot.perception.affordance.dissonanceScore * 100)}%` : ''}
+- **Contrast:** ${snapshot.perception.legibility.contrastRatio}:1 (WCAG ${snapshot.perception.legibility.wcagStatus})
+- **Touch Target:** ${snapshot.perception.usability.touchTargetSize} ${snapshot.perception.usability.isTouchTargetValid ? '✓' : '⚠️ Too small'}
+${snapshot.perception.visibility.isOccluded ? `- **⚠️ Occluded by:** ${snapshot.perception.visibility.occludedBy}` : ''}` : ''}
+${snapshot.metal ? `
+### Performance
+- Render Count: ${snapshot.metal.performance.renderCount}${snapshot.metal.performance.lastRenderReason ? ` (${snapshot.metal.performance.lastRenderReason})` : ''}
+- GPU Layer: ${snapshot.metal.pipeline.layerPromoted ? 'Yes' : 'No'}
+${snapshot.metal.pipeline.layoutThrashingRisk !== 'none' ? `- **⚠️ Layout Thrashing Risk:** ${snapshot.metal.pipeline.layoutThrashingRisk}` : ''}
+- Event Listeners: ${snapshot.metal.memory.listenerCount}` : ''}
 ${snapshot.neighborhood ? `
 ### DOM Neighborhood
 **Parents (layout context):**
@@ -406,9 +459,12 @@ ${snapshot.neighborhood.children.length > 0 ? snapshot.neighborhood.children.map
     formatMultipleSnapshots(snapshots, userNote, interactionId) {
         const elementSections = snapshots.map((snapshot, index) => {
             const { framework, a11y, geometry, styles } = snapshot;
-            const componentInfo = framework.componentName
-                ? `\`<${framework.componentName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
+            const displayName = framework.displayName || framework.componentName;
+            const componentInfo = displayName
+                ? `\`<${displayName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
                 : `\`<${snapshot.tagName}>\` (vanilla element)`;
+            const props = framework.state?.props || framework.props;
+            const propsStr = props && Object.keys(props).length > 0 ? JSON.stringify(props, null, 2) : null;
             return `## Element ${index + 1}: ${componentInfo}
 
 ### Element Info
@@ -418,14 +474,14 @@ ${snapshot.neighborhood.children.length > 0 ? snapshot.neighborhood.children.map
 ${snapshot.id ? `- ID: \`#${snapshot.id}\`` : ''}
 ${snapshot.className ? `- Classes: \`${snapshot.className}\`` : ''}
 ${snapshot.dataAttributes ? `- Data attrs: ${Object.entries(snapshot.dataAttributes).map(([k, v]) => `\`${k}="${v}"\``).join(', ')}` : ''}
-
+${a11y ? `
 ### Accessibility Tree
 - Label: ${a11y.label ?? 'none'}
 - Description: ${a11y.description ?? 'none'}
 - Disabled: ${a11y.disabled}
 - Hidden: ${a11y.hidden}
 ${a11y.expanded !== undefined ? `- Expanded: ${a11y.expanded}` : ''}
-${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}
+${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}` : ''}
 
 ### Geometry
 - Box: ${geometry.width}x${geometry.height} at (${geometry.x}, ${geometry.y})
@@ -444,9 +500,9 @@ ${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
 - Z-Index: ${styles.zIndex}
 
 ### Framework
-- Detected: ${framework.name}
+- Detected: ${framework.type || framework.name || 'vanilla'}
 ${framework.ancestry ? `- Component Tree: ${framework.ancestry.join(' > ')}` : ''}
-${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
+${propsStr ? `- Props: ${propsStr}` : ''}
 ${snapshot.neighborhood ? `
 ### DOM Neighborhood
 **Parents:** ${snapshot.neighborhood.parents.length > 0 ? snapshot.neighborhood.parents.map(p => {

@@ -1,4 +1,114 @@
 export type InteractionStatus = 'idle' | 'pending' | 'fixing' | 'success' | 'failed';
+export type PulseLevel = 'healthy' | 'warning' | 'critical';
+export interface HookInfo {
+    name: string;
+    value?: unknown;
+    label?: string;
+}
+export interface ContextInfo {
+    name: string;
+    value: unknown;
+}
+export interface ReactState {
+    props: Record<string, unknown>;
+    hooks: HookInfo[];
+    context: ContextInfo[];
+}
+export interface EventListener {
+    type: string;
+    capture: boolean;
+    source?: string;
+}
+export interface BlockingHandler {
+    element: string;
+    event: string;
+    reason: 'stopPropagation' | 'pointer-events:none' | 'captured';
+}
+export interface StackingContext {
+    isStackingContext: boolean;
+    parentContext: string | null;
+    reason?: string;
+    effectiveZIndex: number;
+}
+export interface CausalityInfo {
+    events: {
+        listeners: EventListener[];
+        blockingHandlers: BlockingHandler[];
+    };
+    stackingContext: StackingContext;
+    layoutConstraints: string[];
+}
+export interface AffordanceInfo {
+    looksInteractable: boolean;
+    isInteractable: boolean;
+    dissonanceScore: number;
+}
+export interface VisibilityInfo {
+    isOccluded: boolean;
+    occludedBy?: string;
+    effectiveOpacity: number;
+}
+export interface LegibilityInfo {
+    contrastRatio: number;
+    wcagStatus: 'pass' | 'fail';
+    effectiveBgColor: string;
+}
+export interface UsabilityInfo {
+    touchTargetSize: string;
+    isTouchTargetValid: boolean;
+}
+export interface PerceptionInfo {
+    affordance: AffordanceInfo;
+    visibility: VisibilityInfo;
+    legibility: LegibilityInfo;
+    usability: UsabilityInfo;
+}
+export interface PipelineInfo {
+    layerPromoted: boolean;
+    layoutThrashingRisk: 'none' | 'low' | 'high';
+}
+export interface PerformanceInfo {
+    renderCount: number;
+    lastRenderReason?: string;
+}
+export interface MemoryInfo {
+    detachedNodesRetained?: number;
+    listenerCount: number;
+}
+export interface MetalInfo {
+    pipeline: PipelineInfo;
+    performance: PerformanceInfo;
+    memory: MemoryInfo;
+}
+export interface ImpactInfo {
+    importCount?: number;
+    riskLevel: 'Local' | 'Moderate' | 'Critical';
+}
+export interface TokenMatch {
+    property: string;
+    token: string;
+}
+export interface TokenDeviation {
+    property: string;
+    value: string;
+    suggestion: string;
+}
+export interface DesignSystemInfo {
+    tokenMatches: TokenMatch[];
+    deviations: TokenDeviation[];
+}
+export interface SystemicInfo {
+    impact: ImpactInfo;
+    designSystem: DesignSystemInfo;
+}
+export interface A11yInfo {
+    label: string | null;
+    description: string | null;
+    disabled: boolean;
+    expanded?: boolean;
+    checked?: boolean | 'mixed';
+    hidden: boolean;
+}
 export interface SemanticSnapshot {
     role: string;
     name: string;
@@ -7,21 +117,18 @@ export interface SemanticSnapshot {
     className?: string;
     dataAttributes?: Record<string, string>;
     framework: {
-        name: 'react' | 'vue' | 'svelte' | 'vanilla';
+        type?: 'react' | 'vanilla';
+        displayName?: string;
+        key?: string | null;
+        name?: 'react' | 'vue' | 'svelte' | 'vanilla';
         componentName?: string;
         filePath?: string;
         lineNumber?: number;
-        props?: Record<string, unknown>;
         ancestry?: string[];
+        props?: Record<string, unknown>;
+        state?: ReactState;
     };
-    a11y: {
-        label: string | null;
-        description: string | null;
-        disabled: boolean;
-        expanded?: boolean;
-        checked?: boolean | 'mixed';
-        hidden: boolean;
-    };
+    a11y?: A11yInfo;
     geometry: {
         x: number;
         y: number;
@@ -41,6 +148,10 @@ export interface SemanticSnapshot {
         fontFamily: string;
         zIndex: string;
     };
+    causality?: CausalityInfo;
+    perception?: PerceptionInfo;
+    metal?: MetalInfo;
+    systemic?: SystemicInfo;
     neighborhood?: {
         parents: Array<{
             tagName: string;

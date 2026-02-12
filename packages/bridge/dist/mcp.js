@@ -203,6 +203,20 @@ Handle this request now.`,
                         required: [],
                     },
                 },
+                {
+                    name: 'analyze_component_usage',
+                    description: 'Analyze how a component is used across the codebase. Returns the number of files that import the component and estimates the risk level of changes.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            file_path: {
+                                type: 'string',
+                                description: 'The file path of the component to analyze (e.g., src/components/Button.tsx)',
+                            },
+                        },
+                        required: ['file_path'],
+                    },
+                },
             ],
         };
     });
@@ -326,6 +340,75 @@ Handle this request now.`,
                 catch (err) {
                     return {
                         content: [{ type: 'text', text: `Wait cancelled: ${err.message}` }],
+                        isError: true,
+                    };
+                }
+            }
+            case 'analyze_component_usage': {
+                const { file_path } = args;
+                if (!file_path) {
+                    return {
+                        content: [{ type: 'text', text: 'file_path is required' }],
+                        isError: true,
+                    };
+                }
+                try {
+                    const { execFileSync } = await import('child_process');
+                    const { basename, dirname } = await import('path');
+                    const cwd = process.cwd();
+                    const componentName = basename(file_path, '.tsx').replace('.jsx', '');
+                    // Count imports using grep
+                    let importCount = 0;
+                    let importingFiles = [];
+                    try {
+                        // Search for imports of this component
+                        const grepResult = execFileSync('grep', [
+                            '-r',
+                            '-l',
+                            `from.*${componentName}`,
+                            '--include=*.tsx',
+                            '--include=*.ts',
+                            '--include=*.jsx',
+                            '--include=*.js',
+                            'src',
+                        ], { cwd, encoding: 'utf-8', maxBuffer: 1024 * 1024 });
+                        importingFiles = grepResult
+                            .split('\n')
+                            .filter(Boolean)
+                            .filter(f => f !== file_path); // Exclude the component file itself
+                        importCount = importingFiles.length;
+                    }
+                    catch {
+                        // grep returns exit code 1 when no matches found
+                        importCount = 0;
+                    }
+                    // Determine risk level
+                    let riskLevel = 'Local';
+                    if (importCount >= 10) {
+                        riskLevel = 'Critical';
+                    }
+                    else if (importCount >= 3) {
+                        riskLevel = 'Moderate';
+                    }
+                    const result = `## Component Usage Analysis
+
+**Component:** \`${componentName}\`
+**File:** \`${file_path}\`
+**Import Count:** ${importCount} file(s)
+**Risk Level:** ${riskLevel}
+
+${importCount > 0 ? `### Importing Files:\n${importingFiles.slice(0, 10).map(f => `- \`${f}\``).join('\n')}${importingFiles.length > 10 ? `\n- ... and ${importingFiles.length - 10} more` : ''}` : 'No files import this component.'}
+
+${riskLevel === 'Critical' ? '\n**⚠️ Warning:** This component is widely used. Changes may have broad impact.' : ''}
+${riskLevel === 'Moderate' ? '\n**Note:** This component is used in several places. Test changes carefully.' : ''}
+`;
+                    return {
+                        content: [{ type: 'text', text: result }],
+                    };
+                }
+                catch (err) {
+                    return {
+                        content: [{ type: 'text', text: `Error analyzing component: ${err.message}` }],
                         isError: true,
                     };
                 }

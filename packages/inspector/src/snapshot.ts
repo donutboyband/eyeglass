@@ -1,9 +1,20 @@
 /**
  * Captures a semantic snapshot of a DOM element
+ * Includes 7 layers: Code, State, Visual, Causal, Perceptual, Metal, Systemic
  */
 
-import type { SemanticSnapshot } from '@eyeglass/types';
-import { extractFrameworkInfo } from './fiber-walker.js';
+import type {
+  SemanticSnapshot,
+  CausalityInfo,
+  PerceptionInfo,
+  MetalInfo,
+  SystemicInfo,
+  EventListener,
+  BlockingHandler,
+  StackingContext,
+} from '@eyeglass/types';
+import { extractFrameworkInfo, getRenderAnalysis } from './fiber-walker.js';
+import { getSystemicInfo } from './utils/systemic.js';
 
 /**
  * Get computed accessibility properties
@@ -279,22 +290,544 @@ function getNeighborhood(element: Element): NeighborhoodType {
   return { parents, children };
 }
 
+// ============================================================================
+// LAYER 4: CAUSALITY (Event Listeners, Stacking Context, Layout Constraints)
+// ============================================================================
+
+/**
+ * Build a CSS selector for an element (for debugging/identification)
+ */
+function buildSelector(element: Element): string {
+  const tag = element.tagName.toLowerCase();
+  const id = element.id ? `#${element.id}` : '';
+  const className = element.className && typeof element.className === 'string'
+    ? '.' + element.className.split(/\s+/).filter(Boolean).slice(0, 2).join('.')
+    : '';
+  return `${tag}${id}${className}`;
+}
+
+/**
+ * Get event listeners attached to an element
+ * Uses Chrome DevTools API if available, otherwise checks common patterns
+ */
+function getEventListeners(element: Element): EventListener[] {
+  const listeners: EventListener[] = [];
+
+  // Try Chrome DevTools getEventListeners API (only available in DevTools console)
+  if (typeof (window as any).getEventListeners === 'function') {
+    try {
+      const devToolsListeners = (window as any).getEventListeners(element);
+      for (const eventType of Object.keys(devToolsListeners)) {
+        for (const listener of devToolsListeners[eventType]) {
+          listeners.push({
+            type: eventType,
+            capture: listener.capture || false,
+            source: listener.listener?.toString?.()?.slice(0, 50),
+          });
+        }
+      }
+      return listeners;
+    } catch {
+      // Fall through to fallback
+    }
+  }
+
+  // Fallback: Check for inline event handlers
+  const eventAttributes = [
+    'onclick', 'onmousedown', 'onmouseup', 'onmouseover', 'onmouseout',
+    'onfocus', 'onblur', 'onkeydown', 'onkeyup', 'onkeypress',
+    'onchange', 'oninput', 'onsubmit', 'ontouchstart', 'ontouchend',
+  ];
+
+  for (const attr of eventAttributes) {
+    if (element.hasAttribute(attr) || (element as any)[attr]) {
+      listeners.push({
+        type: attr.slice(2), // Remove 'on' prefix
+        capture: false,
+      });
+    }
+  }
+
+  // Check for React synthetic events (if fiber is available)
+  const keys = Object.keys(element);
+  const reactPropsKey = keys.find(k => k.startsWith('__reactProps$'));
+  if (reactPropsKey) {
+    const props = (element as any)[reactPropsKey];
+    if (props) {
+      for (const key of Object.keys(props)) {
+        if (key.startsWith('on') && typeof props[key] === 'function') {
+          const eventType = key.slice(2).toLowerCase();
+          if (!listeners.some(l => l.type === eventType)) {
+            listeners.push({
+              type: eventType,
+              capture: false,
+              source: 'React synthetic event',
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return listeners;
+}
+
+/**
+ * Find event handlers on ancestors that might block events
+ */
+function getBlockingHandlers(element: Element): BlockingHandler[] {
+  const blockers: BlockingHandler[] = [];
+
+  // Check for pointer-events: none on the element itself
+  const computed = getComputedStyle(element);
+  if (computed.pointerEvents === 'none') {
+    blockers.push({
+      element: buildSelector(element),
+      event: 'all',
+      reason: 'pointer-events:none',
+    });
+  }
+
+  // Walk up ancestors to find potential blockers
+  let current = element.parentElement;
+  while (current && current !== document.body) {
+    const parentComputed = getComputedStyle(current);
+
+    // Check for pointer-events: none on ancestors
+    if (parentComputed.pointerEvents === 'none') {
+      blockers.push({
+        element: buildSelector(current),
+        event: 'all',
+        reason: 'pointer-events:none',
+      });
+    }
+
+    // Check for capture phase listeners (simplified detection)
+    // In practice, detecting stopPropagation would require runtime monitoring
+    const listeners = getEventListeners(current);
+    for (const listener of listeners) {
+      if (listener.capture) {
+        blockers.push({
+          element: buildSelector(current),
+          event: listener.type,
+          reason: 'captured',
+        });
+      }
+    }
+
+    current = current.parentElement;
+  }
+
+  return blockers;
+}
+
+/**
+ * Detect if an element creates a stacking context
+ */
+function getStackingContext(element: Element): StackingContext {
+  const computed = getComputedStyle(element);
+
+  // Check conditions that create a new stacking context
+  const conditions: Array<{ check: boolean; reason: string }> = [
+    { check: computed.position === 'fixed' || computed.position === 'sticky', reason: 'position:fixed/sticky' },
+    { check: (computed.position === 'absolute' || computed.position === 'relative') && computed.zIndex !== 'auto', reason: 'positioned with z-index' },
+    { check: parseFloat(computed.opacity) < 1, reason: 'opacity' },
+    { check: computed.transform !== 'none', reason: 'transform' },
+    { check: computed.filter !== 'none', reason: 'filter' },
+    { check: computed.perspective !== 'none', reason: 'perspective' },
+    { check: computed.clipPath !== 'none', reason: 'clip-path' },
+    { check: computed.mask !== 'none' && computed.mask !== '', reason: 'mask' },
+    { check: computed.isolation === 'isolate', reason: 'isolation:isolate' },
+    { check: computed.mixBlendMode !== 'normal', reason: 'mix-blend-mode' },
+    { check: computed.willChange.includes('transform') || computed.willChange.includes('opacity'), reason: 'will-change' },
+    { check: computed.contain === 'layout' || computed.contain === 'paint' || computed.contain === 'strict' || computed.contain === 'content', reason: 'contain' },
+  ];
+
+  const isStackingContext = conditions.some(c => c.check);
+  const reason = conditions.find(c => c.check)?.reason;
+
+  // Find parent stacking context
+  let parentContext: string | null = null;
+  let effectiveZIndex = computed.zIndex === 'auto' ? 0 : parseInt(computed.zIndex, 10) || 0;
+
+  let current = element.parentElement;
+  while (current && current !== document.body) {
+    const parentComputed = getComputedStyle(current);
+    const parentConditions = [
+      parentComputed.position === 'fixed' || parentComputed.position === 'sticky',
+      (parentComputed.position === 'absolute' || parentComputed.position === 'relative') && parentComputed.zIndex !== 'auto',
+      parseFloat(parentComputed.opacity) < 1,
+      parentComputed.transform !== 'none',
+    ];
+
+    if (parentConditions.some(Boolean)) {
+      parentContext = buildSelector(current);
+      break;
+    }
+    current = current.parentElement;
+  }
+
+  return {
+    isStackingContext,
+    parentContext,
+    reason,
+    effectiveZIndex,
+  };
+}
+
+/**
+ * Get layout constraints affecting the element
+ */
+function getLayoutConstraints(element: Element): string[] {
+  const constraints: string[] = [];
+  const computed = getComputedStyle(element);
+  const parent = element.parentElement;
+
+  if (parent) {
+    const parentComputed = getComputedStyle(parent);
+
+    // Flex constraints
+    if (parentComputed.display.includes('flex')) {
+      if (computed.flexGrow !== '0') constraints.push(`Flex grow: ${computed.flexGrow}`);
+      if (computed.flexShrink !== '1') constraints.push(`Flex shrink: ${computed.flexShrink}`);
+      if (computed.flexBasis !== 'auto') constraints.push(`Flex basis: ${computed.flexBasis}`);
+      if (computed.alignSelf !== 'auto') constraints.push(`Align self: ${computed.alignSelf}`);
+    }
+
+    // Grid constraints
+    if (parentComputed.display.includes('grid')) {
+      if (computed.gridColumn !== 'auto') constraints.push(`Grid column: ${computed.gridColumn}`);
+      if (computed.gridRow !== 'auto') constraints.push(`Grid row: ${computed.gridRow}`);
+    }
+  }
+
+  // Size constraints
+  if (computed.maxWidth !== 'none') constraints.push(`Max width: ${computed.maxWidth}`);
+  if (computed.minWidth !== '0px' && computed.minWidth !== 'auto') constraints.push(`Min width: ${computed.minWidth}`);
+  if (computed.maxHeight !== 'none') constraints.push(`Max height: ${computed.maxHeight}`);
+  if (computed.overflow !== 'visible') constraints.push(`Overflow: ${computed.overflow}`);
+
+  return constraints;
+}
+
+/**
+ * Get full causality information
+ */
+function getCausalityInfo(element: Element): CausalityInfo {
+  return {
+    events: {
+      listeners: getEventListeners(element),
+      blockingHandlers: getBlockingHandlers(element),
+    },
+    stackingContext: getStackingContext(element),
+    layoutConstraints: getLayoutConstraints(element),
+  };
+}
+
+// ============================================================================
+// LAYER 5: PERCEPTUAL (Affordance, Visibility, Legibility, Usability)
+// ============================================================================
+
+/**
+ * Parse a color string to RGB values
+ */
+function parseColor(colorStr: string): { r: number; g: number; b: number; a: number } | null {
+  // Handle rgb/rgba
+  const rgbMatch = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+  if (rgbMatch) {
+    return {
+      r: parseInt(rgbMatch[1], 10),
+      g: parseInt(rgbMatch[2], 10),
+      b: parseInt(rgbMatch[3], 10),
+      a: rgbMatch[4] ? parseFloat(rgbMatch[4]) : 1,
+    };
+  }
+
+  // Handle transparent
+  if (colorStr === 'transparent' || colorStr === 'rgba(0, 0, 0, 0)') {
+    return { r: 0, g: 0, b: 0, a: 0 };
+  }
+
+  return null;
+}
+
+/**
+ * Calculate relative luminance for WCAG contrast
+ */
+function getLuminance(r: number, g: number, b: number): number {
+  const [rs, gs, bs] = [r, g, b].map(c => {
+    c = c / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+}
+
+/**
+ * Calculate WCAG contrast ratio between two colors
+ */
+function getContrastRatio(fg: { r: number; g: number; b: number }, bg: { r: number; g: number; b: number }): number {
+  const l1 = getLuminance(fg.r, fg.g, fg.b);
+  const l2 = getLuminance(bg.r, bg.g, bg.b);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/**
+ * Get the effective background color by walking up ancestors
+ */
+function getEffectiveBackgroundColor(element: Element): string {
+  let current: Element | null = element;
+  let bgColor = 'rgb(255, 255, 255)'; // Default to white
+
+  while (current && current !== document.documentElement) {
+    const computed = getComputedStyle(current);
+    const bg = computed.backgroundColor;
+    const parsed = parseColor(bg);
+
+    if (parsed && parsed.a > 0) {
+      bgColor = bg;
+      if (parsed.a === 1) break; // Fully opaque, no need to continue
+    }
+
+    current = current.parentElement;
+  }
+
+  return bgColor;
+}
+
+/**
+ * Get legibility information (contrast ratio, WCAG status)
+ */
+function getLegibility(element: Element): PerceptionInfo['legibility'] {
+  const computed = getComputedStyle(element);
+  const fgColor = parseColor(computed.color);
+  const effectiveBgColor = getEffectiveBackgroundColor(element);
+  const bgColor = parseColor(effectiveBgColor);
+
+  let contrastRatio = 1;
+  if (fgColor && bgColor) {
+    contrastRatio = getContrastRatio(fgColor, bgColor);
+  }
+
+  // WCAG AA requires 4.5:1 for normal text, 3:1 for large text
+  const fontSize = parseFloat(computed.fontSize);
+  const fontWeight = parseInt(computed.fontWeight, 10) || 400;
+  const isLargeText = fontSize >= 18 || (fontSize >= 14 && fontWeight >= 700);
+  const requiredRatio = isLargeText ? 3 : 4.5;
+
+  return {
+    contrastRatio: Math.round(contrastRatio * 100) / 100,
+    wcagStatus: contrastRatio >= requiredRatio ? 'pass' : 'fail',
+    effectiveBgColor,
+  };
+}
+
+/**
+ * Detect if element is occluded by another element
+ */
+function getVisibility(element: Element): PerceptionInfo['visibility'] {
+  const rect = element.getBoundingClientRect();
+
+  // Check if element has any size
+  if (rect.width === 0 || rect.height === 0) {
+    return {
+      isOccluded: false,
+      effectiveOpacity: 0,
+    };
+  }
+
+  // Calculate effective opacity by walking up the tree
+  let effectiveOpacity = 1;
+  let current: Element | null = element;
+  while (current && current !== document.documentElement) {
+    const computed = getComputedStyle(current);
+    effectiveOpacity *= parseFloat(computed.opacity);
+    current = current.parentElement;
+  }
+
+  // Check occlusion at center point
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+
+  // Temporarily hide the inspector overlay for accurate detection
+  const topElement = document.elementFromPoint(centerX, centerY);
+
+  let isOccluded = false;
+  let occludedBy: string | undefined;
+
+  if (topElement && topElement !== element && !element.contains(topElement)) {
+    // Check if the occluding element is a meaningful overlap
+    // (not just a parent or child)
+    if (!topElement.contains(element)) {
+      isOccluded = true;
+      occludedBy = buildSelector(topElement);
+    }
+  }
+
+  return {
+    isOccluded,
+    occludedBy,
+    effectiveOpacity: Math.round(effectiveOpacity * 100) / 100,
+  };
+}
+
+/**
+ * Detect affordance (does it look clickable? is it actually clickable?)
+ */
+function getAffordance(element: Element): PerceptionInfo['affordance'] {
+  const computed = getComputedStyle(element);
+  const tag = element.tagName.toLowerCase();
+
+  // Does it LOOK interactable?
+  const looksInteractable =
+    computed.cursor === 'pointer' ||
+    computed.textDecoration.includes('underline') ||
+    tag === 'a' ||
+    tag === 'button' ||
+    computed.color.includes('0, 0, 255') || // Blue color
+    computed.color.includes('0, 102, 204') || // Link blue
+    element.getAttribute('role') === 'button' ||
+    element.getAttribute('role') === 'link';
+
+  // IS it actually interactable?
+  const listeners = getEventListeners(element);
+  const hasListeners = listeners.length > 0;
+  const isInteractiveTag = ['a', 'button', 'input', 'select', 'textarea', 'label'].includes(tag);
+  const hasTabIndex = element.hasAttribute('tabindex') && element.getAttribute('tabindex') !== '-1';
+  const isInteractable = hasListeners || isInteractiveTag || hasTabIndex;
+
+  // Calculate dissonance (mismatch between appearance and reality)
+  let dissonanceScore = 0;
+  if (looksInteractable && !isInteractable) {
+    dissonanceScore = 0.7; // Looks clickable but isn't
+  } else if (!looksInteractable && isInteractable) {
+    dissonanceScore = 0.3; // Is clickable but doesn't look like it
+  }
+
+  return {
+    looksInteractable,
+    isInteractable,
+    dissonanceScore,
+  };
+}
+
+/**
+ * Get usability information (touch target size)
+ */
+function getUsability(element: Element): PerceptionInfo['usability'] {
+  const rect = element.getBoundingClientRect();
+  const width = Math.round(rect.width);
+  const height = Math.round(rect.height);
+
+  // WCAG recommends 44x44px minimum for touch targets
+  const isTouchTargetValid = width >= 44 && height >= 44;
+
+  return {
+    touchTargetSize: `${width}x${height}`,
+    isTouchTargetValid,
+  };
+}
+
+/**
+ * Get full perception information
+ */
+function getPerceptionInfo(element: Element): PerceptionInfo {
+  return {
+    affordance: getAffordance(element),
+    visibility: getVisibility(element),
+    legibility: getLegibility(element),
+    usability: getUsability(element),
+  };
+}
+
+// ============================================================================
+// LAYER 6: METAL (Performance metrics)
+// ============================================================================
+
+/**
+ * Get performance/metal information
+ */
+function getMetalInfo(element: Element): MetalInfo {
+  const computed = getComputedStyle(element);
+  const listeners = getEventListeners(element);
+
+  // Check if layer is promoted to GPU
+  const layerPromoted =
+    computed.transform !== 'none' ||
+    computed.willChange.includes('transform') ||
+    computed.willChange.includes('opacity');
+
+  // Detect layout thrashing risk
+  let layoutThrashingRisk: 'none' | 'low' | 'high' = 'none';
+  if (computed.position === 'absolute' || computed.position === 'fixed') {
+    layoutThrashingRisk = 'none'; // Positioned elements don't cause reflow
+  } else if (computed.display === 'inline') {
+    layoutThrashingRisk = 'low';
+  } else if (listeners.some(l => ['scroll', 'resize', 'mousemove'].includes(l.type))) {
+    layoutThrashingRisk = 'high'; // Frequent events that might query layout
+  }
+
+  // Get render analysis from fiber walker
+  const renderAnalysis = getRenderAnalysis(element);
+
+  return {
+    pipeline: {
+      layerPromoted,
+      layoutThrashingRisk,
+    },
+    performance: {
+      renderCount: renderAnalysis?.renderCount || 0,
+      lastRenderReason: renderAnalysis?.lastRenderReason,
+    },
+    memory: {
+      listenerCount: listeners.length,
+    },
+  };
+}
+
 /**
  * Capture a complete semantic snapshot of an element
+ * Returns all 7 layers of frontend reality
  */
 export function captureSnapshot(element: Element): SemanticSnapshot {
   const identifiers = getElementIdentifiers(element);
+  const frameworkInfo = extractFrameworkInfo(element);
+  const styles = getStyles(element);
 
   return {
+    // Layer 1: Code (Identity)
     role: getRole(element),
     name: getAccessibleName(element),
     tagName: element.tagName.toLowerCase(),
     ...identifiers,
-    framework: extractFrameworkInfo(element),
+
+    // Layer 2: State (React)
+    framework: frameworkInfo,
+
+    // Layer 1 extension: Accessibility
     a11y: getA11yInfo(element),
+
+    // Layer 3: Visual (Render)
     geometry: getGeometry(element),
-    styles: getStyles(element),
+    styles,
+
+    // Layer 4: Causal (Engine)
+    causality: getCausalityInfo(element),
+
+    // Layer 5: Perceptual (Experience)
+    perception: getPerceptionInfo(element),
+
+    // Layer 6: Metal (Performance)
+    metal: getMetalInfo(element),
+
+    // Layer 7: Systemic (Architecture)
+    systemic: getSystemicInfo(frameworkInfo.filePath, styles),
+
+    // DOM Neighborhood (Layout Context)
     neighborhood: getNeighborhood(element),
+
+    // Metadata
     timestamp: Date.now(),
     url: window.location.href,
   };

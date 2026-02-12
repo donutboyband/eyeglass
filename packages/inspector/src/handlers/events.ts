@@ -12,7 +12,7 @@ export interface MouseMoveHandlerState {
 export interface MouseMoveHandlerCallbacks {
   setThrottleTimeout: (timeout: number | null) => void;
   hideHighlight: () => void;
-  showHighlight: (element: Element) => void;
+  showHighlight: (element: Element, event?: MouseEvent) => void;
   setCurrentElement: (element: Element | null) => void;
 }
 
@@ -64,7 +64,7 @@ export function createMouseMoveHandler(
     if (shadow.contains(target as Node)) return;
 
     callbacks.setCurrentElement(target);
-    callbacks.showHighlight(target);
+    callbacks.showHighlight(target, e);
   };
 }
 

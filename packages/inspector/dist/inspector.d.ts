@@ -1,5 +1,6 @@
 /**
  * Eyeglass Inspector - Glass UI for visual element inspection
+ * v2.0 - Loupe-to-Lens interaction model
  */
 export declare class EyeglassInspector extends HTMLElement {
     private shadow;
@@ -35,6 +36,14 @@ export declare class EyeglassInspector extends HTMLElement {
     private phraseIndex;
     private phraseInterval;
     private _userNote;
+    private uiMode;
+    private loupe;
+    private lens;
+    private lastMouseX;
+    private lastMouseY;
+    private showingContextOverlays;
+    private contextOverlays;
+    private contextOverlayElements;
     private handleMouseMove;
     private handleClick;
     private handleKeyDown;
@@ -62,6 +71,12 @@ export declare class EyeglassInspector extends HTMLElement {
     private renderHub;
     private renderPanel;
     private hidePanel;
+    private renderLens;
+    private wireLensEvents;
+    private hideLens;
+    private toggleContextOverlays;
+    private showContextOverlays;
+    private hideContextOverlays;
     private startPhraseRotation;
     private stopPhraseRotation;
     private submit;
