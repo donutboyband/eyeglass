@@ -90,7 +90,7 @@ export function renderLensCard(
 }
 
 function renderActivityLens(state: InspectorState, displayName: string, filePath: string | null): string {
-  const { currentStatus, currentStatusMessage, activityEvents } = state;
+  const { currentStatus, currentStatusMessage, activityEvents, _userNote } = state;
   const lastThought = [...activityEvents].reverse().find(e => e.type === 'thought');
   const lastAction = [...activityEvents].reverse().find(e => e.type === 'action');
   // Only show unanswered questions
@@ -124,6 +124,7 @@ function renderActivityLens(state: InspectorState, displayName: string, filePath
     <div class="lens-activity">
       ${currentStatus === 'fixing' ? '<div class="lens-progress"><div class="lens-progress-bar"></div></div>' : ''}
       <div class="lens-message">${escapeHtml(message)}</div>
+      ${_userNote ? `<div class="lens-user-note" title="Original request">${escapeHtml(_userNote)}</div>` : ''}
     </div>
     ${lastQuestion ? renderQuestion(lastQuestion as any) : ''}
     ${currentStatus === 'success' || currentStatus === 'failed' ? `
@@ -440,6 +441,18 @@ export const LENS_STYLES = `
   font-size: 10px;
   color: var(--text-secondary);
   line-height: 1.4;
+}
+
+.lens-user-note {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--text-primary);
+  background: rgba(0,0,0,0.05);
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 /* Footer */
