@@ -215,10 +215,22 @@ export class EyeglassInspector extends HTMLElement {
     this.handleKeyDown = createKeyDownHandler(
       () => ({
         frozen: this.frozen,
+        multiSelectMode: this.multiSelectMode,
+        inspectorEnabled: this.inspectorEnabled,
       }),
       {
         unfreeze: () => this.unfreeze(),
         toggleInspectorEnabled: () => this.toggleInspectorEnabled(),
+        toggleContextOverlays: () => this.toggleContextOverlays(),
+        toggleMultiSelect: () => {
+          if (!this.frozen) return;
+          if (this.multiSelectMode) {
+            this.exitMultiSelectMode();
+          } else {
+            this.enterMultiSelectMode();
+          }
+        },
+        submitShortcut: () => this.submitFromLensShortcut(),
       }
     );
 
@@ -471,6 +483,15 @@ export class EyeglassInspector extends HTMLElement {
     this.crosshairX.style.transform = `translateY(${y}px)`;
     this.crosshairY.style.transform = `translateX(${x}px)`;
     this.toggleCrosshair(true);
+  }
+
+  private submitFromLensShortcut(): void {
+    if (!this.lens) return;
+    const input = this.lens.querySelector('.lens-input') as HTMLTextAreaElement | null;
+    if (!input) return;
+    const value = input.value.trim();
+    if (!value) return;
+    this.submit(value);
   }
 
   private toggleCrosshair(show: boolean): void {

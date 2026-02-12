@@ -66,6 +66,7 @@ export declare class EyeglassInspector extends HTMLElement {
     private updateCursor;
     private showHighlight;
     private updateCrosshair;
+    private submitFromLensShortcut;
     private toggleCrosshair;
     private hideHighlight;
     private freeze;

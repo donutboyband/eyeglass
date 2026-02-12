@@ -212,6 +212,22 @@ export function renderHubSettingsPage(
               <span class="hub-shortcut-label">Toggle inspector</span>
               <span class="hub-shortcut-keys"><kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "\u2318" : "Ctrl"}</kbd> <kbd>Shift</kbd> <kbd>E</kbd></span>
             </div>
+            <div class="hub-shortcut-row">
+              <span class="hub-shortcut-label">Toggle multi-select</span>
+              <span class="hub-shortcut-keys"><kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "\u2318" : "Ctrl"}</kbd> <kbd>Shift</kbd> <kbd>M</kbd></span>
+            </div>
+            <div class="hub-shortcut-row">
+              <span class="hub-shortcut-label">Toggle context overlays</span>
+              <span class="hub-shortcut-keys"><kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "\u2318" : "Ctrl"}</kbd> <kbd>Shift</kbd> <kbd>C</kbd></span>
+            </div>
+            <div class="hub-shortcut-row">
+              <span class="hub-shortcut-label">Submit request</span>
+              <span class="hub-shortcut-keys"><kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "\u2318" : "Ctrl"}</kbd> <kbd>Enter</kbd></span>
+            </div>
+            <div class="hub-shortcut-row">
+              <span class="hub-shortcut-label">Close panel / cancel</span>
+              <span class="hub-shortcut-keys"><kbd>Esc</kbd></span>
+            </div>
           </div>
         </div>
       </div>

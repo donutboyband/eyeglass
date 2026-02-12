@@ -1013,6 +1013,8 @@ export const STYLES = `
 /* Settings Page */
 .hub-settings-page {
   padding: 8px 0;
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 .hub-settings-header {
@@ -1093,42 +1095,47 @@ export const STYLES = `
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .hub-shortcuts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.hub-shortcut-row {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 8px;
   align-items: center;
 }
 
+.hub-shortcut-row {
+  display: contents;
+}
+
 .hub-shortcut-label {
-  font-size: 11px;
+  font-size: 9px;
   color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 .hub-shortcut-keys {
   display: flex;
   gap: 4px;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .hub-shortcut-keys kbd {
   display: inline-block;
   padding: 2px 6px;
-  font-size: 10px;
+  font-size: 8px;
   font-family: inherit;
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-weight: 600;
+  color: var(--text-primary);
   background: rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--glass-border);
   border-radius: 4px;
+  min-width: 22px;
+  text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 :host([data-theme="dark"]) .hub-shortcut-keys kbd {
