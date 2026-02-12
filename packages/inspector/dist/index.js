@@ -1864,6 +1864,7 @@ var nt=new Set([0,1,11,14,15]);function ee(e){let n=Object.keys(e).find(i=>i.sta
   pointer-events: auto;
   overflow: hidden;
   animation: lensEnter 0.12s ease-out;
+  z-index: 2147483645;
 }
 
 @keyframes lensEnter {

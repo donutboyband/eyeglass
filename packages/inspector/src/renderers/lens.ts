@@ -212,6 +212,7 @@ export const LENS_STYLES = `
   pointer-events: auto;
   overflow: hidden;
   animation: lensEnter 0.12s ease-out;
+  z-index: 2147483645;
 }
 
 @keyframes lensEnter {
