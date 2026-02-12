@@ -27,6 +27,7 @@ export declare class EyeglassInspector extends HTMLElement {
     private isDragging;
     private dragOffset;
     private customPanelPosition;
+    private customLensPosition;
     private multiSelectMode;
     private selectedElements;
     private selectedSnapshots;

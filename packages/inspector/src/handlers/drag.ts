@@ -13,6 +13,7 @@ export interface DragCallbacks {
   setDragging: (isDragging: boolean) => void;
   setDragOffset: (offset: { x: number; y: number }) => void;
   setCustomPanelPosition: (position: { x: number; y: number }) => void;
+  setCustomLensPosition: (position: { x: number; y: number }) => void;
 }
 
 /**
@@ -43,7 +44,11 @@ export function createDragHandlers(
       Math.min(e.clientY - state.dragOffset.y, window.innerHeight - 100)
     );
 
-    callbacks.setCustomPanelPosition({ x, y });
+    if (dragTarget === state.lens) {
+      callbacks.setCustomLensPosition({ x, y });
+    } else {
+      callbacks.setCustomPanelPosition({ x, y });
+    }
     dragTarget.style.left = `${x}px`;
     dragTarget.style.top = `${y}px`;
   };

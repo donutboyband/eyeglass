@@ -20,6 +20,10 @@ export interface DragCallbacks {
         x: number;
         y: number;
     }) => void;
+    setCustomLensPosition: (position: {
+        x: number;
+        y: number;
+    }) => void;
 }
 /**
  * Creates panel/lens drag handler functions

@@ -125,6 +125,7 @@ export class EyeglassInspector extends HTMLElement {
   private isDragging = false;
   private dragOffset = { x: 0, y: 0 };
   private customPanelPosition: { x: number; y: number } | null = null;
+  private customLensPosition: { x: number; y: number } | null = null;
 
   // Multi-select state
   private multiSelectMode = false;
@@ -253,6 +254,7 @@ export class EyeglassInspector extends HTMLElement {
         setDragging: (d) => (this.isDragging = d),
         setDragOffset: (o) => (this.dragOffset = o),
         setCustomPanelPosition: (p) => (this.customPanelPosition = p),
+        setCustomLensPosition: (p) => (this.customLensPosition = p),
       }
     );
   }
@@ -488,6 +490,7 @@ export class EyeglassInspector extends HTMLElement {
     this.activityEvents = [];
     this.currentStatusMessage = null;
     this.customPanelPosition = null;
+    this.customLensPosition = null;
 
     // Clear multi-select state
     this.multiSelectMode = false;
@@ -849,7 +852,7 @@ export class EyeglassInspector extends HTMLElement {
     // Position the lens card
     const elementRect = this.currentElement.getBoundingClientRect();
     const lensRect = { width: 220, height: this.lens.offsetHeight || 200 };
-    const position = calculateLensPosition(elementRect, lensRect);
+    const position = this.customLensPosition ?? calculateLensPosition(elementRect, lensRect);
     this.lens.style.left = `${position.x}px`;
     this.lens.style.top = `${position.y}px`;
 

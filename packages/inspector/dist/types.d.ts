@@ -53,6 +53,10 @@ export interface InspectorState {
         x: number;
         y: number;
     } | null;
+    customLensPosition?: {
+        x: number;
+        y: number;
+    } | null;
     multiSelectMode: boolean;
     selectedElements: Element[];
     selectedSnapshots: SemanticSnapshot[];

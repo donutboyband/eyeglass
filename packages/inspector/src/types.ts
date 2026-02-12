@@ -67,6 +67,7 @@ export interface InspectorState {
   isDragging: boolean;
   dragOffset: { x: number; y: number };
   customPanelPosition: { x: number; y: number } | null;
+  customLensPosition?: { x: number; y: number } | null;
 
   // Multi-select state
   multiSelectMode: boolean;
