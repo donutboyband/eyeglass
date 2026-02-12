@@ -38,22 +38,15 @@ export function analyzeHealth(snapshot: SemanticSnapshot): HealthIssue[] {
   }
 
   // Check performance issues
-  const renderCount = snapshot.metal?.performance?.renderCount || 0;
-  if (renderCount > 10) {
+  // NOTE: We can only detect if a component has re-rendered, not the exact count.
+  // The lastRenderReason is more useful for identifying performance issues.
+  const renderReason = snapshot.metal?.performance?.lastRenderReason;
+  if (renderReason?.includes("'style' changed identity")) {
     issues.push({
       level: 'warning',
       category: 'performance',
-      message: 'Frequent re-renders',
-      details: `${renderCount} renders detected`,
-    });
-  }
-
-  if (renderCount > 50) {
-    issues.push({
-      level: 'critical',
-      category: 'performance',
-      message: 'Render storm',
-      details: `${renderCount} renders - possible infinite loop`,
+      message: 'Inline style causing re-renders',
+      details: renderReason,
     });
   }
 
@@ -159,15 +152,15 @@ export function getPulseColor(level: PulseLevel): string {
 }
 
 /**
- * Get emoji for a pulse level
+ * Get indicator character for a pulse level (minimalist, no emoji)
  */
-export function getPulseEmoji(level: PulseLevel): string {
+export function getPulseIndicator(level: PulseLevel): string {
   switch (level) {
     case 'critical':
-      return '🔴';
+      return '●';
     case 'warning':
-      return '🟡';
+      return '●';
     case 'healthy':
-      return '🟢';
+      return '●';
   }
 }

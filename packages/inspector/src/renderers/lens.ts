@@ -1,65 +1,47 @@
 /**
  * Lens Card Renderer for Eyeglass v2.0
- * An expanded card that shows detailed component info after clicking
+ * Sharp, minimal, editorial design - no rounded corners, clean lines
  */
 
-import type { SemanticSnapshot, PulseLevel } from '@eyeglass/types';
-import { analyzeHealth, calculatePulseLevel, getPulseColor, getPulseEmoji, HealthIssue } from '../utils/health.js';
+import type { SemanticSnapshot } from '@eyeglass/types';
+import { analyzeHealth, calculatePulseLevel, getPulseColor, HealthIssue } from '../utils/health.js';
 import type { InspectorState, InspectorCallbacks } from '../types.js';
 
-/**
- * Get the display name for the component
- */
 function getDisplayName(snapshot: SemanticSnapshot): string {
   const fw = snapshot.framework;
   return fw.displayName || fw.componentName || snapshot.tagName;
 }
 
-/**
- * Get the file path for display
- */
 function getFilePath(snapshot: SemanticSnapshot): string | null {
   const fw = snapshot.framework;
   if (!fw.filePath) return null;
-
-  // Shorten the path
   const parts = fw.filePath.split('/');
   const shortPath = parts.slice(-2).join('/');
   return fw.lineNumber ? `${shortPath}:${fw.lineNumber}` : shortPath;
 }
 
-/**
- * Render health issue cards
- */
-function renderHealthCards(issues: HealthIssue[]): string {
+function renderHealthIssues(issues: HealthIssue[]): string {
   if (issues.length === 0) return '';
-
   return `
-    <div class="lens-health">
+    <div class="lens-issues">
       ${issues.map(issue => `
-        <div class="health-card ${issue.level}">
-          <span class="health-icon">${issue.level === 'critical' ? '🛑' : '⚠️'}</span>
-          <div class="health-content">
-            <div class="health-message">${escapeHtml(issue.message)}</div>
-            ${issue.details ? `<div class="health-details">${escapeHtml(issue.details)}</div>` : ''}
-          </div>
+        <div class="lens-issue ${issue.level}">
+          <span class="issue-dot"></span>
+          <span class="issue-text">${escapeHtml(issue.message)}</span>
         </div>
       `).join('')}
     </div>
   `;
 }
 
-/**
- * Render the Lens Card content
- */
 export function renderLensCard(
   state: InspectorState,
   callbacks: InspectorCallbacks
 ): string {
-  const { currentSnapshot, currentStatus, mode, activityEvents, multiSelectMode, selectedSnapshots } = state;
+  const { currentSnapshot, mode, multiSelectMode, selectedSnapshots } = state;
 
   if (multiSelectMode && selectedSnapshots.length > 0) {
-    return renderMultiSelectLens(state, callbacks);
+    return renderMultiSelectLens(state);
   }
 
   if (!currentSnapshot) {
@@ -72,25 +54,23 @@ export function renderLensCard(
   const pulseColor = getPulseColor(pulseLevel);
   const issues = analyzeHealth(currentSnapshot);
 
-  // Check if we're in activity mode
   if (mode === 'activity') {
-    return renderActivityLens(state, callbacks, displayName, filePath);
+    return renderActivityLens(state, displayName, filePath);
   }
 
-  // Return content only - the container is created by the inspector
   return `
-    <div class="lens-header">
-      <div class="lens-title">
-        <span class="lens-component">${escapeHtml(`<${displayName} />`)}</span>
-        ${pulseLevel !== 'healthy' ? `<span class="lens-pulse" style="background: ${pulseColor};"></span>` : ''}
+    <div class="lens-bar">
+      <span class="lens-tag">&lt;${escapeHtml(displayName)} /&gt;</span>
+      ${pulseLevel !== 'healthy' ? `<span class="lens-dot" style="background:${pulseColor}"></span>` : ''}
+      <div class="lens-tools">
+        <button class="lens-tool" data-action="toggle-context" title="Context"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button class="lens-tool" data-action="multi-select" title="Multi-select"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
+        <button class="lens-tool lens-close" data-action="close" title="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
-      ${filePath ? `<div class="lens-path">${escapeHtml(filePath)}</div>` : ''}
-      <button class="lens-close" data-action="close" aria-label="Close">&times;</button>
     </div>
-
-    ${renderHealthCards(issues)}
-
-    <div class="lens-input-area">
+    ${filePath ? `<div class="lens-path">${escapeHtml(filePath)}</div>` : ''}
+    ${renderHealthIssues(issues)}
+    <div class="lens-input-row">
       <input
         type="text"
         class="lens-input"
@@ -98,142 +78,91 @@ export function renderLensCard(
         value="${escapeHtml(state._userNote || '')}"
         data-action="input"
       />
-      <button class="lens-submit" data-action="submit">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-        </svg>
-      </button>
+      <kbd class="lens-enter-hint">↵</kbd>
     </div>
-
-    <div class="lens-actions">
-      <button class="lens-action" data-action="multi-select" title="Select multiple elements">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="7"/>
-          <rect x="14" y="3" width="7" height="7"/>
-          <rect x="14" y="14" width="7" height="7"/>
-          <rect x="3" y="14" width="7" height="7"/>
-        </svg>
+    <div class="lens-schema" data-expanded="false">
+      <button class="lens-schema-toggle" data-action="toggle-schema">
+        <span>Schema</span>
+        <svg class="lens-schema-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
-      <button class="lens-action" data-action="toggle-context" title="Show relationships">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-        </svg>
-      </button>
-      <button class="lens-action" data-action="peek-schema" title="View raw schema">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>
-        </svg>
-      </button>
+      <pre class="lens-schema-code"></pre>
     </div>
   `;
 }
 
-/**
- * Render the Lens Card in activity mode
- */
-function renderActivityLens(
-  state: InspectorState,
-  callbacks: InspectorCallbacks,
-  displayName: string,
-  filePath: string | null
-): string {
-  const { currentStatus, activityEvents, interactionId } = state;
+function renderActivityLens(state: InspectorState, displayName: string, filePath: string | null): string {
+  const { currentStatus, activityEvents } = state;
+  const lastThought = [...activityEvents].reverse().find(e => e.type === 'thought');
+  const lastAction = [...activityEvents].reverse().find(e => e.type === 'action');
+  const lastQuestion = [...activityEvents].reverse().find(e => e.type === 'question' && (e as any).questionId);
 
-  const lastThought = [...activityEvents]
-    .reverse()
-    .find(e => e.type === 'thought');
+  let message = 'Working...';
+  if (currentStatus === 'pending') message = 'Waiting for agent...';
+  else if (currentStatus === 'success') message = 'Done';
+  else if (currentStatus === 'failed') message = 'Failed';
+  else if (lastThought) message = (lastThought as any).content;
+  else if (lastAction) message = `${(lastAction as any).action}: ${(lastAction as any).target}`;
 
-  const lastAction = [...activityEvents]
-    .reverse()
-    .find(e => e.type === 'action');
-
-  const lastQuestion = [...activityEvents]
-    .reverse()
-    .find(e => e.type === 'question' && (e as any).questionId);
-
-  const statusMessage = getStatusMessage(currentStatus, lastThought, lastAction);
-
-  // Return content only - the container is created by the inspector
   return `
-    <div class="lens-header">
-      <div class="lens-title">
-        <span class="lens-component">${escapeHtml(`<${displayName} />`)}</span>
-        <span class="lens-status ${currentStatus}">${escapeHtml(currentStatus)}</span>
+    <div class="lens-bar">
+      <span class="lens-tag">&lt;${escapeHtml(displayName)} /&gt;</span>
+      <span class="lens-status-badge ${currentStatus}">${currentStatus}</span>
+      <div class="lens-tools">
+        <button class="lens-tool lens-close" data-action="close" title="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
-      ${filePath ? `<div class="lens-path">${escapeHtml(filePath)}</div>` : ''}
-      <button class="lens-close" data-action="close" aria-label="Close">&times;</button>
     </div>
-
+    ${filePath ? `<div class="lens-path">${escapeHtml(filePath)}</div>` : ''}
     <div class="lens-activity">
-      <div class="activity-message">${escapeHtml(statusMessage)}</div>
-      ${currentStatus === 'fixing' ? '<div class="activity-spinner"></div>' : ''}
+      ${currentStatus === 'fixing' ? '<div class="lens-progress"><div class="lens-progress-bar"></div></div>' : ''}
+      <div class="lens-message">${escapeHtml(message)}</div>
     </div>
-
     ${lastQuestion ? renderQuestion(lastQuestion as any) : ''}
-
     ${currentStatus === 'success' || currentStatus === 'failed' ? `
-      <div class="lens-done">
-        <button class="lens-action-btn" data-action="new-request">New Request</button>
+      <div class="lens-footer">
+        <button class="lens-btn" data-action="new-request">New Request</button>
       </div>
     ` : ''}
   `;
 }
 
-/**
- * Render multi-select lens
- */
-function renderMultiSelectLens(
-  state: InspectorState,
-  callbacks: InspectorCallbacks
-): string {
+function renderMultiSelectLens(state: InspectorState): string {
   const { selectedSnapshots, _userNote } = state;
-
-  // Return content only - the container is created by the inspector
   return `
-    <div class="lens-header">
-      <div class="lens-title">
-        <span class="lens-component">${selectedSnapshots.length} elements selected</span>
+    <div class="lens-bar">
+      <span class="lens-tag">${selectedSnapshots.length} selected</span>
+      <div class="lens-tools">
+        <button class="lens-tool lens-close" data-action="exit-multi" title="Exit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
-      <button class="lens-close" data-action="exit-multi" aria-label="Exit multi-select">&times;</button>
     </div>
-
-    <div class="lens-selected-list">
+    <div class="lens-selection">
       ${selectedSnapshots.map((s, i) => `
-        <div class="selected-item">
-          <span class="selected-name">${escapeHtml(getDisplayName(s))}</span>
-          <button class="selected-remove" data-action="remove-selection" data-index="${i}">&times;</button>
+        <div class="lens-chip">
+          <span class="chip-num">${i + 1}</span>
+          <span class="chip-name">&lt;${escapeHtml(getDisplayName(s))} /&gt;</span>
+          <button class="chip-remove" data-action="remove-selection" data-index="${i}">×</button>
         </div>
       `).join('')}
     </div>
-
-    <div class="lens-input-area">
+    <div class="lens-input-row">
       <input
         type="text"
         class="lens-input"
-        placeholder="What do you want to do with these elements?"
+        placeholder="What should change?"
         value="${escapeHtml(_userNote || '')}"
         data-action="input"
       />
-      <button class="lens-submit" data-action="submit">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-        </svg>
-      </button>
+      <kbd class="lens-enter-hint">↵</kbd>
     </div>
   `;
 }
 
-/**
- * Render a question from the agent
- */
-function renderQuestion(question: { questionId: string; question: string; options: Array<{ id: string; label: string }> }): string {
+function renderQuestion(q: { questionId: string; question: string; options: Array<{ id: string; label: string }> }): string {
   return `
     <div class="lens-question">
-      <div class="question-text">${escapeHtml(question.question)}</div>
-      <div class="question-options">
-        ${question.options.map(opt => `
-          <button class="question-option" data-action="answer" data-question-id="${question.questionId}" data-answer-id="${opt.id}" data-answer-label="${escapeHtml(opt.label)}">
+      <div class="lens-q-text">${escapeHtml(q.question)}</div>
+      <div class="lens-q-options">
+        ${q.options.map(opt => `
+          <button class="lens-q-btn" data-action="answer" data-question-id="${q.questionId}" data-answer-id="${opt.id}" data-answer-label="${escapeHtml(opt.label)}">
             ${escapeHtml(opt.label)}
           </button>
         `).join('')}
@@ -242,81 +171,25 @@ function renderQuestion(question: { questionId: string; question: string; option
   `;
 }
 
-/**
- * Get status message based on current state
- */
-function getStatusMessage(
-  status: string,
-  lastThought: any,
-  lastAction: any
-): string {
-  if (status === 'pending') {
-    return 'Waiting for agent...';
-  }
-
-  if (status === 'success') {
-    return 'Done!';
-  }
-
-  if (status === 'failed') {
-    return 'Something went wrong';
-  }
-
-  if (lastThought) {
-    return lastThought.content;
-  }
-
-  if (lastAction) {
-    return `${lastAction.action} ${lastAction.target}`;
-  }
-
-  return 'Working...';
-}
-
-/**
- * Calculate position for Lens Card
- */
 export function calculateLensPosition(
   elementRect: DOMRect,
   lensRect: { width: number; height: number }
 ): { x: number; y: number } {
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-  const padding = 12;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const gap = 8;
 
-  let x: number;
-  let y: number;
+  let x = elementRect.right + gap;
+  if (x + lensRect.width > vw - gap) x = elementRect.left - gap - lensRect.width;
+  if (x < gap) x = gap;
 
-  // Try to position to the right of the element
-  if (elementRect.right + padding + lensRect.width < viewportWidth) {
-    x = elementRect.right + padding;
-  }
-  // Try to position to the left
-  else if (elementRect.left - padding - lensRect.width > 0) {
-    x = elementRect.left - padding - lensRect.width;
-  }
-  // Center horizontally
-  else {
-    x = Math.max(padding, (viewportWidth - lensRect.width) / 2);
-  }
-
-  // Try to align top with element
-  y = elementRect.top;
-
-  // Ensure it fits in viewport
-  if (y + lensRect.height > viewportHeight - padding) {
-    y = viewportHeight - lensRect.height - padding;
-  }
-  if (y < padding) {
-    y = padding;
-  }
+  let y = elementRect.top;
+  if (y + lensRect.height > vh - gap) y = vh - lensRect.height - gap;
+  if (y < gap) y = gap;
 
   return { x: Math.round(x), y: Math.round(y) };
 }
 
-/**
- * Escape HTML
- */
 function escapeHtml(text: string): string {
   const div = document.createElement('div');
   div.textContent = text;
@@ -324,362 +197,419 @@ function escapeHtml(text: string): string {
 }
 
 /**
- * Lens Card CSS styles
+ * Lens styles - Sharp edges, minimal editorial design
  */
 export const LENS_STYLES = `
 .lens-card {
   position: fixed;
-  width: 320px;
+  width: 220px;
   background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
-  border-radius: var(--border-radius);
-  box-shadow: var(--glass-shadow);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
   pointer-events: auto;
   overflow: hidden;
-  animation: lens-appear 0.2s ease-out;
+  animation: lensEnter 0.12s ease-out;
 }
 
-@keyframes lens-appear {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+@keyframes lensEnter {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.lens-header {
-  position: relative;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--divider);
-}
-
-.lens-title {
+/* Top bar */
+.lens-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--divider);
+  cursor: grab;
+  user-select: none;
 }
 
-.lens-component {
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
-  font-size: 14px;
+.lens-bar:active {
+  cursor: grabbing;
+}
+
+.lens-tag {
+  font-family: 'SF Mono', 'Fira Code', Monaco, monospace;
+  font-size: 11px;
   font-weight: 600;
   color: var(--accent);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.lens-pulse {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.lens-dot {
+  width: 6px;
+  height: 6px;
   flex-shrink: 0;
 }
 
-.lens-status {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.lens-tools {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
-.lens-status.fixing {
+.lens-tool {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.1s;
+}
+
+.lens-tool:hover {
+  color: var(--accent);
+}
+
+.lens-tool.lens-close:hover {
+  color: var(--error);
+}
+
+/* File path */
+.lens-path {
+  padding: 4px 10px 6px;
+  font-family: 'SF Mono', monospace;
+  font-size: 9px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--divider);
+}
+
+/* Status badge */
+.lens-status-badge {
+  font-family: 'SF Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  padding: 2px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lens-status-badge.fixing {
   background: var(--accent-soft);
   color: var(--accent);
 }
 
-.lens-status.success {
-  background: rgba(16, 185, 129, 0.15);
+.lens-status-badge.success {
+  background: rgba(16,185,129,0.15);
   color: var(--success);
 }
 
-.lens-status.failed {
-  background: rgba(239, 68, 68, 0.15);
+.lens-status-badge.failed {
+  background: rgba(239,68,68,0.15);
   color: var(--error);
 }
 
-.lens-status.pending {
-  background: rgba(245, 158, 11, 0.15);
+.lens-status-badge.pending {
+  background: rgba(245,158,11,0.15);
   color: #f59e0b;
 }
 
-.lens-path {
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.lens-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-muted);
-  font-size: 18px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.lens-close:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text-primary);
-}
-
-.lens-health {
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* Issues */
+.lens-issues {
+  padding: 6px 10px;
   border-bottom: 1px solid var(--divider);
 }
 
-.health-card {
+.lens-issue {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px;
-  border-radius: var(--border-radius-sm);
-  font-size: 12px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
 }
 
-.health-card.warning {
-  background: rgba(245, 158, 11, 0.1);
-}
-
-.health-card.critical {
-  background: rgba(239, 68, 68, 0.1);
-}
-
-.health-icon {
-  font-size: 14px;
+.issue-dot {
+  width: 4px;
+  height: 4px;
   flex-shrink: 0;
 }
 
-.health-message {
-  font-weight: 500;
-  color: var(--text-primary);
+.lens-issue.warning .issue-dot {
+  background: #f59e0b;
 }
 
-.health-details {
-  margin-top: 2px;
-  color: var(--text-muted);
-  font-size: 11px;
+.lens-issue.critical .issue-dot {
+  background: var(--error);
 }
 
-.lens-input-area {
+.issue-text {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+/* Input */
+.lens-input-row {
+  padding: 8px 10px;
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
 }
 
 .lens-input {
   flex: 1;
-  padding: 10px 14px;
-  background: transparent;
+  padding: 8px 10px;
+  padding-right: 32px;
+  background: rgba(0,0,0,0.06);
   border: 1px solid var(--glass-border);
-  border-radius: 20px;
-  font-size: 13px;
+  font-size: 11px;
+  font-family: inherit;
   color: var(--text-primary);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.1s, background 0.1s;
 }
 
 .lens-input:focus {
   border-color: var(--accent);
+  background: rgba(0,0,0,0.08);
 }
 
 .lens-input::placeholder {
   color: var(--text-muted);
 }
 
-.lens-submit {
-  width: 36px;
-  height: 36px;
+.lens-enter-hint {
+  position: absolute;
+  right: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent);
-  border: none;
-  border-radius: 50%;
-  color: white;
-  cursor: pointer;
-  transition: transform 0.15s, background 0.15s;
-}
-
-.lens-submit:hover {
-  transform: scale(1.05);
-}
-
-.lens-submit:active {
-  transform: scale(0.95);
-}
-
-.lens-actions {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--divider);
-}
-
-.lens-action {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
+  width: 18px;
+  height: 18px;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.06);
   border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s;
+  opacity: 0.6;
+  transition: opacity 0.1s;
+  pointer-events: none;
 }
 
-.lens-action:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+.lens-input:focus + .lens-enter-hint {
+  opacity: 1;
   color: var(--accent);
-}
-
-.lens-activity {
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.activity-message {
-  flex: 1;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.activity-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--glass-border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.lens-question {
-  padding: 12px 16px;
-  border-top: 1px solid var(--divider);
-}
-
-.question-text {
-  font-size: 13px;
-  color: var(--text-primary);
-  margin-bottom: 10px;
-}
-
-.question-options {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.question-option {
-  padding: 10px 14px;
-  background: none;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--border-radius-sm);
-  font-size: 13px;
-  color: var(--text-primary);
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.question-option:hover {
-  background: var(--accent-soft);
   border-color: var(--accent);
 }
 
-.lens-done {
-  padding: 12px 16px;
+/* Activity */
+.lens-activity {
+  padding: 10px;
+}
+
+.lens-progress {
+  height: 2px;
+  background: rgba(0,0,0,0.08);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.lens-progress-bar {
+  height: 100%;
+  width: 30%;
+  background: var(--accent);
+  animation: progressSlide 1s ease-in-out infinite;
+}
+
+@keyframes progressSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.lens-message {
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Footer */
+.lens-footer {
+  padding: 8px 10px;
   border-top: 1px solid var(--divider);
 }
 
-.lens-action-btn {
+.lens-btn {
   width: 100%;
-  padding: 10px;
+  padding: 8px;
   background: var(--accent);
   border: none;
-  border-radius: var(--border-radius-sm);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
   color: white;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: filter 0.1s;
 }
 
-.lens-action-btn:hover {
-  background: var(--accent);
+.lens-btn:hover {
   filter: brightness(1.1);
 }
 
-.lens-selected-list {
-  padding: 8px 16px;
-  max-height: 150px;
-  overflow-y: auto;
+/* Question */
+.lens-question {
+  padding: 10px;
+  border-top: 1px solid var(--divider);
 }
 
-.selected-item {
+.lens-q-text {
+  font-size: 10px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.lens-q-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lens-q-btn {
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  font-size: 10px;
+  font-family: inherit;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.lens-q-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+/* Selection (multi-select) */
+.lens-selection {
+  padding: 8px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.lens-chip {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
+  gap: 4px;
+  padding: 3px 6px;
   background: var(--accent-soft);
-  border-radius: 8px;
-  margin-bottom: 6px;
+  font-size: 10px;
 }
 
-.selected-name {
-  font-family: 'SF Mono', monospace;
-  font-size: 12px;
-  color: var(--text-primary);
-}
-
-.selected-remove {
-  width: 20px;
-  height: 20px;
+.chip-num {
+  width: 14px;
+  height: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: none;
-  border-radius: 4px;
-  color: var(--text-muted);
-  cursor: pointer;
+  background: var(--accent);
+  color: white;
+  font-size: 9px;
+  font-weight: 600;
 }
 
-.selected-remove:hover {
-  background: rgba(0, 0, 0, 0.1);
+.chip-name {
+  font-family: 'SF Mono', monospace;
+  color: var(--text-primary);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.chip-remove:hover {
   color: var(--error);
 }
 
+/* Schema (expandable) */
+.lens-schema {
+  border-top: 1px solid var(--divider);
+}
+
+.lens-schema-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.1s;
+}
+
+.lens-schema-toggle:hover {
+  color: var(--text-secondary);
+}
+
+.lens-schema-chevron {
+  transition: transform 0.15s;
+}
+
+.lens-schema[data-expanded="true"] .lens-schema-chevron {
+  transform: rotate(180deg);
+}
+
+.lens-schema-code {
+  margin: 0;
+  padding: 0;
+  font-family: 'SF Mono', monospace;
+  font-size: 9px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.15s ease-out, padding 0.15s ease-out;
+}
+
+.lens-schema[data-expanded="true"] .lens-schema-code {
+  max-height: 160px;
+  padding: 8px 10px;
+  overflow-y: auto;
+}
+
+/* JSON syntax highlighting */
+.lens-schema-code .json-key { color: #7dd3fc; }
+.lens-schema-code .json-string { color: #86efac; }
+.lens-schema-code .json-number { color: #fcd34d; }
+.lens-schema-code .json-bool { color: #f9a8d4; }
+.lens-schema-code .json-null { color: var(--text-muted); }
+.lens-schema-code .json-bracket { color: var(--text-secondary); }
+
 .lens-empty {
-  padding: 24px;
+  padding: 20px;
   text-align: center;
+  font-size: 10px;
   color: var(--text-muted);
 }
 `;

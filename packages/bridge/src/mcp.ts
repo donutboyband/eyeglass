@@ -469,7 +469,7 @@ Handle this request now.`,
 
 ${importCount > 0 ? `### Importing Files:\n${importingFiles.slice(0, 10).map(f => `- \`${f}\``).join('\n')}${importingFiles.length > 10 ? `\n- ... and ${importingFiles.length - 10} more` : ''}` : 'No files import this component.'}
 
-${riskLevel === 'Critical' ? '\n**⚠️ Warning:** This component is widely used. Changes may have broad impact.' : ''}
+${riskLevel === 'Critical' ? '\n**Warning:** This component is widely used. Changes may have broad impact.' : ''}
 ${riskLevel === 'Moderate' ? '\n**Note:** This component is used in several places. Test changes carefully.' : ''}
 `;
 

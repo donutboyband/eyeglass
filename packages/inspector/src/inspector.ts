@@ -53,6 +53,7 @@ import {
 import {
   renderLensCard,
   calculateLensPosition,
+  LENS_STYLES,
 } from "./renderers/lens.js";
 import {
   findRelatedElements,
@@ -257,7 +258,7 @@ export class EyeglassInspector extends HTMLElement {
 
   connectedCallback(): void {
     const style = document.createElement("style");
-    style.textContent = STYLES;
+    style.textContent = STYLES + LENS_STYLES;
     this.shadow.appendChild(style);
 
     this.highlight = document.createElement("div");
@@ -841,7 +842,7 @@ export class EyeglassInspector extends HTMLElement {
 
     // Position the lens card
     const elementRect = this.currentElement.getBoundingClientRect();
-    const lensRect = { width: 320, height: this.lens.offsetHeight || 300 };
+    const lensRect = { width: 220, height: this.lens.offsetHeight || 200 };
     const position = calculateLensPosition(elementRect, lensRect);
     this.lens.style.left = `${position.x}px`;
     this.lens.style.top = `${position.y}px`;
@@ -853,10 +854,16 @@ export class EyeglassInspector extends HTMLElement {
   private wireLensEvents(): void {
     if (!this.lens) return;
 
-    // Drag handler on header
-    const header = this.lens.querySelector('.lens-header');
-    if (header) {
-      header.addEventListener("mousedown", this.dragHandlers.handleLensDragStart as EventListener);
+    // Drag handler on bar
+    const bar = this.lens.querySelector('.lens-bar');
+    if (bar) {
+      bar.addEventListener("mousedown", this.dragHandlers.handleLensDragStart as EventListener);
+    }
+
+    // Schema toggle
+    const schemaToggle = this.lens.querySelector('[data-action="toggle-schema"]');
+    if (schemaToggle) {
+      schemaToggle.addEventListener("click", () => this.toggleSchemaView());
     }
 
     // Close button
@@ -865,15 +872,9 @@ export class EyeglassInspector extends HTMLElement {
       closeBtn.addEventListener("click", () => this.unfreeze());
     }
 
-    // Submit button
-    const submitBtn = this.lens.querySelector('[data-action="submit"]');
+    // Input field - Enter to submit
     const input = this.lens.querySelector('.lens-input') as HTMLInputElement;
-    if (submitBtn && input) {
-      submitBtn.addEventListener("click", () => {
-        if (input.value.trim()) {
-          this.submit(input.value);
-        }
-      });
+    if (input) {
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && input.value.trim()) {
           this.submit(input.value);
@@ -900,6 +901,12 @@ export class EyeglassInspector extends HTMLElement {
     const contextBtn = this.lens.querySelector('[data-action="toggle-context"]');
     if (contextBtn) {
       contextBtn.addEventListener("click", () => this.toggleContextOverlays());
+    }
+
+    // Peek raw schema
+    const peekSchemaBtn = this.lens.querySelector('[data-action="peek-schema"]');
+    if (peekSchemaBtn) {
+      peekSchemaBtn.addEventListener("click", () => this.toggleSchemaView());
     }
 
     // Exit multi-select
@@ -974,6 +981,38 @@ export class EyeglassInspector extends HTMLElement {
     clearContextOverlays(this.shadow);
     this.contextOverlays = [];
     this.contextOverlayElements = [];
+  }
+
+  private toggleSchemaView(): void {
+    if (!this.lens || !this.currentSnapshot) return;
+
+    const schema = this.lens.querySelector('.lens-schema') as HTMLElement;
+    const code = this.lens.querySelector('.lens-schema-code') as HTMLElement;
+    if (!schema || !code) return;
+
+    const isExpanded = schema.getAttribute('data-expanded') === 'true';
+
+    if (isExpanded) {
+      schema.setAttribute('data-expanded', 'false');
+    } else {
+      // Populate content with syntax highlighting and expand
+      const json = JSON.stringify(this.currentSnapshot, null, 2);
+      code.innerHTML = this.highlightJson(json);
+      schema.setAttribute('data-expanded', 'true');
+    }
+  }
+
+  private highlightJson(json: string): string {
+    return json
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/("(?:\\.|[^"\\])*")\s*:/g, '<span class="json-key">$1</span>:')
+      .replace(/:\s*("(?:\\.|[^"\\])*")/g, ': <span class="json-string">$1</span>')
+      .replace(/:\s*(\d+\.?\d*)/g, ': <span class="json-number">$1</span>')
+      .replace(/:\s*(true|false)/g, ': <span class="json-bool">$1</span>')
+      .replace(/:\s*(null)/g, ': <span class="json-null">$1</span>')
+      .replace(/([{}\[\]])/g, '<span class="json-bracket">$1</span>');
   }
 
   private startPhraseRotation(): void {

@@ -57,8 +57,11 @@ const COMPONENT_TAGS = new Set([
   SimpleMemoComponent,
 ]);
 
-// --- Render tracking (WeakMap to track renders without affecting GC) ---
-const renderCounts = new WeakMap<ReactFiber, number>();
+// --- Render tracking ---
+// We track renders by checking if the fiber has an alternate (previous render).
+// The "alternate" fiber represents the previous committed state.
+// A fiber without an alternate is on its initial render.
+// We use a WeakMap to store the last known updateQueue identity to detect new renders.
 
 // --- Hook type detection ---
 const HOOK_PATTERNS = {
@@ -372,30 +375,38 @@ function findChangedProps(oldProps: Record<string, unknown> | undefined, newProp
 }
 
 /**
- * Detect why a component re-rendered by comparing with alternate fiber
+ * Detect if a component has re-rendered and analyze why.
+ *
+ * NOTE: We can only detect if the component has been rendered MORE THAN ONCE
+ * by checking if an alternate fiber exists. We cannot reliably count the exact
+ * number of renders without instrumenting React itself (e.g., via DevTools hooks).
+ *
+ * The "alternate" fiber is the previous committed version. If it exists, the
+ * component has rendered at least twice.
  */
 export function detectRenderReason(fiber: ReactFiber): RenderAnalysis {
-  // Track render count
-  const prevCount = renderCounts.get(fiber) || 0;
-  const newCount = prevCount + 1;
-  renderCounts.set(fiber, newCount);
-
-  const result: RenderAnalysis = {
-    renderCount: newCount,
-  };
-
   const alternate = fiber.alternate;
+
+  // No alternate means this is the initial render (component rendered exactly once)
   if (!alternate) {
-    result.lastRenderReason = 'Initial render';
-    return result;
+    return {
+      renderCount: 1,
+      lastRenderReason: 'Initial render',
+    };
   }
 
-  // Check for prop changes
+  // Alternate exists - component has rendered at least twice.
+  // We can't know the exact count, but we can indicate it's been re-rendered.
+  const result: RenderAnalysis = {
+    renderCount: 2, // Indicates "has re-rendered" - not an exact count
+  };
+
+  // Analyze WHY it re-rendered by comparing props/state
   const changedProps = findChangedProps(alternate.memoizedProps, fiber.memoizedProps);
   if (changedProps.length > 0) {
     result.changedProps = changedProps;
 
-    // Check specifically for style object identity change
+    // Check specifically for style object identity change (common perf issue)
     if (changedProps.includes('style')) {
       const oldStyle = alternate.memoizedProps?.style;
       const newStyle = fiber.memoizedProps?.style;
@@ -415,7 +426,7 @@ export function detectRenderReason(fiber: ReactFiber): RenderAnalysis {
     return result;
   }
 
-  // Parent re-rendered
+  // Parent re-rendered (no props/state change detected)
   result.lastRenderReason = 'Parent re-rendered';
   return result;
 }

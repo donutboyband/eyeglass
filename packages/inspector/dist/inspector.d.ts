@@ -77,6 +77,8 @@ export declare class EyeglassInspector extends HTMLElement {
     private toggleContextOverlays;
     private showContextOverlays;
     private hideContextOverlays;
+    private toggleSchemaView;
+    private highlightJson;
     private startPhraseRotation;
     private stopPhraseRotation;
     private submit;

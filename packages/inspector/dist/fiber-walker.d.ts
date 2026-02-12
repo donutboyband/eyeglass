@@ -44,7 +44,14 @@ export interface RenderAnalysis {
     changedProps?: string[];
 }
 /**
- * Detect why a component re-rendered by comparing with alternate fiber
+ * Detect if a component has re-rendered and analyze why.
+ *
+ * NOTE: We can only detect if the component has been rendered MORE THAN ONCE
+ * by checking if an alternate fiber exists. We cannot reliably count the exact
+ * number of renders without instrumenting React itself (e.g., via DevTools hooks).
+ *
+ * The "alternate" fiber is the previous committed version. If it exists, the
+ * component has rendered at least twice.
  */
 export declare function detectRenderReason(fiber: ReactFiber): RenderAnalysis;
 /**

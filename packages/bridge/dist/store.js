@@ -347,25 +347,30 @@ export class ContextStore extends EventEmitter {
         const contextStr = framework.state?.context?.length
             ? framework.state.context.map(c => c.name).join(', ')
             : null;
-        // Analyze health issues
+        // Analyze health issues - only show actual anomalies per spec ("Don't Show, Don't Tell")
         const healthIssues = [];
         if (snapshot.perception?.legibility?.wcagStatus === 'fail') {
-            healthIssues.push(`🛑 Low contrast (${snapshot.perception.legibility.contrastRatio}:1)`);
+            healthIssues.push(`Low contrast (${snapshot.perception.legibility.contrastRatio}:1)`);
         }
         if (snapshot.perception?.affordance?.dissonanceScore && snapshot.perception.affordance.dissonanceScore > 0.5) {
-            healthIssues.push('⚠️ Affordance mismatch');
+            healthIssues.push('Affordance mismatch');
         }
         if (snapshot.causality?.events?.blockingHandlers?.length) {
-            healthIssues.push(`🛑 Events blocked (${snapshot.causality.events.blockingHandlers.length})`);
+            healthIssues.push(`Events blocked (${snapshot.causality.events.blockingHandlers.length})`);
         }
-        if (snapshot.metal?.performance?.renderCount && snapshot.metal.performance.renderCount > 10) {
-            healthIssues.push(`⚠️ High render count (${snapshot.metal.performance.renderCount})`);
+        // Flag inline style identity changes (common perf issue)
+        if (snapshot.metal?.performance?.lastRenderReason?.includes("'style' changed identity")) {
+            healthIssues.push('Inline style causing re-renders');
         }
         if (snapshot.perception?.visibility?.isOccluded) {
-            healthIssues.push('⚠️ Element occluded');
+            healthIssues.push('Element occluded');
+        }
+        // Only flag touch target for interactive elements
+        if (snapshot.perception?.affordance?.isInteractable && !snapshot.perception?.usability?.isTouchTargetValid) {
+            healthIssues.push('Touch target too small');
         }
         const healthSummary = healthIssues.length > 0
-            ? `\n**⚠️ Health Issues:** ${healthIssues.join(', ')}\n`
+            ? `\n**Health Issues:** ${healthIssues.join(', ')}\n`
             : '';
         return `## User Focus Request
 **Interaction ID:** ${interactionId}
@@ -419,15 +424,15 @@ ${snapshot.causality.stackingContext.parentContext ? `- Parent Context: ${snapsh
 ${snapshot.causality.layoutConstraints.length > 0 ? `- Layout Constraints: ${snapshot.causality.layoutConstraints.join('; ')}` : ''}` : ''}
 ${snapshot.perception ? `
 ### Perception (User Experience)
-- **Affordance:** ${snapshot.perception.affordance.looksInteractable ? 'Looks clickable' : 'Does not look clickable'} / ${snapshot.perception.affordance.isInteractable ? 'Is interactive' : 'Not interactive'}${snapshot.perception.affordance.dissonanceScore > 0 ? ` ⚠️ Dissonance: ${Math.round(snapshot.perception.affordance.dissonanceScore * 100)}%` : ''}
+- **Affordance:** ${snapshot.perception.affordance.looksInteractable ? 'Looks clickable' : 'Does not look clickable'} / ${snapshot.perception.affordance.isInteractable ? 'Is interactive' : 'Not interactive'}${snapshot.perception.affordance.dissonanceScore > 0 ? ` (Dissonance: ${Math.round(snapshot.perception.affordance.dissonanceScore * 100)}%)` : ''}
 - **Contrast:** ${snapshot.perception.legibility.contrastRatio}:1 (WCAG ${snapshot.perception.legibility.wcagStatus})
-- **Touch Target:** ${snapshot.perception.usability.touchTargetSize} ${snapshot.perception.usability.isTouchTargetValid ? '✓' : '⚠️ Too small'}
-${snapshot.perception.visibility.isOccluded ? `- **⚠️ Occluded by:** ${snapshot.perception.visibility.occludedBy}` : ''}` : ''}
+- **Touch Target:** ${snapshot.perception.usability.touchTargetSize}${snapshot.perception.affordance.isInteractable && !snapshot.perception.usability.isTouchTargetValid ? ' (too small)' : ''}
+${snapshot.perception.visibility.isOccluded ? `- **Occluded by:** ${snapshot.perception.visibility.occludedBy}` : ''}` : ''}
 ${snapshot.metal ? `
 ### Performance
 - Render Count: ${snapshot.metal.performance.renderCount}${snapshot.metal.performance.lastRenderReason ? ` (${snapshot.metal.performance.lastRenderReason})` : ''}
 - GPU Layer: ${snapshot.metal.pipeline.layerPromoted ? 'Yes' : 'No'}
-${snapshot.metal.pipeline.layoutThrashingRisk !== 'none' ? `- **⚠️ Layout Thrashing Risk:** ${snapshot.metal.pipeline.layoutThrashingRisk}` : ''}
+${snapshot.metal.pipeline.layoutThrashingRisk !== 'none' ? `- **Layout Thrashing Risk:** ${snapshot.metal.pipeline.layoutThrashingRisk}` : ''}
 - Event Listeners: ${snapshot.metal.memory.listenerCount}` : ''}
 ${snapshot.neighborhood ? `
 ### DOM Neighborhood

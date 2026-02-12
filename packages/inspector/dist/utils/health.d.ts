@@ -22,6 +22,6 @@ export declare function calculatePulseLevel(snapshot: SemanticSnapshot): PulseLe
  */
 export declare function getPulseColor(level: PulseLevel): string;
 /**
- * Get emoji for a pulse level
+ * Get indicator character for a pulse level (minimalist, no emoji)
  */
-export declare function getPulseEmoji(level: PulseLevel): string;
+export declare function getPulseIndicator(level: PulseLevel): string;
