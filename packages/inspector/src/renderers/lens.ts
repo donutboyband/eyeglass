@@ -35,6 +35,23 @@ function renderHealthIssues(issues: HealthIssue[]): string {
   `;
 }
 
+function renderSystemicImpact(snapshot: SemanticSnapshot): string {
+  const impact = snapshot.systemic?.impact;
+  if (!impact || impact.importCount === undefined) return '';
+
+  const countLabel = impact.importCount === 1 ? 'import' : 'imports';
+  const risk = impact.riskLevel || 'Local';
+  return `
+    <div class="lens-systemic">
+      <div class="lens-systemic-label">Impact</div>
+      <div class="lens-systemic-row">
+        <span class="lens-systemic-count">${impact.importCount} ${countLabel}</span>
+        <span class="lens-risk-badge ${risk.toLowerCase()}">${risk}</span>
+      </div>
+    </div>
+  `;
+}
+
 export function renderLensCard(
   state: InspectorState,
   callbacks: InspectorCallbacks
@@ -54,6 +71,7 @@ export function renderLensCard(
   const pulseLevel = calculatePulseLevel(currentSnapshot);
   const pulseColor = getPulseColor(pulseLevel);
   const issues = analyzeHealth(currentSnapshot);
+  const systemicImpact = renderSystemicImpact(currentSnapshot);
 
   if (mode === 'activity') {
     return renderActivityLens(state, displayName, filePath);
@@ -71,6 +89,7 @@ export function renderLensCard(
     </div>
     ${filePath ? `<div class="lens-path">${escapeHtml(filePath)}</div>` : ''}
     ${renderHealthIssues(issues)}
+    ${systemicImpact}
     <div class="lens-input-row">
       <textarea
         class="lens-input"
@@ -477,6 +496,54 @@ export const LENS_STYLES = `
 .issue-text {
   font-size: 10px;
   color: var(--text-secondary);
+}
+
+.lens-systemic {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--divider);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lens-systemic-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.lens-systemic-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lens-systemic-count {
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+.lens-risk-badge {
+  padding: 2px 6px;
+  font-size: 10px;
+  border: 1px solid var(--glass-border);
+  text-transform: uppercase;
+}
+
+.lens-risk-badge.local {
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.lens-risk-badge.moderate {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.lens-risk-badge.critical {
+  color: var(--error);
+  border-color: rgba(239, 68, 68, 0.4);
 }
 
 /* Input */

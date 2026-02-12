@@ -9,6 +9,7 @@ export declare class ContextStore extends EventEmitter {
     private commitMap;
     private pendingCommitMessage;
     setFocus(payload: FocusPayload): void;
+    private enrichSnapshot;
     /**
      * Wait for a new focus request from the browser.
      * If there's already an active pending request, resolves immediately.

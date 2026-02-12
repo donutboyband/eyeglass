@@ -92,8 +92,39 @@ export function analyzeHealth(snapshot: SemanticSnapshot): HealthIssue[] {
     });
   }
 
+  const blockers = snapshot.causality?.events?.blockingHandlers || [];
+  if (blockers.some(b => b.reason === 'inert')) {
+    issues.push({
+      level: 'critical',
+      category: 'events',
+      message: 'Container is inert',
+      details: 'Ancestor uses the inert attribute, blocking pointer/keyboard events',
+    });
+  }
+
+  const looksInteractive = snapshot.perception?.affordance?.looksInteractable;
+  const isInteractable = snapshot.perception?.affordance?.isInteractable;
+  const occludedBy = snapshot.perception?.visibility?.occludedBy;
+  if (looksInteractive && occludedBy) {
+    issues.push({
+      level: 'warning',
+      category: 'usability',
+      message: 'Looks clickable but covered',
+      details: occludedBy,
+    });
+  }
+
+  if (looksInteractive && !isInteractable && blockers.length > 0) {
+    issues.push({
+      level: 'warning',
+      category: 'events',
+      message: 'Appears interactive but events are blocked',
+      details: blockers.map(b => `${b.reason} @ ${b.element}`).join(', '),
+    });
+  }
+
   // Check event blocking issues
-  const blockingHandlers = snapshot.causality?.events?.blockingHandlers || [];
+  const blockingHandlers = blockers;
   if (blockingHandlers.length > 0) {
     const pointerBlocked = blockingHandlers.find(h => h.reason === 'pointer-events:none');
     const captureBlocked = blockingHandlers.filter(h => h.reason === 'captured');

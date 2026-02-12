@@ -11,7 +11,7 @@
   "scripts": {
     "build": "esbuild src/index.ts --bundle --minify --format=esm --outfile=dist/index.js --external:@eyeglass/types && tsc --emitDeclarationOnly",
     "dev": "tsc --watch",
-    "test": "vitest run --project browser",
+    "test": "vitest run --config ../../vitest.config.ts --project browser",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

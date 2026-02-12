@@ -4,6 +4,105 @@ import * as path from 'path';
 import { execFileSync } from 'child_process';
 const MAX_HISTORY = 5;
 const CONTEXT_FILE = '.eyeglass_context.md';
+const IMPORT_CACHE_TTL = 30000;
+const SOURCE_GLOBS = ['*.ts', '*.tsx', '*.js', '*.jsx', '*.mjs', '*.cjs'];
+const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage']);
+const importStatsCache = new Map();
+function escapeRegex(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+function normalizePath(filePath) {
+    return filePath.replace(/\\/g, '/');
+}
+function getRelativePath(filePath) {
+    if (!filePath)
+        return null;
+    const normalized = normalizePath(filePath);
+    const cwdNormalized = normalizePath(process.cwd());
+    if (normalized.startsWith(cwdNormalized)) {
+        return normalized.slice(cwdNormalized.length + 1);
+    }
+    return path.relative(process.cwd(), filePath);
+}
+function inferPathRisk(filePath) {
+    const lower = filePath.toLowerCase();
+    if (lower.includes('/shared/') ||
+        lower.includes('/common/') ||
+        lower.includes('/core/') ||
+        lower.includes('/ui/') ||
+        lower.includes('/components/ui/')) {
+        return 'Critical';
+    }
+    if (lower.includes('/lib/') ||
+        lower.includes('/primitives/') ||
+        lower.includes('/atoms/')) {
+        return 'Moderate';
+    }
+    return 'Local';
+}
+function maxRiskLevel(a, b) {
+    const order = { Local: 0, Moderate: 1, Critical: 2 };
+    return order[a] >= order[b] ? a : b;
+}
+function collectImportingFiles(componentName, excludePath) {
+    const cwd = process.cwd();
+    const args = ['--no-heading', '--color', 'never', '--line-number'];
+    for (const glob of SOURCE_GLOBS) {
+        args.push('--glob', glob);
+    }
+    for (const dir of EXCLUDED_DIRS) {
+        args.push('--glob', `!${dir}/**`);
+    }
+    const pattern = `^\\s*import[^\\n]*\\b${escapeRegex(componentName)}\\b`;
+    args.push(pattern, '.');
+    try {
+        const output = execFileSync('rg', args, { cwd, encoding: 'utf-8', maxBuffer: 4 * 1024 * 1024 });
+        const files = new Set();
+        output.split('\n').forEach((line) => {
+            if (!line)
+                return;
+            const idx = line.indexOf(':');
+            if (idx === -1)
+                return;
+            const file = line.slice(0, idx);
+            if (excludePath && normalizePath(file) === normalizePath(excludePath))
+                return;
+            files.add(file);
+        });
+        return Array.from(files);
+    }
+    catch (err) {
+        // ripgrep exits with code 1 when no matches are found; treat that as zero imports
+        if (err?.code === 1 || err?.status === 1) {
+            return [];
+        }
+        // If rg is missing, fall back silently
+        return [];
+    }
+}
+function computeImportStats(snapshot) {
+    const framework = snapshot.framework || {};
+    const name = framework.displayName || framework.componentName;
+    const filePath = framework.filePath;
+    const relativePath = getRelativePath(filePath) || undefined;
+    const inferredName = name || (relativePath ? path.basename(relativePath, path.extname(relativePath)) : null);
+    if (!inferredName) {
+        return null;
+    }
+    const cacheKey = `${inferredName}|${relativePath || ''}`;
+    const now = Date.now();
+    const cached = importStatsCache.get(cacheKey);
+    if (cached && now - cached.timestamp < IMPORT_CACHE_TTL) {
+        return { count: cached.count, riskLevel: cached.riskLevel };
+    }
+    const files = collectImportingFiles(inferredName, relativePath);
+    const count = files.length;
+    const countRisk = count >= 10 ? 'Critical' : count >= 3 ? 'Moderate' : 'Local';
+    const pathRisk = relativePath ? inferPathRisk(relativePath) : 'Local';
+    const riskLevel = maxRiskLevel(countRisk, pathRisk);
+    importStatsCache.set(cacheKey, { timestamp: now, count, riskLevel });
+    return { count, riskLevel };
+}
 export class ContextStore extends EventEmitter {
     constructor() {
         super(...arguments);
@@ -16,6 +115,12 @@ export class ContextStore extends EventEmitter {
         this.pendingCommitMessage = new Map(); // interactionId -> message (for manual commits)
     }
     setFocus(payload) {
+        if (payload.snapshot) {
+            payload.snapshot = this.enrichSnapshot(payload.snapshot);
+        }
+        if (payload.snapshots && payload.snapshots.length > 0) {
+            payload.snapshots = payload.snapshots.map((snap) => this.enrichSnapshot(snap));
+        }
         if (this.active) {
             this.history.unshift(this.active);
             if (this.history.length > MAX_HISTORY) {
@@ -51,6 +156,27 @@ export class ContextStore extends EventEmitter {
             timestamp: Date.now(),
         });
         this.writeContextFile();
+    }
+    enrichSnapshot(snapshot) {
+        const stats = computeImportStats(snapshot);
+        if (!stats)
+            return snapshot;
+        const systemic = snapshot.systemic ?? {
+            impact: { riskLevel: 'Local' },
+            designSystem: { tokenMatches: [], deviations: [] },
+        };
+        const newImpact = {
+            ...systemic.impact,
+            importCount: stats.count,
+            riskLevel: stats.riskLevel,
+        };
+        return {
+            ...snapshot,
+            systemic: {
+                ...systemic,
+                impact: newImpact,
+            },
+        };
     }
     /**
      * Wait for a new focus request from the browser.

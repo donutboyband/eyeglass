@@ -462,21 +462,27 @@ describe('getRenderAnalysis', () => {
     const div = document.createElement('div');
     document.body.appendChild(div);
 
+    const alternateFiber = {
+      tag: FunctionComponent,
+      type: createMockComponent('Counter'),
+      return: null,
+      memoizedProps: { value: 1 },
+      memoizedState: { baseState: 1, queue: {} },
+    };
+
     const mockFiber = {
       tag: FunctionComponent,
       type: createMockComponent('Counter'),
       return: null,
-      alternate: null,
+      alternate: alternateFiber,
+      memoizedProps: { value: 2 },
+      memoizedState: { baseState: 2, queue: {} },
     };
 
     (div as any)['__reactFiber$test'] = mockFiber;
 
-    const analysis1 = getRenderAnalysis(div);
-    const analysis2 = getRenderAnalysis(div);
-    const analysis3 = getRenderAnalysis(div);
-
-    expect(analysis1?.renderCount).toBe(1);
-    expect(analysis2?.renderCount).toBe(2);
-    expect(analysis3?.renderCount).toBe(3);
+    const analysis = getRenderAnalysis(div);
+    expect(analysis?.renderCount).toBe(2);
+    expect(analysis?.lastRenderReason).toContain('Props changed');
   });
 });

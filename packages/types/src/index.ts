@@ -31,7 +31,7 @@ export interface EventListener {
 export interface BlockingHandler {
   element: string;    // Selector of blocking ancestor
   event: string;
-  reason: 'stopPropagation' | 'pointer-events:none' | 'captured';
+  reason: 'stopPropagation' | 'pointer-events:none' | 'captured' | 'visibility:hidden' | 'opacity:0' | 'inert';
 }
 
 export interface StackingContext {

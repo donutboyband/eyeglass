@@ -22,7 +22,7 @@ export interface EventListener {
 export interface BlockingHandler {
     element: string;
     event: string;
-    reason: 'stopPropagation' | 'pointer-events:none' | 'captured';
+    reason: 'stopPropagation' | 'pointer-events:none' | 'captured' | 'visibility:hidden' | 'opacity:0' | 'inert';
 }
 export interface StackingContext {
     isStackingContext: boolean;

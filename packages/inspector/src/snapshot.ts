@@ -378,32 +378,41 @@ function getEventListeners(element: Element): EventListener[] {
 function getBlockingHandlers(element: Element): BlockingHandler[] {
   const blockers: BlockingHandler[] = [];
 
-  // Check for pointer-events: none on the element itself
-  const computed = getComputedStyle(element);
-  if (computed.pointerEvents === 'none') {
+  function pushStyleBlocker(target: Element, reason: BlockingHandler['reason']) {
     blockers.push({
-      element: buildSelector(element),
+      element: buildSelector(target),
       event: 'all',
-      reason: 'pointer-events:none',
+      reason,
     });
+  }
+
+  function inspectComputed(target: Element, computed: CSSStyleDeclaration): void {
+    if (computed.pointerEvents === 'none') {
+      pushStyleBlocker(target, 'pointer-events:none');
+    }
+    if (computed.visibility === 'hidden') {
+      pushStyleBlocker(target, 'visibility:hidden');
+    }
+    if (parseFloat(computed.opacity) === 0) {
+      pushStyleBlocker(target, 'opacity:0');
+    }
+  }
+
+  const elementComputed = getComputedStyle(element);
+  inspectComputed(element, elementComputed);
+  if ((element as HTMLElement).inert) {
+    pushStyleBlocker(element, 'inert');
   }
 
   // Walk up ancestors to find potential blockers
   let current = element.parentElement;
   while (current && current !== document.body) {
     const parentComputed = getComputedStyle(current);
-
-    // Check for pointer-events: none on ancestors
-    if (parentComputed.pointerEvents === 'none') {
-      blockers.push({
-        element: buildSelector(current),
-        event: 'all',
-        reason: 'pointer-events:none',
-      });
+    inspectComputed(current, parentComputed);
+    if ((current as HTMLElement).inert) {
+      pushStyleBlocker(current, 'inert');
     }
 
-    // Check for capture phase listeners (simplified detection)
-    // In practice, detecting stopPropagation would require runtime monitoring
     const listeners = getEventListeners(current);
     for (const listener of listeners) {
       if (listener.capture) {
@@ -629,7 +638,6 @@ function getLegibility(element: Element): PerceptionInfo['legibility'] {
 function getVisibility(element: Element): PerceptionInfo['visibility'] {
   const rect = element.getBoundingClientRect();
 
-  // Check if element has any size
   if (rect.width === 0 || rect.height === 0) {
     return {
       isOccluded: false,
@@ -637,7 +645,6 @@ function getVisibility(element: Element): PerceptionInfo['visibility'] {
     };
   }
 
-  // Calculate effective opacity by walking up the tree
   let effectiveOpacity = 1;
   let current: Element | null = element;
   while (current && current !== document.documentElement) {
@@ -646,23 +653,43 @@ function getVisibility(element: Element): PerceptionInfo['visibility'] {
     current = current.parentElement;
   }
 
-  // Check occlusion at center point
-  const centerX = rect.left + rect.width / 2;
-  const centerY = rect.top + rect.height / 2;
+  const samplePoints: Array<{ x: number; y: number }> = [];
+  const midX = rect.left + rect.width / 2;
+  const midY = rect.top + rect.height / 2;
+  samplePoints.push({ x: midX, y: midY });
 
-  // Temporarily hide the inspector overlay for accurate detection
-  const topElement = document.elementFromPoint(centerX, centerY);
-
-  let isOccluded = false;
-  let occludedBy: string | undefined;
-
-  if (topElement && topElement !== element && !element.contains(topElement)) {
-    // Check if the occluding element is a meaningful overlap
-    // (not just a parent or child)
-    if (!topElement.contains(element)) {
-      isOccluded = true;
-      occludedBy = buildSelector(topElement);
+  // Additional points (quarters and corners) to better detect partial occlusion
+  const offsets = [0.25, 0.75];
+  for (const ox of offsets) {
+    for (const oy of offsets) {
+      samplePoints.push({ x: rect.left + rect.width * ox, y: rect.top + rect.height * oy });
     }
+  }
+
+  let occludedBy: string | undefined;
+  let isOccluded = false;
+
+  const htmlElement = element instanceof HTMLElement ? element : null;
+  const previousPointerEvents = htmlElement ? htmlElement.style.pointerEvents : '';
+  if (htmlElement) {
+    htmlElement.style.pointerEvents = 'auto';
+  }
+
+  for (const point of samplePoints) {
+    const target = document.elementFromPoint(point.x, point.y);
+    if (!target || target === element || element.contains(target)) {
+      continue;
+    }
+    if (target.contains(element)) {
+      continue;
+    }
+    isOccluded = true;
+    occludedBy = buildSelector(target);
+    break;
+  }
+
+  if (htmlElement) {
+    htmlElement.style.pointerEvents = previousPointerEvents;
   }
 
   return {
@@ -695,7 +722,12 @@ function getAffordance(element: Element): PerceptionInfo['affordance'] {
   const hasListeners = listeners.length > 0;
   const isInteractiveTag = ['a', 'button', 'input', 'select', 'textarea', 'label'].includes(tag);
   const hasTabIndex = element.hasAttribute('tabindex') && element.getAttribute('tabindex') !== '-1';
-  const isInteractable = hasListeners || isInteractiveTag || hasTabIndex;
+  const hasInertAncestor = Boolean((element as HTMLElement).closest('[inert]'));
+  const isDisabled =
+    (element as HTMLButtonElement).disabled ||
+    element.getAttribute('aria-disabled') === 'true' ||
+    computed.pointerEvents === 'none';
+  const isInteractable = !hasInertAncestor && !isDisabled && (hasListeners || isInteractiveTag || hasTabIndex);
 
   // Calculate dissonance (mismatch between appearance and reality)
   let dissonanceScore = 0;
