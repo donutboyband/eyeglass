@@ -3,7 +3,7 @@
  * Sharp, minimal, editorial design - no rounded corners, clean lines
  */
 
-import type { SemanticSnapshot } from '@eyeglass/types';
+import type { ActivityEvent, InteractionStatus, SemanticSnapshot } from '@eyeglass/types';
 import { analyzeHealth, calculatePulseLevel, getPulseColor, HealthIssue } from '../utils/health.js';
 import type { InspectorState, InspectorCallbacks } from '../types.js';
 
@@ -28,6 +28,7 @@ function renderHealthIssues(issues: HealthIssue[]): string {
         <div class="lens-issue ${issue.level}">
           <span class="issue-dot"></span>
           <span class="issue-text">${escapeHtml(issue.message)}</span>
+          <button class="issue-add-btn" data-action="issue-insert" data-issue="${escapeHtml(issue.message)}" title="Add to prompt">↵</button>
         </div>
       `).join('')}
     </div>
@@ -93,8 +94,7 @@ function renderActivityLens(state: InspectorState, displayName: string, filePath
   const { currentStatus, currentStatusMessage, activityEvents, _userNote } = state;
   const lastThought = [...activityEvents].reverse().find(e => e.type === 'thought');
   const lastAction = [...activityEvents].reverse().find(e => e.type === 'action');
-  // Only show unanswered questions
-  const lastQuestion = [...activityEvents].reverse().find(e => e.type === 'question' && (e as any).questionId && !(e as any).answered);
+  const activityFeed = renderLensActivityFeed(activityEvents, currentStatus);
 
   let message = 'Working...';
   if (lastThought) {
@@ -125,8 +125,14 @@ function renderActivityLens(state: InspectorState, displayName: string, filePath
       ${currentStatus === 'fixing' ? '<div class="lens-progress"><div class="lens-progress-bar"></div></div>' : ''}
       <div class="lens-message">${escapeHtml(message)}</div>
       ${_userNote ? `<div class="lens-user-note" title="Original request">${escapeHtml(_userNote)}</div>` : ''}
+      ${activityFeed}
+      ${currentStatus === 'success' || currentStatus === 'failed' ? `
+        <div class="lens-followup">
+          <textarea class="lens-followup-input" rows="2" placeholder="Send a follow-up..."></textarea>
+          <button class="lens-followup-send" data-action="send-followup" aria-label="Send follow-up" title="Send follow-up">\u21B5</button>
+        </div>
+      ` : ''}
     </div>
-    ${lastQuestion ? renderQuestion(lastQuestion as any) : ''}
     ${currentStatus === 'success' || currentStatus === 'failed' ? `
       <div class="lens-footer">
         <button class="lens-btn" data-action="new-request">New Request</button>
@@ -165,16 +171,111 @@ function renderMultiSelectLens(state: InspectorState): string {
   `;
 }
 
-function renderQuestion(q: { questionId: string; question: string; options: Array<{ id: string; label: string }> }): string {
+function renderLensActivityFeed(events: ActivityEvent[], status: InteractionStatus): string {
+  if (events.length === 0) return '';
+  const items = events
+    .map((event) => renderLensActivityItem(event))
+    .filter((html): html is string => Boolean(html))
+    .join('');
+
+  if (!items) {
+    if (status === 'pending' || status === 'fixing') {
+      return `
+        <div class="lens-feed">
+          <div class="lens-feed-skeleton">
+            <div class="lens-feed-dot skeleton"></div>
+            <div class="lens-feed-skeleton-line"></div>
+          </div>
+        </div>
+      `;
+    }
+    return '';
+  }
+
+  return `<div class="lens-feed">${items}</div>`;
+}
+
+function renderLensActivityItem(event: ActivityEvent): string | null {
+  switch (event.type) {
+    case 'status':
+      return renderLensStatusItem(event);
+    case 'thought':
+      return `
+        <div class="lens-feed-item">
+          <div class="lens-feed-dot thought"></div>
+          <div class="lens-feed-body lens-feed-subtle">${escapeHtml(event.content)}</div>
+        </div>
+      `;
+    case 'action':
+      return `
+        <div class="lens-feed-item">
+          <div class="lens-feed-dot action"></div>
+          <div class="lens-feed-body">
+            <div class="lens-feed-title">${escapeHtml(event.action)}${event.complete ? ' ✓' : ' ...'}</div>
+            <div class="lens-feed-subtle">${escapeHtml(event.target)}</div>
+          </div>
+        </div>
+      `;
+    case 'question':
+      return renderLensQuestionItem(event);
+    default:
+      return null;
+  }
+}
+
+function renderLensStatusItem(event: Extract<ActivityEvent, { type: 'status' }>): string | null {
+  if (event.status === 'pending') return null;
+  if (event.status === 'fixing' && (!event.message || event.message === 'Agent is working...')) {
+    return null;
+  }
+
   return `
-    <div class="lens-question">
-      <div class="lens-q-text">${escapeHtml(q.question)}</div>
-      <div class="lens-q-options">
-        ${q.options.map(opt => `
-          <button class="lens-q-btn" data-action="answer" data-question-id="${q.questionId}" data-answer-id="${opt.id}" data-answer-label="${escapeHtml(opt.label)}">
-            ${escapeHtml(opt.label)}
-          </button>
-        `).join('')}
+    <div class="lens-feed-item">
+      <div class="lens-feed-dot status ${event.status}" title="${event.status}"></div>
+      <div class="lens-feed-body">${escapeHtml(event.message || event.status)}</div>
+    </div>
+  `;
+}
+
+function renderLensQuestionItem(event: Extract<ActivityEvent, { type: 'question' }>): string {
+  const answered = Boolean((event as any).selectedAnswerId);
+  const answerLabel =
+    (event as any).selectedAnswerLabel ||
+    event.options.find((opt) => opt.id === (event as any).selectedAnswerId)?.label ||
+    '';
+
+  if (answered) {
+    return `
+      <div class="lens-feed-item question answered">
+        <div class="lens-feed-dot question"></div>
+        <div class="lens-feed-body">
+          <div class="lens-feed-question">${escapeHtml(event.question)}</div>
+          <div class="lens-feed-answer">${escapeHtml(answerLabel)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="lens-feed-item question">
+      <div class="lens-feed-dot question"></div>
+      <div class="lens-feed-body">
+        <div class="lens-feed-question">${escapeHtml(event.question)}</div>
+        <div class="lens-feed-options">
+          ${event.options
+            .map(
+              (opt) => `
+            <button
+              class="lens-feed-option"
+              data-action="answer"
+              data-question-id="${event.questionId}"
+              data-answer-id="${opt.id}"
+              data-answer-label="${escapeHtml(opt.label)}"
+            >${escapeHtml(opt.label)}</button>
+          `
+            )
+            .join('')}
+        </div>
       </div>
     </div>
   `;
@@ -345,6 +446,26 @@ export const LENS_STYLES = `
   flex-shrink: 0;
 }
 
+.issue-add-btn {
+  margin-left: auto;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 9px;
+  padding: 2px 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border-radius: 2px;
+}
+
+.issue-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .lens-issue.warning .issue-dot {
   background: #f59e0b;
 }
@@ -455,6 +576,44 @@ export const LENS_STYLES = `
   word-break: break-word;
 }
 
+.lens-followup {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.lens-followup-input {
+  flex: 1;
+  min-height: 48px;
+  resize: vertical;
+  padding: 6px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: rgba(0,0,0,0.06);
+}
+
+.lens-followup-send {
+  border: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.06);
+  color: var(--text-muted);
+  padding: 5px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 2px;
+  cursor: pointer;
+  height: 100%;
+  align-self: flex-start;
+  transition: border-color 0.1s, color 0.1s, background 0.1s;
+}
+
+.lens-followup-send:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
 /* Footer */
 .lens-footer {
   padding: 8px 10px;
@@ -478,27 +637,121 @@ export const LENS_STYLES = `
   filter: brightness(1.1);
 }
 
-/* Question */
-.lens-question {
-  padding: 10px;
+/* Activity Feed */
+.lens-feed {
+  margin-top: 10px;
+  padding-top: 8px;
   border-top: 1px solid var(--divider);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.lens-q-text {
+.lens-feed-empty {
   font-size: 10px;
-  color: var(--text-primary);
-  margin-bottom: 8px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.lens-feed-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 10px;
   line-height: 1.4;
 }
 
-.lens-q-options {
+.lens-feed-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.lens-feed-dot.skeleton {
+  animation: lensPulse 1.2s ease-in-out infinite;
+}
+
+.lens-feed-dot.status.pending,
+.lens-feed-dot.status.fixing {
+  background: #3b82f6;
+}
+
+.lens-feed-dot.status.success {
+  background: var(--success);
+}
+
+.lens-feed-dot.status.failed {
+  background: var(--error);
+}
+
+.lens-feed-dot.thought {
+  background: #60a5fa;
+}
+
+.lens-feed-dot.action {
+  background: #f97316;
+}
+
+.lens-feed-dot.question {
+  background: var(--accent);
+}
+
+.lens-feed-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lens-feed-skeleton-line {
+  flex: 1;
+  height: 8px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.08);
+  animation: lensPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes lensPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.lens-feed-body {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.lens-feed-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.lens-feed-subtle {
+  font-size: 9px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.lens-feed-question {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.lens-feed-answer {
+  margin-top: 4px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.lens-feed-options {
+  margin-top: 6px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.lens-q-btn {
-  padding: 6px 10px;
+.lens-feed-option {
+  padding: 5px 8px;
   background: transparent;
   border: 1px solid var(--glass-border);
   font-size: 10px;
@@ -509,7 +762,7 @@ export const LENS_STYLES = `
   transition: all 0.1s;
 }
 
-.lens-q-btn:hover {
+.lens-feed-option:hover {
   background: var(--accent);
   border-color: var(--accent);
   color: white;

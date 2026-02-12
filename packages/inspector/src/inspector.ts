@@ -1017,6 +1017,22 @@ export class EyeglassInspector extends HTMLElement {
       });
     });
 
+    // Append health issue to prompt
+    this.lens.querySelectorAll('[data-action="issue-insert"]').forEach(btn => {
+      btn.addEventListener("click", () => {
+        const issueText = btn.getAttribute("data-issue") || "";
+        if (!issueText) return;
+        const inputField = this.lens?.querySelector('.lens-input') as HTMLTextAreaElement | null;
+        if (!inputField) return;
+        const needsNewline = inputField.value.length > 0 && !inputField.value.endsWith('\n');
+        inputField.value = `${inputField.value}${needsNewline ? '\n' : ''}${issueText}`;
+        this._userNote = inputField.value;
+        inputField.dispatchEvent(new Event("input", { bubbles: true }));
+        inputField.focus();
+        inputField.setSelectionRange(inputField.value.length, inputField.value.length);
+      });
+    });
+
     // New request button
     const newRequestBtn = this.lens.querySelector('[data-action="new-request"]');
     if (newRequestBtn) {
@@ -1026,6 +1042,23 @@ export class EyeglassInspector extends HTMLElement {
         this.activityEvents = [];
         this.currentStatus = "idle";
         this.renderLens();
+      });
+    }
+
+    // Follow-up send from lens activity view
+    const followupBtn = this.lens.querySelector('.lens-followup-send') as HTMLButtonElement | null;
+    const followupInput = this.lens.querySelector('.lens-followup-input') as HTMLTextAreaElement | null;
+    if (followupBtn && followupInput) {
+      followupBtn.addEventListener("click", () => {
+        const val = followupInput.value.trim();
+        if (val) this.submitFollowUp(val);
+      });
+      followupInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          const val = followupInput.value.trim();
+          if (val) this.submitFollowUp(val);
+        }
       });
     }
   }
