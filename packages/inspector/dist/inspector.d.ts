@@ -57,6 +57,13 @@ export declare class EyeglassInspector extends HTMLElement {
     private domPaused;
     private pauseStyleElement;
     private pausedAnimations;
+    private nativeRAF;
+    private nativeCAF;
+    private queuedRAFCallbacks;
+    private rafIdCounter;
+    private pauseStartTime;
+    private totalPausedTime;
+    private rafInstalled;
     private pseudoMirrorReady;
     private pseudoMirrorStyle;
     private forcedStateElements;
@@ -117,6 +124,11 @@ export declare class EyeglassInspector extends HTMLElement {
     private ensurePseudoMirrorStyles;
     private collectPseudoMirrorRules;
     private toggleDomPause;
+    /**
+     * Install a permanent RAF wrapper that adjusts timestamps to account for paused time.
+     * This wrapper stays installed and ensures all RAF callbacks get adjusted timestamps.
+     */
+    private installRAFWrapper;
     private pauseDom;
     private resumeDom;
     private renderHub;

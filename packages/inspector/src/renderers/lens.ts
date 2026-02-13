@@ -199,8 +199,25 @@ function renderStateControls(state: InspectorState): string {
     <div class="lens-state-toolbar">
       <div class="lens-state-label">State <span>${stateLabel}</span>${state.domPaused ? ' · DOM paused' : ''}</div>
       <div class="lens-state-actions">
-        <button class="state-btn icon-btn" data-action="rotate-state" title="Cycle state (⌘/Ctrl + Shift + K)">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 12 3 4 11 4"/><path d="M21 12a9 9 0 0 0-9-9H3"/><polyline points="21 12 21 20 13 20"/><path d="M3 12a9 9 0 0 0 9 9h9"/></svg>
+        <button class="state-btn icon-btn cycle-btn" data-action="rotate-state" title="Cycle state (⌘/Ctrl + Shift + K)">
+          <svg class="cycle-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <defs>
+              <filter id="cycleMorph" x="-50%" y="-50%" width="200%" height="200%">
+                <feTurbulence type="fractalNoise" baseFrequency="0" numOctaves="2" result="turb">
+                  <animate attributeName="baseFrequency" values="0;0.4;0" dur="0.5s" begin="indefinite" />
+                </feTurbulence>
+                <feDisplacementMap in="SourceGraphic" in2="turb" scale="0" xChannelSelector="R" yChannelSelector="G">
+                  <animate attributeName="scale" values="0;18;0" dur="0.5s" begin="indefinite" />
+                </feDisplacementMap>
+              </filter>
+            </defs>
+            <g class="cycle-paths">
+              <polyline points="3 12 3 4 11 4"/>
+              <path d="M21 12a9 9 0 0 0-9-9H3"/>
+              <polyline points="21 12 21 20 13 20"/>
+              <path d="M3 12a9 9 0 0 0 9 9h9"/>
+            </g>
+          </svg>
         </button>
         <button class="state-btn icon-btn" data-action="capture-capsule" title="Save state capsule (⌘/Ctrl + Shift + L)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M3 7l5-5h8l5 5"/></svg>
@@ -754,6 +771,36 @@ export const LENS_STYLES = `
 .state-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* Cycle button animation - organic morph like a black hole */
+.cycle-btn .cycle-icon {
+  transition: transform 0.15s ease;
+  overflow: visible;
+}
+
+.cycle-btn:hover .cycle-icon {
+  transform: scale(1.1);
+}
+
+.cycle-btn.cycling .cycle-icon .cycle-paths {
+  filter: url(#cycleMorph);
+  animation: cycleRotate 0.5s ease-in-out;
+}
+
+@keyframes cycleRotate {
+  0% {
+    transform: rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: rotate(180deg);
+    opacity: 0.6;
+  }
+  100% {
+    transform: rotate(360deg);
+    opacity: 1;
+  }
 }
 
 .lens-capsules {

@@ -174,6 +174,14 @@ export class EyeglassInspector extends HTMLElement {
   private domPaused = false;
   private pauseStyleElement: HTMLStyleElement | null = null;
   private pausedAnimations: Animation[] = [];
+  // For pausing JS animations (RAF-based)
+  private nativeRAF: typeof requestAnimationFrame | null = null;
+  private nativeCAF: typeof cancelAnimationFrame | null = null;
+  private queuedRAFCallbacks: Map<number, FrameRequestCallback> = new Map();
+  private rafIdCounter = 0;
+  private pauseStartTime = 0;
+  private totalPausedTime = 0;
+  private rafInstalled = false;
   private pseudoMirrorReady = false;
   private pseudoMirrorStyle: HTMLStyleElement | null = null;
   private forcedStateElements = new Set<Element>();
@@ -495,8 +503,10 @@ export class EyeglassInspector extends HTMLElement {
       updateLoupe(this.loupe, snapshot, rect);
       showLoupe(this.loupe);
     }
-    // Keep crosshair visible while hovering
-    this.toggleCrosshair(true);
+    // Keep crosshair visible while hovering (but not when frozen)
+    if (!this.frozen) {
+      this.toggleCrosshair(true);
+    }
   }
 
   private updateCrosshair(x: number, y: number): void {
@@ -600,7 +610,6 @@ export class EyeglassInspector extends HTMLElement {
     this.interactionStateLabel = "default";
     this.frozenHealthIssues = [];
     this.clearSimulatedState();
-    this.resumeDom();
 
     // Stop phrase rotation
     this.stopPhraseRotation();
@@ -1128,9 +1137,66 @@ export class EyeglassInspector extends HTMLElement {
     }
   }
 
+  /**
+   * Install a permanent RAF wrapper that adjusts timestamps to account for paused time.
+   * This wrapper stays installed and ensures all RAF callbacks get adjusted timestamps.
+   */
+  private installRAFWrapper(): void {
+    if (this.rafInstalled) return;
+
+    // Store native functions
+    this.nativeRAF = window.requestAnimationFrame.bind(window);
+    this.nativeCAF = window.cancelAnimationFrame.bind(window);
+
+    const self = this;
+
+    // Map our IDs to native IDs for cancellation support
+    const idMap = new Map<number, number>();
+
+    window.requestAnimationFrame = function(callback: FrameRequestCallback): number {
+      const ourId = ++self.rafIdCounter;
+
+      if (self.domPaused) {
+        // When paused, queue the callback instead of executing
+        self.queuedRAFCallbacks.set(ourId, callback);
+        return ourId;
+      } else {
+        // When not paused, call native RAF but adjust the timestamp
+        const nativeId = self.nativeRAF!((timestamp: number) => {
+          idMap.delete(ourId);
+          // Always adjust timestamp by total paused time
+          callback(timestamp - self.totalPausedTime);
+        });
+        idMap.set(ourId, nativeId);
+        return ourId;
+      }
+    };
+
+    window.cancelAnimationFrame = function(id: number): void {
+      if (self.queuedRAFCallbacks.has(id)) {
+        // Cancel queued callback
+        self.queuedRAFCallbacks.delete(id);
+      } else if (idMap.has(id)) {
+        // Cancel native RAF callback
+        self.nativeCAF!(idMap.get(id)!);
+        idMap.delete(id);
+      }
+    };
+
+    this.rafInstalled = true;
+  }
+
   private pauseDom(): void {
     if (this.domPaused) return;
     this.domPaused = true;
+
+    // Install RAF wrapper if not already installed
+    this.installRAFWrapper();
+
+    // Record when we started pausing
+    this.pauseStartTime = performance.now();
+
+    // 1. Pause Web Animations API animations
     if (typeof document.getAnimations === 'function') {
       this.pausedAnimations = document.getAnimations();
       this.pausedAnimations.forEach((anim) => {
@@ -1141,6 +1207,8 @@ export class EyeglassInspector extends HTMLElement {
         }
       });
     }
+
+    // 2. Pause CSS animations/transitions via stylesheet
     this.pauseStyleElement = document.createElement("style");
     this.pauseStyleElement.dataset.source = "eyeglass-pause";
     this.pauseStyleElement.textContent = `
@@ -1150,12 +1218,32 @@ export class EyeglassInspector extends HTMLElement {
       }
     `;
     document.head.appendChild(this.pauseStyleElement);
+
+    // 3. Try to pause GSAP if present
+    const gsap = (window as any).gsap;
+    if (gsap?.globalTimeline?.pause) {
+      try {
+        gsap.globalTimeline.pause();
+      } catch {
+        // ignore
+      }
+    }
+
     document.documentElement.classList.add("eyeglass-dom-paused");
   }
 
   private resumeDom(): void {
     if (!this.domPaused) return;
     this.domPaused = false;
+
+    // Calculate how long we were paused and add to total
+    if (this.pauseStartTime > 0) {
+      const pauseDuration = performance.now() - this.pauseStartTime;
+      this.totalPausedTime += pauseDuration;
+      this.pauseStartTime = 0;
+    }
+
+    // 1. Resume Web Animations API
     this.pausedAnimations.forEach((anim) => {
       try {
         anim.play();
@@ -1164,10 +1252,36 @@ export class EyeglassInspector extends HTMLElement {
       }
     });
     this.pausedAnimations = [];
+
+    // 2. Remove pause stylesheet
     if (this.pauseStyleElement) {
       this.pauseStyleElement.remove();
       this.pauseStyleElement = null;
     }
+
+    // 3. Flush queued RAF callbacks - they'll get adjusted timestamps through our wrapper
+    const callbacks = Array.from(this.queuedRAFCallbacks.values());
+    this.queuedRAFCallbacks.clear();
+
+    callbacks.forEach((callback) => {
+      try {
+        // The wrapper will adjust the timestamp automatically
+        window.requestAnimationFrame(callback);
+      } catch {
+        // ignore
+      }
+    });
+
+    // 4. Resume GSAP if present
+    const gsap = (window as any).gsap;
+    if (gsap?.globalTimeline?.resume) {
+      try {
+        gsap.globalTimeline.resume();
+      } catch {
+        // ignore
+      }
+    }
+
     document.documentElement.classList.remove("eyeglass-dom-paused");
   }
 
@@ -1483,7 +1597,19 @@ export class EyeglassInspector extends HTMLElement {
     }
 
     const rotateStateBtn = this.lens.querySelector('[data-action="rotate-state"]');
-    rotateStateBtn?.addEventListener("click", () => this.rotateInteractionState());
+    rotateStateBtn?.addEventListener("click", () => {
+      // Trigger cycling animation - organic morph effect
+      rotateStateBtn.classList.add('cycling');
+
+      // Trigger SVG filter animations
+      const animates = rotateStateBtn.querySelectorAll('animate');
+      animates.forEach((anim: SVGAnimateElement) => {
+        anim.beginElement();
+      });
+
+      setTimeout(() => rotateStateBtn.classList.remove('cycling'), 500);
+      this.rotateInteractionState();
+    });
 
     const captureCapsuleBtn = this.lens.querySelector('[data-action="capture-capsule"]');
     captureCapsuleBtn?.addEventListener("click", () => this.captureStateCapsule());
