@@ -8,6 +8,7 @@ export declare class EyeglassInspector extends HTMLElement {
     private panel;
     private toast;
     private hub;
+    private domPauseBtn;
     private currentElement;
     private currentSnapshot;
     private interactionId;
@@ -36,6 +37,7 @@ export declare class EyeglassInspector extends HTMLElement {
     private stateCapsules;
     private activeCapsuleId;
     private interactionStateLabel;
+    private frozenHealthIssues;
     private cursorStyleElement;
     private scrollTimeout;
     private phraseIndex;
@@ -89,6 +91,12 @@ export declare class EyeglassInspector extends HTMLElement {
     private toggleInSelection;
     private removeFromSelection;
     private buildInteractionStateInfo;
+    /**
+     * Capture health issues from all interaction states (default, hover, focus, pressed)
+     * and return a deduplicated combined list. This ensures element-level issues are caught
+     * even if they only manifest on certain states (e.g., affordance mismatch on hover).
+     */
+    private captureAllStateHealthIssues;
     private applySnapshotSelection;
     private capturePreviewSnapshot;
     private toCapsule;
@@ -121,6 +129,8 @@ export declare class EyeglassInspector extends HTMLElement {
     private showContextOverlays;
     private hideContextOverlays;
     private toggleSchemaView;
+    private toggleJsonView;
+    private wireSchemaSection;
     private highlightJson;
     private startPhraseRotation;
     private stopPhraseRotation;

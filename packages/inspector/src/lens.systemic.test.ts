@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderLensCard } from './renderers/lens.js';
 import type { SemanticSnapshot } from '@eyeglass/types';
 import type { InspectorState, InspectorCallbacks } from './types.js';
+import { analyzeHealth } from './utils/health.js';
 
 function buildState(snapshot: Partial<SemanticSnapshot>): InspectorState {
   const baseSnapshot: SemanticSnapshot = {
@@ -130,6 +131,7 @@ function buildState(snapshot: Partial<SemanticSnapshot>): InspectorState {
     phraseInterval: null,
     _userNote: '',
     eventSource: null,
+    frozenHealthIssues: analyzeHealth(merged),
   };
 
   return state;

@@ -23,6 +23,7 @@ import { STYLES } from "./styles.js";
 
 // Import utilities
 import { escapeHtml, updateCursor, generateInteractionId } from "./utils/helpers.js";
+import { analyzeHealth, HealthIssue } from "./utils/health.js";
 import {
   connectSSE,
   submitFocus,
@@ -36,6 +37,7 @@ import {
 import {
   renderHubMainPage,
   renderHubSettingsPage,
+  renderDomPauseButton,
 } from "./renderers/hub.js";
 import {
   renderInputMode,
@@ -55,6 +57,7 @@ import {
   renderLensCard,
   calculateLensPosition,
   LENS_STYLES,
+  renderOrganizedSchema,
 } from "./renderers/lens.js";
 import {
   findRelatedElements,
@@ -110,6 +113,7 @@ export class EyeglassInspector extends HTMLElement {
   private panel: HTMLDivElement | null = null;
   private toast: HTMLDivElement | null = null;
   private hub: HTMLDivElement | null = null;
+  private domPauseBtn: HTMLButtonElement | null = null;
   private currentElement: Element | null = null;
   private currentSnapshot: SemanticSnapshot | null = null;
   private interactionId: string | null = null;
@@ -140,6 +144,7 @@ export class EyeglassInspector extends HTMLElement {
   private stateCapsules: StateCapsule[] = [];
   private activeCapsuleId: string | null = null;
   private interactionStateLabel = "default";
+  private frozenHealthIssues: HealthIssue[] = [];
 
   // Cursor style element (injected into document head)
   private cursorStyleElement: HTMLStyleElement | null = null;
@@ -539,16 +544,24 @@ export class EyeglassInspector extends HTMLElement {
 
     this.frozen = true;
     this._userNote = "";
+    // Turn off crosshair BEFORE capturing so we get accurate cursor values
+    this.toggleCrosshair(false);
+    this.updateCursor();
+    // Ensure pseudo-mirror styles are ready BEFORE capturing snapshot
+    // so all snapshots are captured under the same conditions
+    this.ensurePseudoMirrorStyles();
+    this.applyInteractionVariant(this.interactionStateLabel);
+    // Now capture snapshot after styles are set up
     const snapshot = captureSnapshot(this.currentElement, this.buildInteractionStateInfo());
     this.applySnapshotSelection(snapshot);
+    // Capture health issues from ALL states to get element-level issues
+    // (some issues like affordance mismatch only appear on hover)
+    this.frozenHealthIssues = this.captureAllStateHealthIssues();
     // Initialize selectedElements with the first element
     this.selectedElements = [this.currentElement];
     this.mode = "input";
     this.activityEvents = [];
     this.currentStatus = "idle";
-    this.updateCursor();
-    this.toggleCrosshair(false);
-    this.applyInteractionVariant(this.interactionStateLabel);
     this.stateCapsules = [];
     const initialCapsule = this.pushCapsule(snapshot);
     this.activeCapsuleId = initialCapsule.id;
@@ -585,6 +598,7 @@ export class EyeglassInspector extends HTMLElement {
     this.stateCapsules = [];
     this.activeCapsuleId = null;
     this.interactionStateLabel = "default";
+    this.frozenHealthIssues = [];
     this.clearSimulatedState();
     this.resumeDom();
 
@@ -752,6 +766,44 @@ export class EyeglassInspector extends HTMLElement {
     };
   }
 
+  /**
+   * Capture health issues from all interaction states (default, hover, focus, pressed)
+   * and return a deduplicated combined list. This ensures element-level issues are caught
+   * even if they only manifest on certain states (e.g., affordance mismatch on hover).
+   */
+  private captureAllStateHealthIssues(): HealthIssue[] {
+    if (!this.currentElement) return [];
+
+    const allIssues: HealthIssue[] = [];
+    const seenMessages = new Set<string>();
+    const states = ['default', 'hover', 'focus', 'pressed'];
+
+    for (const state of states) {
+      // Apply the state
+      this.applyInteractionVariant(state);
+
+      // Force style recalculation
+      void (this.currentElement as HTMLElement).offsetHeight;
+
+      // Capture snapshot for this state
+      const snapshot = captureSnapshot(this.currentElement, this.buildInteractionStateInfo({ variant: state }));
+
+      // Analyze health and add unique issues
+      const issues = analyzeHealth(snapshot);
+      for (const issue of issues) {
+        if (!seenMessages.has(issue.message)) {
+          seenMessages.add(issue.message);
+          allIssues.push(issue);
+        }
+      }
+    }
+
+    // Reset to default state
+    this.applyInteractionVariant('default');
+
+    return allIssues;
+  }
+
   private applySnapshotSelection(snapshot: SemanticSnapshot): void {
     this.currentSnapshot = snapshot;
     if (!this.multiSelectMode) {
@@ -761,10 +813,16 @@ export class EyeglassInspector extends HTMLElement {
 
   private capturePreviewSnapshot(): void {
     if (!this.currentElement) return;
+    // Clear active capsule first
+    this.activeCapsuleId = null;
+    // Capture fresh snapshot
     const info = this.buildInteractionStateInfo();
     const snapshot = captureSnapshot(this.currentElement, info);
-    this.activeCapsuleId = null;
-    this.applySnapshotSelection(snapshot);
+    // Update current snapshot
+    this.currentSnapshot = snapshot;
+    if (!this.multiSelectMode) {
+      this.selectedSnapshots = [snapshot];
+    }
   }
 
   private toCapsule(snapshot: SemanticSnapshot): StateCapsule {
@@ -788,12 +846,16 @@ export class EyeglassInspector extends HTMLElement {
   private captureStateCapsule(): void {
     if (!this.currentElement) return;
     this.applyInteractionVariant(this.interactionStateLabel);
-    const info = this.buildInteractionStateInfo();
-    const snapshot = captureSnapshot(this.currentElement, info);
-    this.applySnapshotSelection(snapshot);
-    const capsule = this.pushCapsule(snapshot);
-    this.activeCapsuleId = capsule.id;
-    this.renderLens();
+    // Use rAF to ensure styles have been recalculated before capturing snapshot
+    requestAnimationFrame(() => {
+      if (!this.currentElement) return;
+      const info = this.buildInteractionStateInfo();
+      const snapshot = captureSnapshot(this.currentElement, info);
+      this.applySnapshotSelection(snapshot);
+      const capsule = this.pushCapsule(snapshot);
+      this.activeCapsuleId = capsule.id;
+      this.renderLens();
+    });
   }
 
   private selectStateCapsule(id: string): void {
@@ -827,7 +889,24 @@ export class EyeglassInspector extends HTMLElement {
     const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % STATE_VARIANTS.length;
     this.interactionStateLabel = STATE_VARIANTS[nextIndex];
     this.applyInteractionVariant(this.interactionStateLabel);
-    this.capturePreviewSnapshot();
+
+    // For "default" state, use the initial capsule's snapshot if available
+    // This avoids issues with browser's real :hover affecting the capture
+    if (this.interactionStateLabel === "default") {
+      const defaultCapsule = this.stateCapsules.find(c => c.variant === "default");
+      if (defaultCapsule) {
+        this.activeCapsuleId = null;
+        this.currentSnapshot = defaultCapsule.snapshot;
+        if (!this.multiSelectMode) {
+          this.selectedSnapshots = [defaultCapsule.snapshot];
+        }
+      } else {
+        this.capturePreviewSnapshot();
+      }
+    } else {
+      this.capturePreviewSnapshot();
+    }
+
     if (this.uiMode === 'lens') {
       this.renderLens();
     }
@@ -859,18 +938,10 @@ export class EyeglassInspector extends HTMLElement {
   }
 
   private clearSimulatedState(): void {
-    if (this.simulatedHoverElement) {
-      this.dispatchSyntheticEvent(this.simulatedHoverElement, "pointerleave", { bubbles: false });
-      this.dispatchSyntheticEvent(this.simulatedHoverElement, "mouseleave", { bubbles: false });
-      this.dispatchSyntheticEvent(this.simulatedHoverElement, "pointerout");
-      this.dispatchSyntheticEvent(this.simulatedHoverElement, "mouseout");
-      this.simulatedHoverElement = null;
-    }
-    if (this.simulatedPressedElement) {
-      this.dispatchSyntheticEvent(this.simulatedPressedElement, "pointerup");
-      this.dispatchSyntheticEvent(this.simulatedPressedElement, "mouseup");
-      this.simulatedPressedElement = null;
-    }
+    // Clear tracked elements without dispatching events
+    // (dispatching events can trigger React state changes that persist)
+    this.simulatedHoverElement = null;
+    this.simulatedPressedElement = null;
     if (this.simulatedFocusedElement && this.simulatedFocusedElement instanceof HTMLElement) {
       this.simulatedFocusedElement.blur();
       this.simulatedFocusedElement = null;
@@ -882,11 +953,8 @@ export class EyeglassInspector extends HTMLElement {
   }
 
   private simulateHover(element: Element): void {
-    const coords = this.getElementCenter(element);
-    this.dispatchSyntheticEvent(element, "pointerenter", { bubbles: false, clientX: coords.x, clientY: coords.y });
-    this.dispatchSyntheticEvent(element, "mouseenter", { bubbles: false, clientX: coords.x, clientY: coords.y });
-    this.dispatchSyntheticEvent(element, "pointerover", { clientX: coords.x, clientY: coords.y });
-    this.dispatchSyntheticEvent(element, "mouseover", { clientX: coords.x, clientY: coords.y });
+    // Only track the element - don't dispatch events as they can trigger
+    // React state changes that persist and interfere with snapshot capture
     this.simulatedHoverElement = element;
   }
 
@@ -902,9 +970,8 @@ export class EyeglassInspector extends HTMLElement {
   }
 
   private simulatePressed(element: Element): void {
-    const coords = this.getElementCenter(element);
-    this.dispatchSyntheticEvent(element, "pointerdown", { clientX: coords.x, clientY: coords.y });
-    this.dispatchSyntheticEvent(element, "mousedown", { clientX: coords.x, clientY: coords.y });
+    // Only track the element - don't dispatch events as they can trigger
+    // React state changes that persist and interfere with snapshot capture
     this.simulatedPressedElement = element;
   }
 
@@ -952,8 +1019,9 @@ export class EyeglassInspector extends HTMLElement {
   private updateForcedStates(element: Element, states: string[]): void {
     if (!element) return;
     if (states.length === 0) {
-      element.removeAttribute("data-eyeglass-force-state");
-      this.forcedStateElements.delete(element);
+      // Use "default" instead of removing - this lets us override real :hover
+      element.setAttribute("data-eyeglass-force-state", "default");
+      this.forcedStateElements.add(element);
       return;
     }
     element.setAttribute("data-eyeglass-force-state", states.join(" "));
@@ -963,6 +1031,7 @@ export class EyeglassInspector extends HTMLElement {
   private ensurePseudoMirrorStyles(): void {
     if (this.pseudoMirrorReady) return;
     const rules: string[] = [];
+    const defaultBlockers: string[] = [];
     for (const sheet of Array.from(document.styleSheets)) {
       try {
         if (!sheet.cssRules) continue;
@@ -970,21 +1039,22 @@ export class EyeglassInspector extends HTMLElement {
         continue;
       }
       try {
-        this.collectPseudoMirrorRules(sheet.cssRules, rules);
+        this.collectPseudoMirrorRules(sheet.cssRules, rules, defaultBlockers);
       } catch {
         // Ignore sheets we can't read
       }
     }
-    if (rules.length > 0) {
+    const allRules = [...rules, ...defaultBlockers];
+    if (allRules.length > 0) {
       this.pseudoMirrorStyle = document.createElement("style");
       this.pseudoMirrorStyle.dataset.source = "eyeglass-pseudo-mirror";
-      this.pseudoMirrorStyle.textContent = rules.join("\n");
+      this.pseudoMirrorStyle.textContent = allRules.join("\n");
       document.head.appendChild(this.pseudoMirrorStyle);
     }
     this.pseudoMirrorReady = true;
   }
 
-  private collectPseudoMirrorRules(ruleList: CSSRuleList, fragments: string[]): void {
+  private collectPseudoMirrorRules(ruleList: CSSRuleList, fragments: string[], defaultBlockers: string[]): void {
     const pseudos: Array<{ pseudo: string; attr: string }> = [
       { pseudo: ":hover", attr: '[data-eyeglass-force-state~="hover"]' },
       { pseudo: ":focus-visible", attr: '[data-eyeglass-force-state~="focus-visible"]' },
@@ -1001,6 +1071,8 @@ export class EyeglassInspector extends HTMLElement {
         const styleRule = rule as CSSStyleRule;
         let selector = styleRule.selectorText;
         let replaced = false;
+        let hasHover = selector.includes(":hover");
+
         for (const { pseudo, attr } of pseudos) {
           if (selector.includes(pseudo)) {
             selector = selector.split(pseudo).join(attr);
@@ -1009,18 +1081,35 @@ export class EyeglassInspector extends HTMLElement {
         }
         if (replaced) {
           fragments.push(`${selector} { ${styleRule.style.cssText} }`);
+
+          // For :hover rules, also create a blocker for "default" state
+          // This prevents real CSS :hover from applying when we want default state
+          if (hasHover) {
+            const defaultSelector = styleRule.selectorText.replace(/:hover/g, '[data-eyeglass-force-state="default"]:hover');
+            // Reset each property to 'unset' to undo hover styles
+            const props = Array.from(styleRule.style).map(p => `${p}: unset !important`).join("; ");
+            defaultBlockers.push(`${defaultSelector} { ${props}; }`);
+          }
         }
       } else if (MediaRule && rule instanceof MediaRule) {
         const nested: string[] = [];
-        this.collectPseudoMirrorRules(rule.cssRules, nested);
+        const nestedBlockers: string[] = [];
+        this.collectPseudoMirrorRules(rule.cssRules, nested, nestedBlockers);
         if (nested.length > 0) {
           fragments.push(`@media ${rule.conditionText} {\n${nested.join("\n")}\n}`);
         }
+        if (nestedBlockers.length > 0) {
+          defaultBlockers.push(`@media ${rule.conditionText} {\n${nestedBlockers.join("\n")}\n}`);
+        }
       } else if (SupportsRule && rule instanceof SupportsRule) {
         const nested: string[] = [];
-        this.collectPseudoMirrorRules(rule.cssRules, nested);
+        const nestedBlockers: string[] = [];
+        this.collectPseudoMirrorRules(rule.cssRules, nested, nestedBlockers);
         if (nested.length > 0) {
           fragments.push(`@supports ${rule.conditionText} {\n${nested.join("\n")}\n}`);
+        }
+        if (nestedBlockers.length > 0) {
+          defaultBlockers.push(`@supports ${rule.conditionText} {\n${nestedBlockers.join("\n")}\n}`);
         }
       }
     }
@@ -1032,6 +1121,8 @@ export class EyeglassInspector extends HTMLElement {
     } else {
       this.pauseDom();
     }
+    // Update the DOM pause button state
+    this.renderHub();
     if (this.uiMode === 'lens') {
       this.renderLens();
     }
@@ -1086,6 +1177,21 @@ export class EyeglassInspector extends HTMLElement {
       this.hub.className = "hub";
       this.shadow.appendChild(this.hub);
     }
+
+    // Create DOM pause button if it doesn't exist
+    if (!this.domPauseBtn) {
+      this.domPauseBtn = document.createElement("button");
+      this.shadow.appendChild(this.domPauseBtn);
+    }
+
+    // Render the DOM pause button
+    renderDomPauseButton(this.domPauseBtn, {
+      domPaused: this.domPaused,
+    }, {
+      onToggleDomPause: () => this.toggleDomPause(),
+    });
+    // Update reference after possible clone replacement
+    this.domPauseBtn = this.shadow.querySelector(".dom-pause-btn") as HTMLButtonElement;
 
     if (this.hubPage === "settings") {
       renderHubSettingsPage(this.hub, {
@@ -1253,6 +1359,7 @@ export class EyeglassInspector extends HTMLElement {
       phraseInterval: this.phraseInterval,
       _userNote: this._userNote,
       eventSource: this.eventSource,
+      frozenHealthIssues: this.frozenHealthIssues,
     };
 
     const callbacks = {
@@ -1307,6 +1414,12 @@ export class EyeglassInspector extends HTMLElement {
     const schemaToggle = this.lens.querySelector('[data-action="toggle-schema"]');
     if (schemaToggle) {
       schemaToggle.addEventListener("click", () => this.toggleSchemaView());
+    }
+
+    // JSON view toggle
+    const jsonToggle = this.lens.querySelector('[data-action="toggle-json-view"]');
+    if (jsonToggle) {
+      jsonToggle.addEventListener("click", () => this.toggleJsonView());
     }
 
     // Close button
@@ -1374,9 +1487,6 @@ export class EyeglassInspector extends HTMLElement {
 
     const captureCapsuleBtn = this.lens.querySelector('[data-action="capture-capsule"]');
     captureCapsuleBtn?.addEventListener("click", () => this.captureStateCapsule());
-
-    const pauseBtn = this.lens.querySelector('[data-action="toggle-pause"]');
-    pauseBtn?.addEventListener("click", () => this.toggleDomPause());
 
     this.lens.querySelectorAll('[data-action="select-capsule"]').forEach((el) => {
       el.addEventListener("click", (event) => {
@@ -1511,19 +1621,49 @@ export class EyeglassInspector extends HTMLElement {
     if (!this.lens || !this.currentSnapshot) return;
 
     const schema = this.lens.querySelector('.lens-schema') as HTMLElement;
+    const organized = this.lens.querySelector('.lens-schema-organized') as HTMLElement;
     const code = this.lens.querySelector('.lens-schema-code') as HTMLElement;
-    if (!schema || !code) return;
+    if (!schema || !organized || !code) return;
 
     const isExpanded = schema.getAttribute('data-expanded') === 'true';
 
     if (isExpanded) {
       schema.setAttribute('data-expanded', 'false');
     } else {
-      // Populate content with syntax highlighting and expand
+      // Populate organized view
+      organized.innerHTML = renderOrganizedSchema(this.currentSnapshot);
+      // Wire up section toggle handlers
+      this.wireSchemaSection();
+      // Populate JSON view (for when user switches)
       const json = JSON.stringify(this.currentSnapshot, null, 2);
       code.innerHTML = this.highlightJson(json);
       schema.setAttribute('data-expanded', 'true');
     }
+  }
+
+  private toggleJsonView(): void {
+    if (!this.lens) return;
+
+    const schema = this.lens.querySelector('.lens-schema') as HTMLElement;
+    if (!schema) return;
+
+    const currentView = schema.getAttribute('data-view') || 'organized';
+    schema.setAttribute('data-view', currentView === 'json' ? 'organized' : 'json');
+  }
+
+  private wireSchemaSection(): void {
+    if (!this.lens) return;
+
+    this.lens.querySelectorAll('[data-action="toggle-section"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const sectionId = (e.currentTarget as HTMLElement).getAttribute('data-section');
+        const section = this.lens?.querySelector(`.schema-section[data-section="${sectionId}"]`) as HTMLElement;
+        if (section) {
+          const isCollapsed = section.getAttribute('data-collapsed') === 'true';
+          section.setAttribute('data-collapsed', isCollapsed ? 'false' : 'true');
+        }
+      });
+    });
   }
 
   private highlightJson(json: string): string {

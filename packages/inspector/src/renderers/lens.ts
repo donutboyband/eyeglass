@@ -4,7 +4,7 @@
  */
 
 import type { ActivityEvent, InteractionStatus, SemanticSnapshot } from '@eyeglass/types';
-import { analyzeHealth, calculatePulseLevel, getPulseColor, HealthIssue } from '../utils/health.js';
+import { getPulseColor, HealthIssue } from '../utils/health.js';
 import type { InspectorState, InspectorCallbacks } from '../types.js';
 
 function getDisplayName(snapshot: SemanticSnapshot): string {
@@ -28,6 +28,16 @@ function renderHealthIssues(issues: HealthIssue[]): string {
         <div class="lens-issue ${issue.level}">
           <span class="issue-dot"></span>
           <span class="issue-text">${escapeHtml(issue.message)}</span>
+          ${issue.details ? `
+            <span class="issue-info">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="16" x2="12" y2="12"/>
+                <line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+              <span class="issue-tooltip">${escapeHtml(issue.details)}</span>
+            </span>
+          ` : ''}
           <button class="issue-add-btn" data-action="issue-insert" data-issue="${escapeHtml(issue.message)}" title="Add to prompt">↵</button>
         </div>
       `).join('')}
@@ -52,9 +62,138 @@ function renderSystemicImpact(snapshot: SemanticSnapshot): string {
   `;
 }
 
+/**
+ * Render a Figma-style organized schema view with collapsible sections
+ */
+export function renderOrganizedSchema(snapshot: SemanticSnapshot): string {
+  const sections: { title: string; id: string; rows: { label: string; value: string }[] }[] = [];
+
+  // Identity section
+  const identityRows: { label: string; value: string }[] = [];
+  if (snapshot.role) identityRows.push({ label: 'Role', value: snapshot.role });
+  if (snapshot.name) identityRows.push({ label: 'Name', value: snapshot.name });
+  if (snapshot.tagName) identityRows.push({ label: 'Tag', value: `<${snapshot.tagName}>` });
+  if (identityRows.length) sections.push({ title: 'Identity', id: 'identity', rows: identityRows });
+
+  // Framework section
+  const fw = snapshot.framework;
+  if (fw) {
+    const fwRows: { label: string; value: string }[] = [];
+    if (fw.type) fwRows.push({ label: 'Framework', value: fw.type });
+    if (fw.displayName || fw.componentName) fwRows.push({ label: 'Component', value: fw.displayName || fw.componentName || '' });
+    if (fw.filePath) fwRows.push({ label: 'File', value: fw.filePath + (fw.lineNumber ? `:${fw.lineNumber}` : '') });
+    if (fwRows.length) sections.push({ title: 'Framework', id: 'framework', rows: fwRows });
+  }
+
+  // Geometry section
+  const geo = snapshot.geometry;
+  if (geo) {
+    const geoRows: { label: string; value: string }[] = [];
+    geoRows.push({ label: 'Position', value: `${Math.round(geo.x)}, ${Math.round(geo.y)}` });
+    geoRows.push({ label: 'Size', value: `${Math.round(geo.width)} × ${Math.round(geo.height)}` });
+    if (geo.visible !== undefined) geoRows.push({ label: 'Visible', value: geo.visible ? 'Yes' : 'No' });
+    sections.push({ title: 'Geometry', id: 'geometry', rows: geoRows });
+  }
+
+  // Styles section
+  const styles = snapshot.styles;
+  if (styles) {
+    const styleRows: { label: string; value: string }[] = [];
+    if (styles.display) styleRows.push({ label: 'Display', value: styles.display });
+    if (styles.position) styleRows.push({ label: 'Position', value: styles.position });
+    if (styles.flexDirection) styleRows.push({ label: 'Flex Dir', value: styles.flexDirection });
+    if (styles.color) styleRows.push({ label: 'Color', value: styles.color });
+    if (styles.backgroundColor) styleRows.push({ label: 'Background', value: styles.backgroundColor });
+    if (styles.padding && styles.padding !== '0px') styleRows.push({ label: 'Padding', value: styles.padding });
+    if (styles.margin && styles.margin !== '0px') styleRows.push({ label: 'Margin', value: styles.margin });
+    if (styleRows.length) sections.push({ title: 'Styles', id: 'styles', rows: styleRows });
+  }
+
+  // Accessibility section
+  const a11y = snapshot.a11y;
+  if (a11y) {
+    const a11yRows: { label: string; value: string }[] = [];
+    if (a11y.label) a11yRows.push({ label: 'Label', value: a11y.label });
+    if (a11y.description) a11yRows.push({ label: 'Description', value: a11y.description });
+    if (a11y.disabled) a11yRows.push({ label: 'Disabled', value: 'Yes' });
+    if (a11y.expanded !== undefined) a11yRows.push({ label: 'Expanded', value: a11y.expanded ? 'Yes' : 'No' });
+    if (a11y.checked !== undefined) a11yRows.push({ label: 'Checked', value: String(a11y.checked) });
+    if (a11y.hidden) a11yRows.push({ label: 'Hidden', value: 'Yes' });
+    if (a11yRows.length) sections.push({ title: 'Accessibility', id: 'a11y', rows: a11yRows });
+  }
+
+  // Perception section
+  const perc = snapshot.perception;
+  if (perc) {
+    const percRows: { label: string; value: string }[] = [];
+    if (perc.affordance) {
+      percRows.push({ label: 'Looks Interactive', value: perc.affordance.looksInteractable ? 'Yes' : 'No' });
+      percRows.push({ label: 'Is Interactive', value: perc.affordance.isInteractable ? 'Yes' : 'No' });
+      if (perc.affordance.dissonanceScore > 0) {
+        percRows.push({ label: 'Dissonance', value: perc.affordance.dissonanceScore.toFixed(1) });
+      }
+    }
+    if (perc.legibility?.contrastRatio) {
+      percRows.push({ label: 'Contrast', value: `${perc.legibility.contrastRatio.toFixed(1)}:1` });
+    }
+    if (perc.visibility?.isOccluded) {
+      percRows.push({ label: 'Occluded', value: perc.visibility.occludedBy || 'Yes' });
+    }
+    if (percRows.length) sections.push({ title: 'Perception', id: 'perception', rows: percRows });
+  }
+
+  // Causality (Events) section
+  const causality = snapshot.causality;
+  if (causality?.events) {
+    const eventRows: { label: string; value: string }[] = [];
+    const listeners = causality.events.listeners || [];
+    if (listeners.length) {
+      eventRows.push({ label: 'Listeners', value: listeners.map(l => l.type).join(', ') });
+    }
+    const blockers = causality.events.blockingHandlers || [];
+    if (blockers.length) {
+      eventRows.push({ label: 'Blocked By', value: blockers.map(b => b.reason).join(', ') });
+    }
+    if (eventRows.length) sections.push({ title: 'Events', id: 'events', rows: eventRows });
+  }
+
+  // Metal (Performance) section
+  const metal = snapshot.metal;
+  if (metal) {
+    const metalRows: { label: string; value: string }[] = [];
+    if (metal.performance?.renderCount !== undefined) {
+      metalRows.push({ label: 'Render Count', value: String(metal.performance.renderCount) });
+    }
+    if (metal.performance?.lastRenderReason) {
+      metalRows.push({ label: 'Last Render', value: metal.performance.lastRenderReason });
+    }
+    if (metal.pipeline?.layerPromoted) {
+      metalRows.push({ label: 'GPU Layer', value: 'Yes' });
+    }
+    if (metalRows.length) sections.push({ title: 'Performance', id: 'metal', rows: metalRows });
+  }
+
+  // Render sections
+  return sections.map(section => `
+    <div class="schema-section" data-section="${section.id}" data-collapsed="false">
+      <button class="schema-section-header" data-action="toggle-section" data-section="${section.id}">
+        <svg class="schema-section-chevron" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        <span>${section.title}</span>
+      </button>
+      <div class="schema-section-content">
+        ${section.rows.map(row => `
+          <div class="schema-row">
+            <span class="schema-label">${escapeHtml(row.label)}</span>
+            <span class="schema-value">${escapeHtml(row.value)}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
 function renderStateControls(state: InspectorState): string {
   if (state.multiSelectMode) return '';
-  const pausedClass = state.domPaused ? 'active' : '';
   const stateLabel = escapeHtml(state.interactionStateLabel);
   return `
     <div class="lens-state-toolbar">
@@ -65,11 +204,6 @@ function renderStateControls(state: InspectorState): string {
         </button>
         <button class="state-btn icon-btn" data-action="capture-capsule" title="Save state capsule (⌘/Ctrl + Shift + L)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M3 7l5-5h8l5 5"/></svg>
-        </button>
-        <button class="state-btn icon-btn ${pausedClass}" data-action="toggle-pause" title="Pause DOM (⌘/Ctrl + Shift + U)">
-          ${state.domPaused
-            ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="8 5 18 12 8 19 8 5"/></svg>'
-            : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>'}
         </button>
       </div>
     </div>
@@ -118,9 +252,12 @@ export function renderLensCard(
 
   const displayName = getDisplayName(currentSnapshot);
   const filePath = getFilePath(currentSnapshot);
-  const pulseLevel = calculatePulseLevel(currentSnapshot);
+  // Use frozen health issues (element-level, not state-based)
+  const issues = state.frozenHealthIssues;
+  // Derive pulse level from frozen issues
+  const pulseLevel = issues.some(i => i.level === 'critical') ? 'critical'
+    : issues.some(i => i.level === 'warning') ? 'warning' : 'healthy';
   const pulseColor = getPulseColor(pulseLevel);
-  const issues = analyzeHealth(currentSnapshot);
   const systemicImpact = renderSystemicImpact(currentSnapshot);
   const stateControls = renderStateControls(state);
 
@@ -133,9 +270,9 @@ export function renderLensCard(
       <span class="lens-tag">&lt;${escapeHtml(displayName)} /&gt;</span>
       ${pulseLevel !== 'healthy' ? `<span class="lens-dot" style="background:${pulseColor}"></span>` : ''}
       <div class="lens-tools">
-        <button class="lens-tool" data-action="toggle-context" title="Context"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></button>
-        <button class="lens-tool" data-action="multi-select" title="Multi-select"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
-        <button class="lens-tool lens-close" data-action="close" title="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <button class="lens-tool" data-action="toggle-context" title="Context (⌘/Ctrl + Shift + C)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button class="lens-tool" data-action="multi-select" title="Multi-select (⌘/Ctrl + Shift + M)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
+        <button class="lens-tool lens-close" data-action="close" title="Close (Esc)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
     </div>
     ${filePath ? `<div class="lens-path">${escapeHtml(filePath)}</div>` : ''}
@@ -149,14 +286,25 @@ export function renderLensCard(
         data-action="input"
         rows="2"
       >${escapeHtml(state._userNote || '')}</textarea>
-      <button class="lens-enter-btn" data-action="submit-note" aria-label="Send request" title="Send">↵</button>
+      <button class="lens-enter-btn" data-action="submit-note" aria-label="Send request" title="Send (⌘/Ctrl + Enter)">↵</button>
     </div>
-    <div class="lens-schema" data-expanded="false">
-      <button class="lens-schema-toggle" data-action="toggle-schema">
-        <span>Schema</span>
-        <svg class="lens-schema-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      <pre class="lens-schema-code"></pre>
+    <div class="lens-schema" data-expanded="false" data-view="organized">
+      <div class="lens-schema-header">
+        <button class="lens-schema-toggle" data-action="toggle-schema">
+          <span>Schema</span>
+          <svg class="lens-schema-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <button class="lens-schema-json-toggle" data-action="toggle-json-view" title="View raw JSON">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/>
+            <path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/>
+          </svg>
+        </button>
+      </div>
+      <div class="lens-schema-content">
+        <div class="lens-schema-organized"></div>
+        <pre class="lens-schema-code"></pre>
+      </div>
     </div>
   `;
 }
@@ -190,7 +338,7 @@ function renderActivityLens(state: InspectorState, displayName: string, filePath
       <span class="lens-tag">&lt;${escapeHtml(displayName)} /&gt;</span>
       <span class="lens-status-badge ${currentStatus}">${currentStatus}</span>
       <div class="lens-tools">
-        <button class="lens-tool lens-close" data-action="close" title="Close"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <button class="lens-tool lens-close" data-action="close" title="Close (Esc)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
     </div>
     ${filePath ? `<div class="lens-path">${escapeHtml(filePath)}</div>` : ''}
@@ -231,7 +379,7 @@ function renderMultiSelectLens(state: InspectorState): string {
     <div class="lens-bar">
       <span class="lens-tag">${selectedSnapshots.length} selected</span>
       <div class="lens-tools">
-        <button class="lens-tool lens-close" data-action="exit-multi" title="Exit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <button class="lens-tool lens-close" data-action="exit-multi" title="Exit (Esc)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
     </div>
     ${pauseBanner}
@@ -251,7 +399,7 @@ function renderMultiSelectLens(state: InspectorState): string {
         data-action="input"
         rows="2"
       >${escapeHtml(_userNote || '')}</textarea>
-      <button class="lens-enter-btn" data-action="submit-note" aria-label="Send request" title="Send">↵</button>
+      <button class="lens-enter-btn" data-action="submit-note" aria-label="Send request" title="Send (⌘/Ctrl + Enter)">↵</button>
     </div>
   `;
 }
@@ -581,6 +729,22 @@ export const LENS_STYLES = `
   letter-spacing: 0.05em;
 }
 
+.state-btn.icon-btn {
+  flex: 0;
+  min-width: 56px;
+  width: 56px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.state-btn.icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 .state-btn.active {
   background: var(--accent-soft);
   color: var(--accent);
@@ -596,7 +760,7 @@ export const LENS_STYLES = `
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  padding: 0 10px 6px;
+  padding: 8px 10px;
 }
 
 .lens-capsule {
@@ -632,12 +796,12 @@ export const LENS_STYLES = `
 
 .capsule-remove {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 4px;
+  right: 4px;
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
   padding: 0;
 }
@@ -710,6 +874,64 @@ export const LENS_STYLES = `
 .issue-text {
   font-size: 10px;
   color: var(--text-secondary);
+}
+
+.issue-info {
+  position: relative;
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.issue-info svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0.6;
+  transition: opacity 0.1s;
+}
+
+.issue-info:hover svg {
+  opacity: 1;
+}
+
+.issue-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  padding: 6px 8px;
+  font-size: 10px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  max-width: 200px;
+  white-space: normal;
+  line-height: 1.3;
+  z-index: 2147483646;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s, visibility 0.15s;
+}
+
+.issue-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--glass-border);
+}
+
+.issue-info:hover .issue-tooltip {
+  opacity: 1;
+  visibility: visible;
 }
 
 .lens-systemic {
@@ -1107,11 +1329,17 @@ export const LENS_STYLES = `
   border-top: 1px solid var(--divider);
 }
 
-.lens-schema-toggle {
-  width: 100%;
+.lens-schema-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.lens-schema-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 10px;
   background: transparent;
   border: none;
@@ -1128,6 +1356,28 @@ export const LENS_STYLES = `
   color: var(--text-secondary);
 }
 
+.lens-schema-json-toggle {
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+}
+
+.lens-schema[data-expanded="true"] .lens-schema-json-toggle {
+  opacity: 1;
+}
+
+.lens-schema-json-toggle:hover {
+  color: var(--accent);
+}
+
+.lens-schema[data-view="json"] .lens-schema-json-toggle {
+  color: var(--accent);
+}
+
 .lens-schema-chevron {
   transition: transform 0.15s;
 }
@@ -1136,7 +1386,98 @@ export const LENS_STYLES = `
   transform: rotate(180deg);
 }
 
+.lens-schema-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.15s ease-out;
+}
+
+.lens-schema[data-expanded="true"] .lens-schema-content {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+/* Organized view (Figma-style) */
+.lens-schema-organized {
+  display: block;
+}
+
+.lens-schema[data-view="json"] .lens-schema-organized {
+  display: none;
+}
+
+.schema-section {
+  border-bottom: 1px solid var(--divider);
+}
+
+.schema-section:last-child {
+  border-bottom: none;
+}
+
+.schema-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.1s;
+}
+
+.schema-section-header:hover {
+  color: var(--text-primary);
+}
+
+.schema-section-chevron {
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+
+.schema-section[data-collapsed="true"] .schema-section-chevron {
+  transform: rotate(-90deg);
+}
+
+.schema-section-content {
+  padding: 0 10px 6px 22px;
+}
+
+.schema-section[data-collapsed="true"] .schema-section-content {
+  display: none;
+}
+
+.schema-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 2px 0;
+  gap: 8px;
+}
+
+.schema-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.schema-value {
+  font-size: 9px;
+  font-family: 'SF Mono', monospace;
+  color: var(--text-primary);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+/* JSON view */
 .lens-schema-code {
+  display: none;
   margin: 0;
   padding: 0;
   font-family: 'SF Mono', monospace;
@@ -1144,17 +1485,13 @@ export const LENS_STYLES = `
   line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.15s ease-out, padding 0.15s ease-out;
   color: var(--text-primary);
   background: rgba(0,0,0,0.04);
 }
 
-.lens-schema[data-expanded="true"] .lens-schema-code {
-  max-height: 160px;
+.lens-schema[data-view="json"] .lens-schema-code {
+  display: block;
   padding: 8px 10px;
-  overflow-y: auto;
 }
 
 /* JSON syntax highlighting */

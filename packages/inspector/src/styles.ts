@@ -884,6 +884,33 @@ export const STYLES = `
   height: 14px;
 }
 
+.hub-pause {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.1s;
+  flex-shrink: 0;
+}
+
+.hub-pause:hover {
+  color: var(--text-secondary);
+}
+
+.hub-pause.active {
+  color: var(--accent);
+}
+
+.hub-pause svg {
+  width: 14px;
+  height: 14px;
+}
+
 .hub-content {
   border-top: 1px solid var(--divider);
   max-height: 0;
@@ -1196,6 +1223,42 @@ export const STYLES = `
 
 .hub-button-group {
   display: flex;
+}
+
+/* Independent DOM Pause Button */
+.dom-pause-btn {
+  position: fixed;
+  bottom: 16px;
+  left: 204px;
+  width: 32px;
+  height: 32px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  pointer-events: auto;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: color 0.1s, background 0.1s;
+  animation: hubIn 0.15s ease-out;
+}
+
+.dom-pause-btn:hover {
+  color: var(--text-secondary);
+}
+
+.dom-pause-btn.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.dom-pause-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* Collapsed hub (minimal) */

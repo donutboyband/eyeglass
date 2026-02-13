@@ -3,6 +3,7 @@
  */
 
 import type { InteractionStatus, SemanticSnapshot, ActivityEvent } from "@eyeglass/types";
+import type { HealthIssue } from "./utils/health.js";
 
 export type PanelMode = "input" | "activity";
 
@@ -104,6 +105,9 @@ export interface InspectorState {
 
   // Event source for SSE
   eventSource: EventSource | null;
+
+  // Health issues captured on freeze (element-level, not state-based)
+  frozenHealthIssues: HealthIssue[];
 }
 
 /**

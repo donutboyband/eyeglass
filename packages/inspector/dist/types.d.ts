@@ -2,6 +2,7 @@
  * Internal types for Eyeglass Inspector
  */
 import type { InteractionStatus, SemanticSnapshot, ActivityEvent } from "@eyeglass/types";
+import type { HealthIssue } from "./utils/health.js";
 export type PanelMode = "input" | "activity";
 export type ThemePreference = "light" | "dark" | "auto";
 export type HubPage = "main" | "settings";
@@ -80,6 +81,7 @@ export interface InspectorState {
     phraseInterval: number | null;
     _userNote: string;
     eventSource: EventSource | null;
+    frozenHealthIssues: HealthIssue[];
 }
 /**
  * Callbacks interface for renderers to invoke inspector methods
