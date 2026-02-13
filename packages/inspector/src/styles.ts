@@ -27,8 +27,8 @@ export const STYLES = `
   --accent-soft: rgba(99, 102, 241, 0.1);
   --success: #10b981;
   --error: #ef4444;
-  --border-radius: 16px;
-  --border-radius-sm: 10px;
+  --border-radius: 0;
+  --border-radius-sm: 0;
 }
 
 :host([data-theme="dark"]) {
@@ -62,15 +62,6 @@ export const STYLES = `
 }
 
 /* Dark mode component overrides */
-:host([data-theme="dark"]) .close-btn:hover,
-:host([data-theme="dark"]) .toast-close:hover,
-:host([data-theme="dark"]) .hub-header:hover,
-:host([data-theme="dark"]) .hub-disable:hover,
-:host([data-theme="dark"]) .hub-back-btn:hover,
-:host([data-theme="dark"]) .hub-settings-btn:hover,
-:host([data-theme="dark"]) .followup-done:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
 
 :host([data-theme="dark"]) .btn-secondary {
   background: rgba(255, 255, 255, 0.08);
@@ -143,15 +134,6 @@ export const STYLES = `
 }
 
 @media (prefers-color-scheme: dark) {
-  :host([data-theme="auto"]) .close-btn:hover,
-  :host([data-theme="auto"]) .toast-close:hover,
-  :host([data-theme="auto"]) .hub-header:hover,
-  :host([data-theme="auto"]) .hub-disable:hover,
-  :host([data-theme="auto"]) .hub-back-btn:hover,
-  :host([data-theme="auto"]) .hub-settings-btn:hover,
-  :host([data-theme="auto"]) .followup-done:hover {
-    background: rgba(255, 255, 255, 0.08);
-  }
 
   :host([data-theme="auto"]) .btn-secondary {
     background: rgba(255, 255, 255, 0.08);
@@ -232,18 +214,40 @@ export const STYLES = `
 .highlight {
   position: absolute;
   z-index: 2147483640;
-  border: 2px solid var(--accent);
-  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid var(--accent);
+  background: rgba(99, 102, 241, 0.04);
   pointer-events: none;
-  border-radius: 6px;
-  transition: all 0.1s ease-out;
-  box-shadow:
-    0 0 0 3px rgba(99, 102, 241, 0.08),
-    0 2px 8px rgba(99, 102, 241, 0.1);
+  transition: all 0.08s ease-out;
 }
 
 .highlight.no-transition {
   transition: none;
+}
+
+/* Crosshair axes */
+.crosshair {
+  position: fixed;
+  background: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2147483639;
+  transition: opacity 0.08s ease-out;
+}
+
+.crosshair.crosshair-x {
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 1px;
+  transform: translateY(0);
+}
+
+.crosshair.crosshair-y {
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 100vh;
+  transform: translateX(0);
 }
 
 /* Glass Panel */
@@ -308,7 +312,6 @@ export const STYLES = `
   color: var(--accent);
   background: var(--accent-soft);
   padding: 4px 10px;
-  border-radius: 6px;
   letter-spacing: -0.01em;
 }
 
@@ -328,7 +331,6 @@ export const STYLES = `
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -424,11 +426,19 @@ export const STYLES = `
 .btn-primary {
   background: var(--accent);
   color: white;
+  border: 1px solid var(--accent);
 }
 
 .btn-primary:hover {
   background: #4f46e5;
+  border-color: #4f46e5;
   transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  background: var(--accent-muted);
+  border-color: var(--accent-muted);
+  transform: translateY(0);
 }
 
 .btn-secondary {
@@ -438,6 +448,10 @@ export const STYLES = `
 
 .btn-secondary:hover {
   background: rgba(0, 0, 0, 0.08);
+}
+
+.btn-secondary:active {
+  background: rgba(0, 0, 0, 0.12);
 }
 
 /* Activity Feed */
@@ -554,7 +568,6 @@ export const STYLES = `
 .question-option {
   padding: 7px 14px;
   border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
   background: white;
   font-size: 12px;
   font-weight: 500;
@@ -747,16 +760,15 @@ export const STYLES = `
   bottom: 16px;
   left: 16px;
   background: var(--glass-bg);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
-  border-radius: 10px;
-  box-shadow: var(--glass-shadow);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
   pointer-events: auto;
-  min-width: 200px;
-  max-width: 200px;
+  min-width: 180px;
+  max-width: 180px;
   overflow: hidden;
-  animation: hubIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: hubIn 0.15s ease-out;
   cursor: default;
 }
 
@@ -793,10 +805,6 @@ export const STYLES = `
   user-select: none;
 }
 
-.hub-header:hover {
-  background: rgba(0, 0, 0, 0.03);
-}
-
 .hub-header-left {
   display: flex;
   align-items: center;
@@ -806,7 +814,6 @@ export const STYLES = `
 .hub-logo {
   width: 20px;
   height: 20px;
-  border-radius: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -828,7 +835,6 @@ export const STYLES = `
   background: var(--accent);
   color: white;
   padding: 1px 5px;
-  border-radius: 8px;
   min-width: 14px;
   text-align: center;
 }
@@ -858,16 +864,14 @@ export const STYLES = `
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: color 0.1s;
   flex-shrink: 0;
 }
 
 .hub-disable:hover {
-  background: rgba(0, 0, 0, 0.05);
   color: var(--text-secondary);
 }
 
@@ -876,6 +880,33 @@ export const STYLES = `
 }
 
 .hub-disable svg {
+  width: 14px;
+  height: 14px;
+}
+
+.hub-pause {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.1s;
+  flex-shrink: 0;
+}
+
+.hub-pause:hover {
+  color: var(--text-secondary);
+}
+
+.hub-pause.active {
+  color: var(--accent);
+}
+
+.hub-pause svg {
   width: 14px;
   height: 14px;
 }
@@ -990,16 +1021,14 @@ export const STYLES = `
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: color 0.1s;
   flex-shrink: 0;
 }
 
 .hub-settings-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
   color: var(--text-secondary);
 }
 
@@ -1011,6 +1040,8 @@ export const STYLES = `
 /* Settings Page */
 .hub-settings-page {
   padding: 8px 0;
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 .hub-settings-header {
@@ -1028,15 +1059,13 @@ export const STYLES = `
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: color 0.1s;
 }
 
 .hub-back-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
   color: var(--text-primary);
 }
 
@@ -1093,42 +1122,47 @@ export const STYLES = `
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .hub-shortcuts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.hub-shortcut-row {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 8px;
   align-items: center;
 }
 
+.hub-shortcut-row {
+  display: contents;
+}
+
 .hub-shortcut-label {
-  font-size: 11px;
+  font-size: 9px;
   color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 .hub-shortcut-keys {
   display: flex;
   gap: 4px;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .hub-shortcut-keys kbd {
   display: inline-block;
   padding: 2px 6px;
-  font-size: 10px;
+  font-size: 8px;
   font-family: inherit;
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-weight: 600;
+  color: var(--text-primary);
   background: rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--glass-border);
   border-radius: 4px;
+  min-width: 22px;
+  text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 :host([data-theme="dark"]) .hub-shortcut-keys kbd {
@@ -1146,7 +1180,6 @@ export const STYLES = `
 .theme-selector {
   display: flex;
   background: rgba(0, 0, 0, 0.04);
-  border-radius: 6px;
   padding: 2px;
   gap: 2px;
 }
@@ -1165,10 +1198,9 @@ export const STYLES = `
   padding: 4px 8px;
   border: none;
   background: transparent;
-  border-radius: 4px;
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.1s;
   color: var(--text-muted);
   display: flex;
   align-items: center;
@@ -1182,7 +1214,6 @@ export const STYLES = `
 .theme-btn.active {
   background: var(--glass-bg);
   color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .theme-btn svg {
@@ -1192,6 +1223,42 @@ export const STYLES = `
 
 .hub-button-group {
   display: flex;
+}
+
+/* Independent DOM Pause Button */
+.dom-pause-btn {
+  position: fixed;
+  bottom: 16px;
+  left: 204px;
+  width: 32px;
+  height: 32px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  pointer-events: auto;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: color 0.1s, background 0.1s;
+  animation: hubIn 0.15s ease-out;
+}
+
+.dom-pause-btn:hover {
+  color: var(--text-secondary);
+}
+
+.dom-pause-btn.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.dom-pause-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* Collapsed hub (minimal) */
@@ -1210,12 +1277,11 @@ export const STYLES = `
 
 .toggle-switch {
   position: relative;
-  width: 32px;
-  height: 18px;
+  width: 28px;
+  height: 14px;
   background: #cbd5e1;
-  border-radius: 9px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.15s;
   border: none;
   padding: 0;
 }
@@ -1229,12 +1295,10 @@ export const STYLES = `
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 14px;
-  height: 14px;
+  width: 10px;
+  height: 10px;
   background: white;
-  border-radius: 50%;
-  transition: transform 0.2s;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s;
 }
 
 .toggle-switch.active::after {
@@ -1496,4 +1560,96 @@ export const STYLES = `
   color: var(--accent);
   text-align: center;
 }
+
+/* ========================================
+   LOUPE - Hover Tag (v2.0)
+   ======================================== */
+.loupe {
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  font-family: 'SF Mono', 'Monaco', 'Fira Code', monospace;
+  font-size: 11px;
+  color: var(--text-primary);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease-out;
+  z-index: 10;
+  white-space: nowrap;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loupe.visible {
+  opacity: 1;
+}
+
+.loupe-name {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.loupe-pulse {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ========================================
+   LENS CARD - Styles handled in lens.ts
+   ======================================== */
+
+/* ========================================
+   CONTEXT OVERLAYS - Relationship View (v2.0)
+   ======================================== */
+.context-overlay {
+  animation: context-appear 0.2s ease-out;
+}
+
+@keyframes context-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.context-overlay.context-component {
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
+.context-overlay.context-state-owner {
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.2);
+}
+
+.context-overlay.context-layout-parent {
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.2);
+}
+
+.context-overlay.context-event-blocker {
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
+}
+
+.context-label {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
 `;

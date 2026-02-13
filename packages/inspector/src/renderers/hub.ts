@@ -29,6 +29,9 @@ export const EYE_CLOSED_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="curr
 
 export const GEAR_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
 
+export const PAUSE_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
+export const PLAY_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="8 5 18 12 8 19 8 5"/></svg>`;
+
 export const SUN_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
 
 export const MOON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
@@ -74,7 +77,7 @@ export function renderHubMainPage(
       </div>
       <div class="hub-button-group">
       <button class="hub-settings-btn" title="Settings">${GEAR_SVG}</button>
-      <button class="hub-disable ${state.inspectorEnabled ? "active" : ""}" title="${state.inspectorEnabled ? "Disable" : "Enable"} inspector">
+      <button class="hub-disable ${state.inspectorEnabled ? "active" : ""}" title="${state.inspectorEnabled ? "Disable" : "Enable"} inspector (⌘/Ctrl + Shift + E)">
         ${state.inspectorEnabled ? EYE_OPEN_SVG : EYE_CLOSED_SVG}
       </button>
       </div>
@@ -212,6 +215,22 @@ export function renderHubSettingsPage(
               <span class="hub-shortcut-label">Toggle inspector</span>
               <span class="hub-shortcut-keys"><kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "\u2318" : "Ctrl"}</kbd> <kbd>Shift</kbd> <kbd>E</kbd></span>
             </div>
+            <div class="hub-shortcut-row">
+              <span class="hub-shortcut-label">Toggle multi-select</span>
+              <span class="hub-shortcut-keys"><kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "\u2318" : "Ctrl"}</kbd> <kbd>Shift</kbd> <kbd>M</kbd></span>
+            </div>
+            <div class="hub-shortcut-row">
+              <span class="hub-shortcut-label">Toggle context overlays</span>
+              <span class="hub-shortcut-keys"><kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "\u2318" : "Ctrl"}</kbd> <kbd>Shift</kbd> <kbd>C</kbd></span>
+            </div>
+            <div class="hub-shortcut-row">
+              <span class="hub-shortcut-label">Submit request</span>
+              <span class="hub-shortcut-keys"><kbd>${navigator.platform.toUpperCase().indexOf("MAC") >= 0 ? "\u2318" : "Ctrl"}</kbd> <kbd>Enter</kbd></span>
+            </div>
+            <div class="hub-shortcut-row">
+              <span class="hub-shortcut-label">Close panel / cancel</span>
+              <span class="hub-shortcut-keys"><kbd>Esc</kbd></span>
+            </div>
           </div>
         </div>
       </div>
@@ -241,5 +260,34 @@ export function renderHubSettingsPage(
         callbacks.onAutoCommitToggle();
       }
     });
+  });
+}
+
+export interface DomPauseButtonState {
+  domPaused: boolean;
+}
+
+export interface DomPauseButtonCallbacks {
+  onToggleDomPause: () => void;
+}
+
+/**
+ * Renders the independent DOM pause button
+ */
+export function renderDomPauseButton(
+  button: HTMLButtonElement,
+  state: DomPauseButtonState,
+  callbacks: DomPauseButtonCallbacks
+): void {
+  button.className = `dom-pause-btn ${state.domPaused ? "active" : ""}`;
+  button.title = state.domPaused ? "Resume DOM (⌘/Ctrl + Shift + U)" : "Pause DOM (⌘/Ctrl + Shift + U)";
+  button.innerHTML = state.domPaused ? PLAY_SVG : PAUSE_SVG;
+
+  // Remove existing listeners by cloning
+  const newButton = button.cloneNode(true) as HTMLButtonElement;
+  button.parentNode?.replaceChild(newButton, button);
+
+  newButton.addEventListener("click", () => {
+    callbacks.onToggleDomPause();
   });
 }

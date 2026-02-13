@@ -108,7 +108,7 @@ export function renderInputMode(
     <div class="panel-header">
       <span class="component-tag">&lt;${escapeHtml(state.componentName)} /&gt;</span>
       ${state.filePath ? `<span class="file-path">${escapeHtml(state.filePath)}</span>` : ""}
-      <button class="${multiSelectIconClass}" title="${isMultiSelect ? "Exit multi-select" : "Select multiple elements"}">+</button>
+      <button class="${multiSelectIconClass}" title="${isMultiSelect ? "Exit multi-select (Esc)" : "Multi-select (⌘/Ctrl + Shift + M)"}">+</button>
       <button class="close-btn" title="Cancel (Esc)">&times;</button>
     </div>
     ${multiModeHint}
@@ -122,7 +122,7 @@ export function renderInputMode(
       ></textarea>
       <div class="btn-row">
         <button class="btn btn-secondary">Cancel</button>
-        <button class="btn btn-primary">Send</button>
+        <button class="btn btn-primary" aria-label="Send request" title="Send (⌘/Ctrl + Enter)">Send</button>
       </div>
     </div>
   `;
@@ -136,6 +136,12 @@ export function renderInputMode(
   closeBtn.addEventListener("click", () => callbacks.onClose());
   cancelBtn.addEventListener("click", () => callbacks.onClose());
   sendBtn.addEventListener("click", () => callbacks.onSubmit(input.value));
+  sendBtn.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      callbacks.onSubmit(input.value);
+    }
+  });
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && input.value.trim()) {
       e.preventDefault();
@@ -215,7 +221,7 @@ export function renderActivityMode(
     <div class="panel-header">
       <span class="component-tag">${headerDisplay}</span>
       ${snapshotCount <= 1 && state.filePath ? `<span class="file-path">${escapeHtml(state.filePath)}</span>` : ""}
-      <button class="close-btn" title="Close">&times;</button>
+      <button class="close-btn" title="Close (Esc)">&times;</button>
     </div>
     <div class="user-request">
       <div class="user-request-label">Your request</div>

@@ -12,7 +12,7 @@ export interface MouseMoveHandlerState {
 export interface MouseMoveHandlerCallbacks {
   setThrottleTimeout: (timeout: number | null) => void;
   hideHighlight: () => void;
-  showHighlight: (element: Element) => void;
+  showHighlight: (element: Element, event?: MouseEvent) => void;
   setCurrentElement: (element: Element | null) => void;
 }
 
@@ -64,7 +64,7 @@ export function createMouseMoveHandler(
     if (shadow.contains(target as Node)) return;
 
     callbacks.setCurrentElement(target);
-    callbacks.showHighlight(target);
+    callbacks.showHighlight(target, e);
   };
 }
 
@@ -114,11 +114,19 @@ export function createClickHandler(
 
 export interface KeyDownHandlerState {
   frozen: boolean;
+  multiSelectMode: boolean;
+  inspectorEnabled: boolean;
 }
 
 export interface KeyDownHandlerCallbacks {
   unfreeze: () => void;
   toggleInspectorEnabled: () => void;
+  toggleContextOverlays: () => void;
+  toggleMultiSelect: () => void;
+  submitShortcut: () => void;
+  rotateInteractionState: () => void;
+  captureStateCapsule: () => void;
+  toggleDomPause: () => void;
 }
 
 /**
@@ -127,6 +135,9 @@ export interface KeyDownHandlerCallbacks {
  * Keyboard shortcuts:
  * - Escape: Close panel / unfreeze
  * - Ctrl/Cmd + Shift + E: Toggle inspector enabled
+ * - Ctrl/Cmd + Shift + M: Toggle multi-select (when frozen)
+ * - Ctrl/Cmd + Shift + C: Toggle context overlays (when frozen)
+ * - Ctrl/Cmd + Enter: Submit current note (when frozen and input has value)
  */
 export function createKeyDownHandler(
   getState: () => KeyDownHandlerState,
@@ -134,6 +145,12 @@ export function createKeyDownHandler(
 ): (e: KeyboardEvent) => void {
   return (e: KeyboardEvent) => {
     const state = getState();
+    const target = e.target as HTMLElement | null;
+    const isFormField =
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable);
 
     // Escape to close panel (only when panel is open)
     if (e.key === "Escape" && state.frozen) {
@@ -147,6 +164,46 @@ export function createKeyDownHandler(
     if (modifierKey && e.shiftKey && e.key.toLowerCase() === "e") {
       e.preventDefault();
       callbacks.toggleInspectorEnabled();
+    }
+
+    // Bail on other shortcuts when typing in inputs (except above)
+    if (isFormField) return;
+    if (!state.inspectorEnabled) return;
+
+    // Ctrl/Cmd + Shift + M to toggle multi-select
+    if (state.frozen && modifierKey && e.shiftKey && e.key.toLowerCase() === "m") {
+      e.preventDefault();
+      callbacks.toggleMultiSelect();
+    }
+
+    // Ctrl/Cmd + Shift + K to rotate interaction state label
+    if (state.frozen && modifierKey && e.shiftKey && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      callbacks.rotateInteractionState();
+    }
+
+    // Ctrl/Cmd + Shift + L to capture a state capsule
+    if (state.frozen && modifierKey && e.shiftKey && e.key.toLowerCase() === "l") {
+      e.preventDefault();
+      callbacks.captureStateCapsule();
+    }
+
+    // Ctrl/Cmd + Shift + C to toggle context overlays
+    if (state.frozen && modifierKey && e.shiftKey && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      callbacks.toggleContextOverlays();
+    }
+
+    // Ctrl/Cmd + Shift + U to pause/resume DOM
+    if (modifierKey && e.shiftKey && e.key.toLowerCase() === "u") {
+      e.preventDefault();
+      callbacks.toggleDomPause();
+    }
+
+    // Ctrl/Cmd + Enter to submit current note
+    if (state.frozen && modifierKey && e.key === "Enter") {
+      e.preventDefault();
+      callbacks.submitShortcut();
     }
   };
 }

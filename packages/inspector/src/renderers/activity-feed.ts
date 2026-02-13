@@ -12,29 +12,24 @@ export function renderActivityFeed(
   activityEvents: ActivityEvent[],
   currentStatus: InteractionStatus
 ): string {
-  const items = activityEvents
-    .map((event) => {
-      switch (event.type) {
-        case "status":
-          // Skip pending - shown in footer. Show fixing only if it has a meaningful message
-          if (event.status === "pending") return "";
-          if (event.status === "fixing") {
-            // Skip generic/missing messages - we have rotating phrases in the footer
-            if (!event.message || event.message === "Agent is working...")
-              return "";
-          }
-          return renderStatusItem(event);
-        case "thought":
-          return renderThoughtItem(event);
-        case "action":
-          return renderActionItem(event);
-        case "question":
-          return renderQuestionItem(event, activityEvents);
-        default:
-          return "";
+  const items: string[] = [];
+
+  for (const event of activityEvents) {
+    if (event.type === "status") {
+      // Skip pending - shown in footer. Show fixing only if it has a meaningful message
+      if (event.status === "pending") continue;
+      if (event.status === "fixing") {
+        if (!event.message || event.message === "Agent is working...") continue;
       }
-    })
-    .filter(Boolean);
+      items.push(renderStatusItem(event));
+    } else if (event.type === "thought") {
+      items.push(renderThoughtItem(event));
+    } else if (event.type === "action") {
+      items.push(renderActionItem(event));
+    } else if (event.type === "question") {
+      items.push(renderQuestionItem(event, activityEvents));
+    }
+  }
 
   // Show skeleton while waiting for first meaningful activity
   if (
@@ -136,7 +131,7 @@ export function renderQuestionItem(
   },
   _activityEvents: ActivityEvent[]
 ): string {
-  // Check if this question was answered (user clicked an option)
+  // Collapse to summary once answered
   if (event.selectedAnswerId) {
     return `
       <div class="activity-item">

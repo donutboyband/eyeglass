@@ -3,6 +3,7 @@
  */
 
 import type { InteractionStatus, SemanticSnapshot, ActivityEvent } from "@eyeglass/types";
+import type { HealthIssue } from "./utils/health.js";
 
 export type PanelMode = "input" | "activity";
 
@@ -28,6 +29,14 @@ export interface HistoryItem {
   timestamp: number;
 }
 
+export interface StateCapsule {
+  id: string;
+  variant: string;
+  label: string;
+  snapshot: SemanticSnapshot;
+  capturedAt: number;
+}
+
 /**
  * State interface for the inspector that modules can access
  */
@@ -49,6 +58,7 @@ export interface InspectorState {
   mode: PanelMode;
   activityEvents: ActivityEvent[];
   currentStatus: InteractionStatus;
+  currentStatusMessage?: string | null;
 
   // Hub state
   hubExpanded: boolean;
@@ -66,6 +76,7 @@ export interface InspectorState {
   isDragging: boolean;
   dragOffset: { x: number; y: number };
   customPanelPosition: { x: number; y: number } | null;
+  customLensPosition?: { x: number; y: number } | null;
 
   // Multi-select state
   multiSelectMode: boolean;
@@ -73,6 +84,10 @@ export interface InspectorState {
   selectedSnapshots: SemanticSnapshot[];
   multiSelectHighlights: HTMLDivElement[];
   submittedSnapshots: SemanticSnapshot[];
+  stateCapsules: StateCapsule[];
+  activeCapsuleId: string | null;
+  interactionStateLabel: string;
+  domPaused: boolean;
 
   // Cursor style
   cursorStyleElement: HTMLStyleElement | null;
@@ -90,6 +105,9 @@ export interface InspectorState {
 
   // Event source for SSE
   eventSource: EventSource | null;
+
+  // Health issues captured on freeze (element-level, not state-based)
+  frozenHealthIssues: HealthIssue[];
 }
 
 /**
@@ -114,4 +132,9 @@ export interface InspectorCallbacks {
   handlePanelDragStart: (e: MouseEvent) => void;
   renderHub: () => void;
   renderPanel: () => void;
+  captureStateCapsule: () => void;
+  selectStateCapsule: (id: string) => void;
+  deleteStateCapsule: (id: string) => void;
+  rotateInteractionState: () => void;
+  toggleDomPause: () => void;
 }

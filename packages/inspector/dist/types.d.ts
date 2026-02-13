@@ -2,6 +2,7 @@
  * Internal types for Eyeglass Inspector
  */
 import type { InteractionStatus, SemanticSnapshot, ActivityEvent } from "@eyeglass/types";
+import type { HealthIssue } from "./utils/health.js";
 export type PanelMode = "input" | "activity";
 export type ThemePreference = "light" | "dark" | "auto";
 export type HubPage = "main" | "settings";
@@ -21,6 +22,13 @@ export interface HistoryItem {
     status: InteractionStatus;
     timestamp: number;
 }
+export interface StateCapsule {
+    id: string;
+    variant: string;
+    label: string;
+    snapshot: SemanticSnapshot;
+    capturedAt: number;
+}
 /**
  * State interface for the inspector that modules can access
  */
@@ -37,6 +45,7 @@ export interface InspectorState {
     mode: PanelMode;
     activityEvents: ActivityEvent[];
     currentStatus: InteractionStatus;
+    currentStatusMessage?: string | null;
     hubExpanded: boolean;
     hubPage: HubPage;
     inspectorEnabled: boolean;
@@ -52,11 +61,19 @@ export interface InspectorState {
         x: number;
         y: number;
     } | null;
+    customLensPosition?: {
+        x: number;
+        y: number;
+    } | null;
     multiSelectMode: boolean;
     selectedElements: Element[];
     selectedSnapshots: SemanticSnapshot[];
     multiSelectHighlights: HTMLDivElement[];
     submittedSnapshots: SemanticSnapshot[];
+    stateCapsules: StateCapsule[];
+    activeCapsuleId: string | null;
+    interactionStateLabel: string;
+    domPaused: boolean;
     cursorStyleElement: HTMLStyleElement | null;
     throttleTimeout: number | null;
     scrollTimeout: number | null;
@@ -64,6 +81,7 @@ export interface InspectorState {
     phraseInterval: number | null;
     _userNote: string;
     eventSource: EventSource | null;
+    frozenHealthIssues: HealthIssue[];
 }
 /**
  * Callbacks interface for renderers to invoke inspector methods
@@ -87,4 +105,9 @@ export interface InspectorCallbacks {
     handlePanelDragStart: (e: MouseEvent) => void;
     renderHub: () => void;
     renderPanel: () => void;
+    captureStateCapsule: () => void;
+    selectStateCapsule: (id: string) => void;
+    deleteStateCapsule: (id: string) => void;
+    rotateInteractionState: () => void;
+    toggleDomPause: () => void;
 }

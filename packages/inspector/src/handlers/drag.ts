@@ -1,21 +1,23 @@
 /**
- * Drag handlers for Eyeglass Inspector panel
+ * Drag handlers for Eyeglass Inspector panel and lens
  */
 
 export interface DragState {
   isDragging: boolean;
   dragOffset: { x: number; y: number };
   panel: HTMLDivElement | null;
+  lens?: HTMLDivElement | null;
 }
 
 export interface DragCallbacks {
   setDragging: (isDragging: boolean) => void;
   setDragOffset: (offset: { x: number; y: number }) => void;
   setCustomPanelPosition: (position: { x: number; y: number }) => void;
+  setCustomLensPosition: (position: { x: number; y: number }) => void;
 }
 
 /**
- * Creates panel drag handler functions
+ * Creates panel/lens drag handler functions
  */
 export function createDragHandlers(
   getState: () => DragState,
@@ -24,10 +26,14 @@ export function createDragHandlers(
   handlePanelDragStart: (e: MouseEvent) => void;
   handlePanelDrag: (e: MouseEvent) => void;
   handlePanelDragEnd: () => void;
+  handleLensDragStart: (e: MouseEvent) => void;
 } {
-  const handlePanelDrag = (e: MouseEvent): void => {
+  // Track which element is being dragged
+  let dragTarget: HTMLDivElement | null = null;
+
+  const handleDrag = (e: MouseEvent): void => {
     const state = getState();
-    if (!state.isDragging || !state.panel) return;
+    if (!state.isDragging || !dragTarget) return;
 
     const x = Math.max(
       0,
@@ -38,24 +44,30 @@ export function createDragHandlers(
       Math.min(e.clientY - state.dragOffset.y, window.innerHeight - 100)
     );
 
-    callbacks.setCustomPanelPosition({ x, y });
-    state.panel.style.left = `${x}px`;
-    state.panel.style.top = `${y}px`;
+    if (dragTarget === state.lens) {
+      callbacks.setCustomLensPosition({ x, y });
+    } else {
+      callbacks.setCustomPanelPosition({ x, y });
+    }
+    dragTarget.style.left = `${x}px`;
+    dragTarget.style.top = `${y}px`;
   };
 
-  const handlePanelDragEnd = (): void => {
+  const handleDragEnd = (): void => {
     callbacks.setDragging(false);
-    document.removeEventListener("mousemove", handlePanelDrag);
-    document.removeEventListener("mouseup", handlePanelDragEnd);
+    dragTarget = null;
+    document.removeEventListener("mousemove", handleDrag);
+    document.removeEventListener("mouseup", handleDragEnd);
   };
 
   const handlePanelDragStart = (e: MouseEvent): void => {
-    // Don't drag if clicking on buttons
-    if ((e.target as HTMLElement).closest("button")) return;
+    // Don't drag if clicking on buttons or inputs
+    if ((e.target as HTMLElement).closest("button, input")) return;
 
     const state = getState();
     if (!state.panel) return;
 
+    dragTarget = state.panel;
     callbacks.setDragging(true);
     const panelRect = state.panel.getBoundingClientRect();
     callbacks.setDragOffset({
@@ -63,13 +75,33 @@ export function createDragHandlers(
       y: e.clientY - panelRect.top,
     });
 
-    document.addEventListener("mousemove", handlePanelDrag);
-    document.addEventListener("mouseup", handlePanelDragEnd);
+    document.addEventListener("mousemove", handleDrag);
+    document.addEventListener("mouseup", handleDragEnd);
+  };
+
+  const handleLensDragStart = (e: MouseEvent): void => {
+    // Don't drag if clicking on buttons or inputs
+    if ((e.target as HTMLElement).closest("button, input")) return;
+
+    const state = getState();
+    if (!state.lens) return;
+
+    dragTarget = state.lens;
+    callbacks.setDragging(true);
+    const lensRect = state.lens.getBoundingClientRect();
+    callbacks.setDragOffset({
+      x: e.clientX - lensRect.left,
+      y: e.clientY - lensRect.top,
+    });
+
+    document.addEventListener("mousemove", handleDrag);
+    document.addEventListener("mouseup", handleDragEnd);
   };
 
   return {
     handlePanelDragStart,
-    handlePanelDrag,
-    handlePanelDragEnd,
+    handlePanelDrag: handleDrag,
+    handlePanelDragEnd: handleDragEnd,
+    handleLensDragStart,
   };
 }

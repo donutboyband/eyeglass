@@ -10,7 +10,7 @@ export interface MouseMoveHandlerState {
 export interface MouseMoveHandlerCallbacks {
     setThrottleTimeout: (timeout: number | null) => void;
     hideHighlight: () => void;
-    showHighlight: (element: Element) => void;
+    showHighlight: (element: Element, event?: MouseEvent) => void;
     setCurrentElement: (element: Element | null) => void;
 }
 /**
@@ -33,10 +33,18 @@ export interface ClickHandlerCallbacks {
 export declare function createClickHandler(host: HTMLElement, getState: () => ClickHandlerState, callbacks: ClickHandlerCallbacks): (e: MouseEvent) => void;
 export interface KeyDownHandlerState {
     frozen: boolean;
+    multiSelectMode: boolean;
+    inspectorEnabled: boolean;
 }
 export interface KeyDownHandlerCallbacks {
     unfreeze: () => void;
     toggleInspectorEnabled: () => void;
+    toggleContextOverlays: () => void;
+    toggleMultiSelect: () => void;
+    submitShortcut: () => void;
+    rotateInteractionState: () => void;
+    captureStateCapsule: () => void;
+    toggleDomPause: () => void;
 }
 /**
  * Creates a keydown handler function
@@ -44,6 +52,9 @@ export interface KeyDownHandlerCallbacks {
  * Keyboard shortcuts:
  * - Escape: Close panel / unfreeze
  * - Ctrl/Cmd + Shift + E: Toggle inspector enabled
+ * - Ctrl/Cmd + Shift + M: Toggle multi-select (when frozen)
+ * - Ctrl/Cmd + Shift + C: Toggle context overlays (when frozen)
+ * - Ctrl/Cmd + Enter: Submit current note (when frozen and input has value)
  */
 export declare function createKeyDownHandler(getState: () => KeyDownHandlerState, callbacks: KeyDownHandlerCallbacks): (e: KeyboardEvent) => void;
 export interface ScrollHandlerState {

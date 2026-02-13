@@ -3,6 +3,7 @@ import {
   InteractionStatus,
   ActivityEvent,
   AnswerPayload,
+  SemanticSnapshot,
 } from '@eyeglass/types';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
@@ -11,6 +12,125 @@ import { execFileSync } from 'child_process';
 
 const MAX_HISTORY = 5;
 const CONTEXT_FILE = '.eyeglass_context.md';
+const IMPORT_CACHE_TTL = 30_000;
+const SOURCE_GLOBS = ['*.ts', '*.tsx', '*.js', '*.jsx', '*.mjs', '*.cjs'];
+const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage']);
+
+type RiskLevel = 'Local' | 'Moderate' | 'Critical';
+
+interface ImportCacheEntry {
+  timestamp: number;
+  count: number;
+  riskLevel: RiskLevel;
+}
+
+const importStatsCache = new Map<string, ImportCacheEntry>();
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizePath(filePath: string): string {
+  return filePath.replace(/\\/g, '/');
+}
+
+function getRelativePath(filePath?: string): string | null {
+  if (!filePath) return null;
+  const normalized = normalizePath(filePath);
+  const cwdNormalized = normalizePath(process.cwd());
+  if (normalized.startsWith(cwdNormalized)) {
+    return normalized.slice(cwdNormalized.length + 1);
+  }
+  return path.relative(process.cwd(), filePath);
+}
+
+function inferPathRisk(filePath: string): RiskLevel {
+  const lower = filePath.toLowerCase();
+  if (
+    lower.includes('/shared/') ||
+    lower.includes('/common/') ||
+    lower.includes('/core/') ||
+    lower.includes('/ui/') ||
+    lower.includes('/components/ui/')
+  ) {
+    return 'Critical';
+  }
+  if (
+    lower.includes('/lib/') ||
+    lower.includes('/primitives/') ||
+    lower.includes('/atoms/')
+  ) {
+    return 'Moderate';
+  }
+  return 'Local';
+}
+
+function maxRiskLevel(a: RiskLevel, b: RiskLevel): RiskLevel {
+  const order: Record<RiskLevel, number> = { Local: 0, Moderate: 1, Critical: 2 };
+  return order[a] >= order[b] ? a : b;
+}
+
+function collectImportingFiles(componentName: string, excludePath?: string): string[] {
+  const cwd = process.cwd();
+  const args = ['--no-heading', '--color', 'never', '--line-number'];
+  for (const glob of SOURCE_GLOBS) {
+    args.push('--glob', glob);
+  }
+  for (const dir of EXCLUDED_DIRS) {
+    args.push('--glob', `!${dir}/**`);
+  }
+  const pattern = `^\\s*import[^\\n]*\\b${escapeRegex(componentName)}\\b`;
+  args.push(pattern, '.');
+
+  try {
+    const output = execFileSync('rg', args, { cwd, encoding: 'utf-8', maxBuffer: 4 * 1024 * 1024 });
+    const files = new Set<string>();
+    output.split('\n').forEach((line) => {
+      if (!line) return;
+      const idx = line.indexOf(':');
+      if (idx === -1) return;
+      const file = line.slice(0, idx);
+      if (excludePath && normalizePath(file) === normalizePath(excludePath)) return;
+      files.add(file);
+    });
+    return Array.from(files);
+  } catch (err: any) {
+    // ripgrep exits with code 1 when no matches are found; treat that as zero imports
+    if (err?.code === 1 || err?.status === 1) {
+      return [];
+    }
+    // If rg is missing, fall back silently
+    return [];
+  }
+}
+
+function computeImportStats(snapshot: SemanticSnapshot): { count: number; riskLevel: RiskLevel } | null {
+  const framework = snapshot.framework || {};
+  const name = framework.displayName || framework.componentName;
+  const filePath = framework.filePath;
+  const relativePath = getRelativePath(filePath) || undefined;
+  const inferredName = name || (relativePath ? path.basename(relativePath, path.extname(relativePath)) : null);
+
+  if (!inferredName) {
+    return null;
+  }
+
+  const cacheKey = `${inferredName}|${relativePath || ''}`;
+  const now = Date.now();
+  const cached = importStatsCache.get(cacheKey);
+  if (cached && now - cached.timestamp < IMPORT_CACHE_TTL) {
+    return { count: cached.count, riskLevel: cached.riskLevel };
+  }
+
+  const files = collectImportingFiles(inferredName, relativePath);
+  const count = files.length;
+  const countRisk: RiskLevel = count >= 10 ? 'Critical' : count >= 3 ? 'Moderate' : 'Local';
+  const pathRisk = relativePath ? inferPathRisk(relativePath) : 'Local';
+  const riskLevel = maxRiskLevel(countRisk, pathRisk);
+
+  importStatsCache.set(cacheKey, { timestamp: now, count, riskLevel });
+  return { count, riskLevel };
+}
 
 interface PendingQuestion {
   questionId: string;
@@ -33,6 +153,13 @@ export class ContextStore extends EventEmitter {
   private pendingCommitMessage: Map<string, string> = new Map(); // interactionId -> message (for manual commits)
 
   setFocus(payload: FocusPayload): void {
+    if (payload.snapshot) {
+      payload.snapshot = this.enrichSnapshot(payload.snapshot);
+    }
+    if (payload.snapshots && payload.snapshots.length > 0) {
+      payload.snapshots = payload.snapshots.map((snap) => this.enrichSnapshot(snap));
+    }
+
     if (this.active) {
       this.history.unshift(this.active);
       if (this.history.length > MAX_HISTORY) {
@@ -71,6 +198,30 @@ export class ContextStore extends EventEmitter {
       timestamp: Date.now(),
     });
     this.writeContextFile();
+  }
+
+  private enrichSnapshot(snapshot: SemanticSnapshot): SemanticSnapshot {
+    const stats = computeImportStats(snapshot);
+    if (!stats) return snapshot;
+
+    const systemic = snapshot.systemic ?? {
+      impact: { riskLevel: 'Local' },
+      designSystem: { tokenMatches: [], deviations: [] },
+    };
+
+    const newImpact = {
+      ...systemic.impact,
+      importCount: stats.count,
+      riskLevel: stats.riskLevel,
+    };
+
+    return {
+      ...snapshot,
+      systemic: {
+        ...systemic,
+        impact: newImpact,
+      },
+    };
   }
 
   /**
@@ -407,15 +558,57 @@ export class ContextStore extends EventEmitter {
   private formatSingleSnapshot(snapshot: import('@eyeglass/types').SemanticSnapshot, userNote: string, interactionId: string): string {
     const { framework, a11y, geometry, styles } = snapshot;
 
-    const componentInfo = framework.componentName
-      ? `\`<${framework.componentName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
+    const displayName = framework.displayName || framework.componentName;
+    const componentInfo = displayName
+      ? `\`<${displayName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
       : `\`<${snapshot.tagName}>\` (vanilla element)`;
+
+    // Format props from new state or legacy location
+    const props = framework.state?.props || framework.props;
+    const propsStr = props && Object.keys(props).length > 0 ? JSON.stringify(props, null, 2) : null;
+
+    // Format hooks if present
+    const hooksStr = framework.state?.hooks?.length
+      ? framework.state.hooks.map(h => `${h.name}${h.label ? `(${h.label})` : ''}${h.value !== undefined ? ` = ${JSON.stringify(h.value)}` : ''}`).join(', ')
+      : null;
+
+    // Format context if present
+    const contextStr = framework.state?.context?.length
+      ? framework.state.context.map(c => c.name).join(', ')
+      : null;
+
+    // Analyze health issues - only show actual anomalies per spec ("Don't Show, Don't Tell")
+    const healthIssues: string[] = [];
+    if (snapshot.perception?.legibility?.wcagStatus === 'fail') {
+      healthIssues.push(`Low contrast (${snapshot.perception.legibility.contrastRatio}:1)`);
+    }
+    if (snapshot.perception?.affordance?.dissonanceScore && snapshot.perception.affordance.dissonanceScore > 0.5) {
+      healthIssues.push('Affordance mismatch');
+    }
+    if (snapshot.causality?.events?.blockingHandlers?.length) {
+      healthIssues.push(`Events blocked (${snapshot.causality.events.blockingHandlers.length})`);
+    }
+    // Flag inline style identity changes (common perf issue)
+    if (snapshot.metal?.performance?.lastRenderReason?.includes("'style' changed identity")) {
+      healthIssues.push('Inline style causing re-renders');
+    }
+    if (snapshot.perception?.visibility?.isOccluded) {
+      healthIssues.push('Element occluded');
+    }
+    // Only flag touch target for interactive elements
+    if (snapshot.perception?.affordance?.isInteractable && !snapshot.perception?.usability?.isTouchTargetValid) {
+      healthIssues.push('Touch target too small');
+    }
+
+    const healthSummary = healthIssues.length > 0
+      ? `\n**Health Issues:** ${healthIssues.join(', ')}\n`
+      : '';
 
     return `## User Focus Request
 **Interaction ID:** ${interactionId}
 **User Note:** "${userNote}"
 **Component:** ${componentInfo}
-
+${healthSummary}
 ### Element Info
 - Tag: \`<${snapshot.tagName}>\`
 - Role: ${snapshot.role}
@@ -423,14 +616,15 @@ export class ContextStore extends EventEmitter {
 ${snapshot.id ? `- ID: \`#${snapshot.id}\`` : ''}
 ${snapshot.className ? `- Classes: \`${snapshot.className}\`` : ''}
 ${snapshot.dataAttributes ? `- Data attrs: ${Object.entries(snapshot.dataAttributes).map(([k, v]) => `\`${k}="${v}"\``).join(', ')}` : ''}
-
+${this.formatInteractionState(snapshot)}
+${a11y ? `
 ### Accessibility Tree
 - Label: ${a11y.label ?? 'none'}
 - Description: ${a11y.description ?? 'none'}
 - Disabled: ${a11y.disabled}
 - Hidden: ${a11y.hidden}
 ${a11y.expanded !== undefined ? `- Expanded: ${a11y.expanded}` : ''}
-${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}
+${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}` : ''}
 
 ### Geometry
 - Box: ${geometry.width}x${geometry.height} at (${geometry.x}, ${geometry.y})
@@ -449,9 +643,30 @@ ${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
 - Z-Index: ${styles.zIndex}
 
 ### Framework
-- Detected: ${framework.name}
+- Detected: ${framework.type || framework.name || 'vanilla'}
 ${framework.ancestry ? `- Component Tree: ${framework.ancestry.join(' > ')}` : ''}
-${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
+${propsStr ? `- Props: ${propsStr}` : ''}
+${hooksStr ? `- Hooks: ${hooksStr}` : ''}
+${contextStr ? `- Context: ${contextStr}` : ''}
+${snapshot.causality ? `
+### Causality (Event Flow)
+- Event Listeners: ${snapshot.causality.events.listeners.length > 0 ? snapshot.causality.events.listeners.map(l => l.type).join(', ') : 'none'}
+${snapshot.causality.events.blockingHandlers.length > 0 ? `- **Blocked Events:** ${snapshot.causality.events.blockingHandlers.map(b => `${b.event} (${b.reason} on ${b.element})`).join(', ')}` : ''}
+- Stacking Context: ${snapshot.causality.stackingContext.isStackingContext ? `Yes (${snapshot.causality.stackingContext.reason})` : 'No'}
+${snapshot.causality.stackingContext.parentContext ? `- Parent Context: ${snapshot.causality.stackingContext.parentContext}` : ''}
+${snapshot.causality.layoutConstraints.length > 0 ? `- Layout Constraints: ${snapshot.causality.layoutConstraints.join('; ')}` : ''}` : ''}
+${snapshot.perception ? `
+### Perception (User Experience)
+- **Affordance:** ${snapshot.perception.affordance.looksInteractable ? 'Looks clickable' : 'Does not look clickable'} / ${snapshot.perception.affordance.isInteractable ? 'Is interactive' : 'Not interactive'}${snapshot.perception.affordance.dissonanceScore > 0 ? ` (Dissonance: ${Math.round(snapshot.perception.affordance.dissonanceScore * 100)}%)` : ''}
+- **Contrast:** ${snapshot.perception.legibility.contrastRatio}:1 (WCAG ${snapshot.perception.legibility.wcagStatus})
+- **Touch Target:** ${snapshot.perception.usability.touchTargetSize}${snapshot.perception.affordance.isInteractable && !snapshot.perception.usability.isTouchTargetValid ? ' (too small)' : ''}
+${snapshot.perception.visibility.isOccluded ? `- **Occluded by:** ${snapshot.perception.visibility.occludedBy}` : ''}` : ''}
+${snapshot.metal ? `
+### Performance
+- Render Count: ${snapshot.metal.performance.renderCount}${snapshot.metal.performance.lastRenderReason ? ` (${snapshot.metal.performance.lastRenderReason})` : ''}
+- GPU Layer: ${snapshot.metal.pipeline.layerPromoted ? 'Yes' : 'No'}
+${snapshot.metal.pipeline.layoutThrashingRisk !== 'none' ? `- **Layout Thrashing Risk:** ${snapshot.metal.pipeline.layoutThrashingRisk}` : ''}
+- Event Listeners: ${snapshot.metal.memory.listenerCount}` : ''}
 ${snapshot.neighborhood ? `
 ### DOM Neighborhood
 **Parents (layout context):**
@@ -484,9 +699,13 @@ ${snapshot.neighborhood.children.length > 0 ? snapshot.neighborhood.children.map
     const elementSections = snapshots.map((snapshot, index) => {
       const { framework, a11y, geometry, styles } = snapshot;
 
-      const componentInfo = framework.componentName
-        ? `\`<${framework.componentName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
+      const displayName = framework.displayName || framework.componentName;
+      const componentInfo = displayName
+        ? `\`<${displayName} />\` (${framework.filePath || 'unknown file'}${framework.lineNumber ? `:${framework.lineNumber}` : ''})`
         : `\`<${snapshot.tagName}>\` (vanilla element)`;
+
+      const props = framework.state?.props || framework.props;
+      const propsStr = props && Object.keys(props).length > 0 ? JSON.stringify(props, null, 2) : null;
 
       return `## Element ${index + 1}: ${componentInfo}
 
@@ -497,14 +716,15 @@ ${snapshot.neighborhood.children.length > 0 ? snapshot.neighborhood.children.map
 ${snapshot.id ? `- ID: \`#${snapshot.id}\`` : ''}
 ${snapshot.className ? `- Classes: \`${snapshot.className}\`` : ''}
 ${snapshot.dataAttributes ? `- Data attrs: ${Object.entries(snapshot.dataAttributes).map(([k, v]) => `\`${k}="${v}"\``).join(', ')}` : ''}
-
+${this.formatInteractionState(snapshot)}
+${a11y ? `
 ### Accessibility Tree
 - Label: ${a11y.label ?? 'none'}
 - Description: ${a11y.description ?? 'none'}
 - Disabled: ${a11y.disabled}
 - Hidden: ${a11y.hidden}
 ${a11y.expanded !== undefined ? `- Expanded: ${a11y.expanded}` : ''}
-${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}
+${a11y.checked !== undefined ? `- Checked: ${a11y.checked}` : ''}` : ''}
 
 ### Geometry
 - Box: ${geometry.width}x${geometry.height} at (${geometry.x}, ${geometry.y})
@@ -523,9 +743,9 @@ ${styles.gridTemplate ? `- Grid Template: ${styles.gridTemplate}` : ''}
 - Z-Index: ${styles.zIndex}
 
 ### Framework
-- Detected: ${framework.name}
+- Detected: ${framework.type || framework.name || 'vanilla'}
 ${framework.ancestry ? `- Component Tree: ${framework.ancestry.join(' > ')}` : ''}
-${framework.props ? `- Props: ${JSON.stringify(framework.props, null, 2)}` : ''}
+${propsStr ? `- Props: ${propsStr}` : ''}
 ${snapshot.neighborhood ? `
 ### DOM Neighborhood
 **Parents:** ${snapshot.neighborhood.parents.length > 0 ? snapshot.neighborhood.parents.map(p => {
@@ -550,6 +770,15 @@ ${elementSections}
 - URL: ${snapshots[0].url}
 - Timestamp: ${new Date(snapshots[0].timestamp).toISOString()}
 `;
+  }
+
+  private formatInteractionState(snapshot: import('@eyeglass/types').SemanticSnapshot): string {
+    const meta = snapshot.interactionState;
+    if (!meta) return '';
+    const label = meta.label || meta.variant || 'unspecified';
+    const paused = meta.domPaused ? ' (DOM paused)' : '';
+    const timestamp = meta.capturedAt ? ` @ ${new Date(meta.capturedAt).toISOString()}` : '';
+    return `- State: ${label}${paused}${timestamp}`;
   }
 
   private writeContextFile(): void {

@@ -3,11 +3,18 @@ import type {
   SemanticSnapshot,
   FocusPayload,
   InteractionStatus,
+  PulseLevel,
   ActivityEvent,
   StatusEvent,
   ThoughtEvent,
   QuestionEvent,
   ActionEvent,
+  HookInfo,
+  ContextInfo,
+  CausalityInfo,
+  PerceptionInfo,
+  MetalInfo,
+  SystemicInfo,
 } from './index.js';
 
 describe('@eyeglass/types', () => {
@@ -18,8 +25,64 @@ describe('@eyeglass/types', () => {
     });
   });
 
+  describe('PulseLevel', () => {
+    it('should allow valid pulse levels', () => {
+      const levels: PulseLevel[] = ['healthy', 'warning', 'critical'];
+      expect(levels).toHaveLength(3);
+    });
+  });
+
   describe('SemanticSnapshot', () => {
-    it('should conform to the expected shape', () => {
+    it('should conform to the expected shape (v2.0 style)', () => {
+      const snapshot: SemanticSnapshot = {
+        role: 'button',
+        name: 'Submit',
+        tagName: 'button',
+        framework: {
+          type: 'react',
+          displayName: 'SubmitButton',
+          filePath: 'src/components/SubmitButton.tsx',
+          lineNumber: 42,
+          state: {
+            props: { variant: 'primary', disabled: false },
+            hooks: [
+              { name: 'useState', value: false, label: 'isLoading' },
+              { name: 'useCallback', label: 'handleClick' },
+            ],
+            context: [
+              { name: 'ThemeContext', value: { mode: 'dark' } },
+            ],
+          },
+        },
+        geometry: {
+          x: 100,
+          y: 200,
+          width: 120,
+          height: 40,
+          visible: true,
+        },
+        styles: {
+          display: 'inline-flex',
+          position: 'relative',
+          padding: '8px 16px',
+          margin: '0px',
+          color: 'rgb(255, 255, 255)',
+          backgroundColor: 'rgb(59, 130, 246)',
+          fontFamily: 'Inter, sans-serif',
+          zIndex: 'auto',
+        },
+        timestamp: Date.now(),
+        url: 'http://localhost:3000/',
+      };
+
+      expect(snapshot.role).toBe('button');
+      expect(snapshot.framework.type).toBe('react');
+      expect(snapshot.framework.displayName).toBe('SubmitButton');
+      expect(snapshot.framework.state?.hooks).toHaveLength(2);
+      expect(snapshot.geometry.visible).toBe(true);
+    });
+
+    it('should support legacy framework.name for backward compatibility', () => {
       const snapshot: SemanticSnapshot = {
         role: 'button',
         name: 'Submit',
@@ -57,10 +120,9 @@ describe('@eyeglass/types', () => {
         url: 'http://localhost:3000/',
       };
 
-      expect(snapshot.role).toBe('button');
       expect(snapshot.framework.name).toBe('react');
-      expect(snapshot.a11y.disabled).toBe(false);
-      expect(snapshot.geometry.visible).toBe(true);
+      expect(snapshot.framework.componentName).toBe('SubmitButton');
+      expect(snapshot.a11y?.disabled).toBe(false);
     });
 
     it('should support optional fields', () => {
@@ -72,7 +134,7 @@ describe('@eyeglass/types', () => {
         className: 'container main',
         dataAttributes: { 'data-testid': 'main-container' },
         framework: {
-          name: 'vanilla',
+          type: 'vanilla',
         },
         a11y: {
           label: null,
@@ -106,8 +168,103 @@ describe('@eyeglass/types', () => {
       expect(snapshot.id).toBe('my-div');
       expect(snapshot.className).toBe('container main');
       expect(snapshot.dataAttributes).toEqual({ 'data-testid': 'main-container' });
-      expect(snapshot.a11y.expanded).toBe(true);
-      expect(snapshot.a11y.checked).toBe('mixed');
+      expect(snapshot.a11y?.expanded).toBe(true);
+      expect(snapshot.a11y?.checked).toBe('mixed');
+    });
+
+    it('should support new v2.0 layers', () => {
+      const causality: CausalityInfo = {
+        events: {
+          listeners: [
+            { type: 'click', capture: false, source: 'Button.tsx:15' },
+          ],
+          blockingHandlers: [],
+        },
+        stackingContext: {
+          isStackingContext: false,
+          parentContext: null,
+          effectiveZIndex: 0,
+        },
+        layoutConstraints: ['Width constrained by flex-basis'],
+      };
+
+      const perception: PerceptionInfo = {
+        affordance: {
+          looksInteractable: true,
+          isInteractable: true,
+          dissonanceScore: 0,
+        },
+        visibility: {
+          isOccluded: false,
+          effectiveOpacity: 1,
+        },
+        legibility: {
+          contrastRatio: 7.5,
+          wcagStatus: 'pass',
+          effectiveBgColor: 'rgb(255, 255, 255)',
+        },
+        usability: {
+          touchTargetSize: '120x40',
+          isTouchTargetValid: false,
+        },
+      };
+
+      const metal: MetalInfo = {
+        pipeline: {
+          layerPromoted: false,
+          layoutThrashingRisk: 'none',
+        },
+        performance: {
+          renderCount: 3,
+          lastRenderReason: "Prop 'onClick' changed identity",
+        },
+        memory: {
+          listenerCount: 1,
+        },
+      };
+
+      const systemic: SystemicInfo = {
+        impact: {
+          importCount: 15,
+          riskLevel: 'Moderate',
+        },
+        designSystem: {
+          tokenMatches: [{ property: 'backgroundColor', token: 'blue-500' }],
+          deviations: [],
+        },
+      };
+
+      const snapshot: SemanticSnapshot = {
+        role: 'button',
+        name: 'Submit',
+        tagName: 'button',
+        framework: {
+          type: 'react',
+          displayName: 'SubmitButton',
+        },
+        geometry: { x: 0, y: 0, width: 120, height: 40, visible: true },
+        styles: {
+          display: 'inline-flex',
+          position: 'relative',
+          padding: '8px 16px',
+          margin: '0px',
+          color: 'white',
+          backgroundColor: 'blue',
+          fontFamily: 'sans-serif',
+          zIndex: 'auto',
+        },
+        causality,
+        perception,
+        metal,
+        systemic,
+        timestamp: Date.now(),
+        url: 'http://localhost:3000/',
+      };
+
+      expect(snapshot.causality?.events.listeners).toHaveLength(1);
+      expect(snapshot.perception?.affordance.dissonanceScore).toBe(0);
+      expect(snapshot.metal?.performance.renderCount).toBe(3);
+      expect(snapshot.systemic?.impact.riskLevel).toBe('Moderate');
     });
   });
 
@@ -147,8 +304,7 @@ describe('@eyeglass/types', () => {
         role: 'button',
         name: '',
         tagName: 'button',
-        framework: { name: 'react' as const },
-        a11y: { label: null, description: null, disabled: false, hidden: false },
+        framework: { type: 'react' as const },
         geometry: { x: 0, y: 0, width: 100, height: 40, visible: true },
         styles: {
           display: 'block',
@@ -244,6 +400,31 @@ describe('@eyeglass/types', () => {
       ];
 
       expect(events).toHaveLength(4);
+    });
+  });
+
+  describe('Hook and Context types', () => {
+    it('should support HookInfo', () => {
+      const hooks: HookInfo[] = [
+        { name: 'useState', value: 0, label: 'count' },
+        { name: 'useEffect' },
+        { name: 'useMemo', value: { cached: true } },
+        { name: 'useRef', value: null },
+        { name: 'useContext', value: { theme: 'dark' } },
+      ];
+
+      expect(hooks).toHaveLength(5);
+      expect(hooks[0].label).toBe('count');
+    });
+
+    it('should support ContextInfo', () => {
+      const contexts: ContextInfo[] = [
+        { name: 'ThemeContext', value: { mode: 'dark', colors: {} } },
+        { name: 'AuthContext', value: { user: null, isAuthenticated: false } },
+      ];
+
+      expect(contexts).toHaveLength(2);
+      expect(contexts[0].name).toBe('ThemeContext');
     });
   });
 });
